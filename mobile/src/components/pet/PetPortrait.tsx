@@ -30,6 +30,9 @@ type PetPortraitProps = {
   onActEnd?: () => void;
   /** the pet rests with its eyes closed (memorial mode) */
   resting?: boolean;
+  /** the rig walks in place (the stage moves it) and faces the way it is going */
+  walking?: boolean;
+  facing?: "left" | "right";
   /** height of the pet, in layout units; the box is that tall plus room for the shadow */
   size: number;
   mood?: PetMood;
@@ -89,6 +92,8 @@ export default function PetPortrait({
   act = null,
   onActEnd,
   resting = false,
+  walking = false,
+  facing = "left",
   size,
   mood = "calm",
   reaction = null,
@@ -230,7 +235,7 @@ export default function PetPortrait({
 
       {hasRig ? (
         <Animated.View style={[styles.sprite, { width: size, height: size, left: (boxWidth - size) / 2, top: 0, transform, transformOrigin: "50% 100%" }]}>
-          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} resting={resting} />
+          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} resting={resting} walking={walking} facing={facing} />
         </Animated.View>
       ) : isPlaceholder ? (
         <View style={[styles.placeholder, { width: size * 0.82, height: size * 0.82, borderRadius: size * 0.41, top: size * 0.09, left: (boxWidth - size * 0.82) / 2 }]}>

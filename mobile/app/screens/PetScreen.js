@@ -241,6 +241,7 @@ export default function PetScreen() {
           <GardenStage
             height={sceneHeight}
             variant="pet"
+            petWander
             petImageSources={sources}
             petLook={look}
             plants={scenePlants}

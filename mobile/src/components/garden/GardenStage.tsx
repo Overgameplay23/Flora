@@ -16,6 +16,7 @@ import PetPortrait, { PetMood, PetReaction } from "../pet/PetPortrait";
 import { dayPhase, phaseWash, showStars } from "../../domain/timeOfDay";
 import type { PetAct } from "../pet/vector/PetRig";
 import type { PetLook } from "../../domain/petLook";
+import { nextWanderTarget, wanderDelay } from "../../domain/wander";
 import {
   ScenePlantInput,
   computeSceneFrame,
@@ -55,6 +56,8 @@ type GardenStageProps = {
   hour?: number;
   /** memorial mode: the pet rests, the light is soft and still */
   petResting?: boolean;
+  /** now and then the pet ambles a few steps along the grass (off while resting, acting, or reduced motion) */
+  petWander?: boolean;
 };
 
 function useReducedMotion() {
@@ -120,6 +123,7 @@ export default function GardenStage({
   hidePet = false,
   hour,
   petResting = false,
+  petWander = false,
 }: GardenStageProps) {
   // The garden follows the clock: a wash for the time of day over background and sprites alike, and a
   // few stars once it is dark. Re-evaluated when the component re-renders (focus, data changes).
@@ -173,6 +177,58 @@ export default function GardenStage({
     petGround.x >= width / 2 ? { paddingLeft: 2 * petGround.x - width } : { paddingRight: width - 2 * petGround.x };
   const renderSource = petLook ? "rig" : isPlaceholder ? "placeholder" : petImageSources?.stylized ? "stylized" : petImageSources?.cutout ? "cutout" : petImageSources?.photo ? "photo" : "originalMasked";
 
+  // ---- wander: now and then the illustrated pet ambles a few steps along the grass and settles ------
+  const wanderX = useRef(new Animated.Value(0)).current;
+  const wanderPos = useRef(0);
+  const [walking, setWalking] = useState(false);
+  const [facing, setFacing] = useState<"left" | "right">("left");
+  useEffect(() => {
+    const id = wanderX.addListener(({ value }) => {
+      wanderPos.current = value;
+    });
+    return () => wanderX.removeListener(id);
+  }, [wanderX]);
+  const wanderActive = petWander && !!petLook && !hidePet && !petResting && !reducedMotion && !petAct;
+  const wanderBounds = useMemo(
+    () => ({
+      min: -Math.max(0, Math.min(frame.width * 0.16, petGround.x - frame.left - petHeight * 0.45)),
+      max: Math.max(0, Math.min(frame.width * 0.1, frame.left + frame.width - petGround.x - petHeight * 0.45)),
+      minStep: Math.max(12, petHeight * 0.18),
+    }),
+    [frame.left, frame.width, petGround.x, petHeight]
+  );
+  useEffect(() => {
+    if (!wanderActive || frame.width <= 0) return undefined;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let running: Animated.CompositeAnimation | null = null;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!alive) return;
+        const plan = nextWanderTarget(wanderPos.current, wanderBounds);
+        if (!plan) {
+          schedule();
+          return;
+        }
+        setFacing(plan.facing);
+        setWalking(true);
+        running = Animated.timing(wanderX, { toValue: plan.target, duration: plan.duration, easing: Easing.linear, useNativeDriver: true });
+        running.start(({ finished }) => {
+          if (!alive) return;
+          setWalking(false);
+          if (finished) schedule();
+        });
+      }, wanderDelay());
+    };
+    schedule();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+      running?.stop();
+      setWalking(false);
+    };
+  }, [frame.width, wanderActive, wanderBounds, wanderX]);
+
   return (
     <View
       onLayout={onLayout}
@@ -220,20 +276,24 @@ export default function GardenStage({
         pointerEvents="box-none"
         style={[styles.petRow, petRowPadding, { top: petGround.y - petHeight, zIndex: 10 + Math.round(petGround.y) }]}
       >
-        <PetPortrait
-          sources={petImageSources}
-          look={petLook}
-          size={petHeight}
-          mood={petMood}
-          reaction={petReaction}
-          onReactionEnd={onPetReactionEnd}
-          onPress={onPetPress}
-          act={petAct}
-          onActEnd={onPetActEnd}
-          resting={petResting}
-          allowOriginal={allowOriginal}
-          emptyLabel="Add pet"
-        />
+        <Animated.View style={{ transform: [{ translateX: wanderX }] }}>
+          <PetPortrait
+            sources={petImageSources}
+            look={petLook}
+            size={petHeight}
+            mood={petMood}
+            reaction={petReaction}
+            onReactionEnd={onPetReactionEnd}
+            onPress={onPetPress}
+            act={petAct}
+            onActEnd={onPetActEnd}
+            resting={petResting}
+            walking={walking}
+            facing={facing}
+            allowOriginal={allowOriginal}
+            emptyLabel="Add pet"
+          />
+        </Animated.View>
       </View>
       )}
 

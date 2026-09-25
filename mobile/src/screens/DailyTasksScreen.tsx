@@ -1,11 +1,18 @@
-import { useState, useEffect } from "react";
-import { View, Text, Pressable, SafeAreaView, FlatList, ActivityIndicator } from "react-native";
+// Every task for today in one list, in the garden's own visual language. The rows are the same
+// cards as Home; the copy avoids "improve your mood" bargaining (product strategy report).
+import { useCallback, useState } from "react";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { notify } from "../utils/confirm";
-import { Feather } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { usePet } from "../hooks/usePet";
+import PetPortrait from "../components/pet/PetPortrait";
+import FinchTaskCard from "../components/finchHome/FinchTaskCard";
 import { playDing } from "../utils/sfx";
 import { completeTaskWithResilience, completionDateKey } from "../services/taskCompletion";
+import { getTaskPoints } from "../domain/taskPoints";
+import { isPlayTask } from "../games/playStatsLogic";
 
 type Task = {
   id: number | string;
@@ -16,73 +23,76 @@ type Task = {
   points?: number | null;
 };
 
-export default function DailyTasksScreen({ navigation }: any) {
+const ICONS = ["droplet", "book", "feather", "sun", "wind", "heart"];
+
+export default function DailyTasksScreen() {
   const { user } = useAuth();
+  const { sources, look, displayName, memorial } = usePet();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingTaskIds, setCompletingTaskIds] = useState<Record<string, boolean>>({});
   const [completingAll, setCompletingAll] = useState(false);
   const [taskMutationNoticeById, setTaskMutationNoticeById] = useState<Record<string, { type: "error" | "queued"; message: string }>>({});
 
-  useEffect(() => {
-    const fetchTasks = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-      const { data: rows, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("active", true)
-        .order("sort_order")
-        .order("created_at");
-      if (error) {
-        console.error(error);
-        setLoading(false);
-        return;
-      }
-      const { data: completionRows, error: completionError } = await supabase
-        .from("task_completions")
-        .select("task_id")
-        .eq("user_id", user.id)
-        .eq("completed_date", completionDateKey());
-      if (completionError) {
-        console.error(completionError);
-      }
-      const completedIds = new Set((completionRows || []).map((row) => String(row.task_id)));
-      const merged = (rows || []).map((task) => ({
-        id: task.id,
-        title: task.title,
-        done: completedIds.has(String(task.id)),
-        category: task.category ?? task.type ?? null,
-        difficulty: task.difficulty ?? null,
-        points: Number.isFinite(Number(task.points)) ? Number(task.points) : null,
-      }));
-      setTasks(merged);
-      setTaskMutationNoticeById((prev) => {
-        const next = { ...prev };
-        merged.forEach((task) => {
-          if (task.done) {
-            delete next[String(task.id)];
-          }
-        });
-        return next;
-      });
+  const fetchTasks = useCallback(async () => {
+    if (!user?.id) {
       setLoading(false);
-    };
-    fetchTasks();
+      return;
+    }
+    const { data: rows, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("active", true)
+      .order("sort_order")
+      .order("created_at");
+    if (error) {
+      console.error(error);
+      setLoading(false);
+      return;
+    }
+    const { data: completionRows, error: completionError } = await supabase
+      .from("task_completions")
+      .select("task_id")
+      .eq("user_id", user.id)
+      .eq("completed_date", completionDateKey());
+    if (completionError) {
+      console.error(completionError);
+    }
+    const completedIds = new Set((completionRows || []).map((row) => String(row.task_id)));
+    const merged = (rows || []).map((task) => ({
+      id: task.id,
+      title: task.title,
+      done: completedIds.has(String(task.id)),
+      category: task.category ?? task.type ?? null,
+      difficulty: task.difficulty ?? null,
+      points: Number.isFinite(Number(task.points)) ? Number(task.points) : null,
+    }));
+    setTasks(merged);
+    setTaskMutationNoticeById((prev) => {
+      const next = { ...prev };
+      merged.forEach((task) => {
+        if (task.done) delete next[String(task.id)];
+      });
+      return next;
+    });
+    setLoading(false);
   }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTasks();
+    }, [fetchTasks])
+  );
 
   const toggleTask = async (id: number | string, options?: { retry?: boolean }) => {
     const retry = !!options?.retry;
     const task = tasks.find((t) => t.id === id);
     if (!task || !user?.id) return;
     if (task.done) {
-      notify("Already completed today", "This task was already completed today.");
+      notify("Already done today", "That one is already in the garden.");
       return;
     }
-
     const key = String(id);
     if (completingTaskIds[key] || completingAll) return;
 
@@ -96,32 +106,17 @@ export default function DailyTasksScreen({ navigation }: any) {
       const mutation = await completeTaskWithResilience({
         taskId: id,
         retry,
-        eventMeta: {
-          category: task.category ?? null,
-          difficulty: task.difficulty ?? null,
-          points: task.points ?? null,
-        },
+        eventMeta: { category: task.category ?? null, difficulty: task.difficulty ?? null, points: task.points ?? null },
       });
       if (mutation.state === "queued") {
-        setTaskMutationNoticeById((prev) => ({
-          ...prev,
-          [key]: { type: "queued", message: "Queued. Will sync when online." },
-        }));
+        setTaskMutationNoticeById((prev) => ({ ...prev, [key]: { type: "queued", message: "Queued. Will sync when online." } }));
         return;
       }
-
-      const result = mutation.result;
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: true } : t)));
-      if (result.inserted) {
-        playDing();
-      } else {
-        notify("Already completed today", "This task was already completed today.");
-      }
+      if (mutation.result.inserted) playDing();
+      else notify("Already done today", "That one is already in the garden.");
     } catch (error) {
-      setTaskMutationNoticeById((prev) => ({
-        ...prev,
-        [key]: { type: "error", message: "Couldn't save. Tap to retry." },
-      }));
+      setTaskMutationNoticeById((prev) => ({ ...prev, [key]: { type: "error", message: "Couldn't save. Tap to retry." } }));
       console.error("TASK_COMPLETE_ERROR", error);
     } finally {
       setCompletingTaskIds((prev) => {
@@ -136,138 +131,131 @@ export default function DailyTasksScreen({ navigation }: any) {
     if (!user?.id || completingAll) return;
     const incomplete = tasks.filter((task) => !task.done);
     if (incomplete.length === 0) return;
-
     setCompletingAll(true);
     let insertedCount = 0;
-    let alreadyCompletedCount = 0;
     try {
       for (const task of incomplete) {
         const taskKey = String(task.id);
         const mutation = await completeTaskWithResilience({
           taskId: task.id,
-          eventMeta: {
-            category: task.category ?? null,
-            difficulty: task.difficulty ?? null,
-            points: task.points ?? null,
-          },
+          eventMeta: { category: task.category ?? null, difficulty: task.difficulty ?? null, points: task.points ?? null },
         });
         if (mutation.state === "queued") {
-          setTaskMutationNoticeById((prev) => ({
-            ...prev,
-            [taskKey]: { type: "queued", message: "Queued. Will sync when online." },
-          }));
+          setTaskMutationNoticeById((prev) => ({ ...prev, [taskKey]: { type: "queued", message: "Queued. Will sync when online." } }));
           continue;
         }
-        const result = mutation.result;
         setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: true } : t)));
-        if (result.inserted) insertedCount += 1;
-        else alreadyCompletedCount += 1;
+        if (mutation.result.inserted) insertedCount += 1;
       }
-      if (insertedCount > 0) {
-        playDing();
-      }
-      if (alreadyCompletedCount > 0) {
-        notify("Already completed today", "Some tasks were already completed today.");
-      }
+      if (insertedCount > 0) playDing();
     } catch (error) {
       console.error("TASK_COMPLETE_ALL_ERROR", error);
-      setTaskMutationNoticeById((prev) => ({
-        ...prev,
-        __all__: { type: "error", message: "Couldn't save. Tap a task to retry." },
-      }));
+      setTaskMutationNoticeById((prev) => ({ ...prev, __all__: { type: "error", message: "Couldn't save everything. Tap a task to retry." } }));
     } finally {
       setCompletingAll(false);
     }
   };
 
-  const allTasksCompleted = tasks.length > 0 && tasks.every((task) => task.done);
+  const doneCount = tasks.filter((t) => t.done).length;
+  const allDone = tasks.length > 0 && doneCount === tasks.length;
+  const remaining = tasks.length - doneCount;
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator />
-      </SafeAreaView>
+      <View style={styles.center}>
+        <ActivityIndicator color="#35d07f" />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f172a", padding: 16 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Feather name="arrow-left" size={24} color="#e2e8f0" />
-        </Pressable>
-        <Text style={{ color: "#e2e8f0", fontSize: 18, fontWeight: "600" }}>Daily Tasks</Text>
-        <View style={{ width: 24 }} />
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.hero}>
+        <PetPortrait sources={sources} look={look} size={64} mood={allDone ? "happy" : "calm"} resting={!!memorial} allowOriginal emptyLabel="Pet" style={styles.heroPet} />
+        <View style={styles.heroBody}>
+          <Text style={styles.heroTitle}>Today with {displayName}</Text>
+          <Text style={styles.heroLine}>
+            {tasks.length === 0
+              ? "Nothing on the list yet."
+              : allDone
+                ? "All done. Nothing more is expected today."
+                : `${doneCount} of ${tasks.length} done. Do what fits, in any order.`}
+          </Text>
+        </View>
       </View>
 
-      <FlatList
-        data={tasks}
-        keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={() => (
-          <View>
-            <Text style={{ color: "rgba(148,163,184,0.9)", marginTop: 6 }}>Complete these tasks to improve your mood.</Text>
-            {taskMutationNoticeById.__all__?.type === "error" ? (
-              <Text style={{ color: "#fca5a5", marginTop: 6, fontSize: 12 }}>{taskMutationNoticeById.__all__.message}</Text>
-            ) : null}
-          </View>
-        )}
-        ListEmptyComponent={<Text style={{ color: "rgba(148,163,184,0.8)" }}>No tasks yet.</Text>}
-        renderItem={({ item }) => {
-          const taskKey = String(item.id);
-          const isSaving = !!completingTaskIds[taskKey];
-          const notice = taskMutationNoticeById[taskKey];
+      {taskMutationNoticeById.__all__?.type === "error" ? <Text style={styles.errorLine}>{taskMutationNoticeById.__all__.message}</Text> : null}
+
+      {tasks.length === 0 ? (
+        <Text style={styles.empty}>No tasks yet. Edit your habits from Home to add some.</Text>
+      ) : (
+        tasks.map((task, index) => {
+          const key = String(task.id);
+          const notice = taskMutationNoticeById[key];
+          const isSaving = !!completingTaskIds[key];
           return (
-            <View style={{ marginVertical: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", padding: 12, backgroundColor: "rgba(15,23,42,0.7)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(148,163,184,0.25)" }}>
-                <Pressable
-                  onPress={() => toggleTask(item.id)}
-                  disabled={item.done || completingAll || isSaving}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderWidth: 2,
-                    borderColor: item.done ? "#34d399" : "rgba(148,163,184,0.6)",
-                    backgroundColor: item.done ? "rgba(52,211,153,0.25)" : "transparent",
-                    borderRadius: 6,
-                    marginRight: 12,
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: item.done ? "#a7f3d0" : "#e2e8f0", textDecorationLine: item.done ? "line-through" : "none" }}>
-                    {item.title}
-                  </Text>
-                  {isSaving ? <Text style={{ color: "#fcd34d", marginTop: 4, fontSize: 12 }}>Saving...</Text> : null}
-                </View>
-              </View>
+            <View key={key} style={styles.row}>
+              <FinchTaskCard
+                title={task.title}
+                reward={`${getTaskPoints({ title: task.title, category: task.category, points: task.points, difficulty: task.difficulty == null ? null : String(task.difficulty) })} pts`}
+                icon={isPlayTask(task.title) ? "play" : ICONS[index % ICONS.length]}
+                completed={task.done}
+                saving={isSaving}
+                disabled={task.done || isSaving || completingAll}
+                onToggle={() => toggleTask(task.id)}
+              />
               {notice?.type === "error" ? (
-                <Pressable onPress={() => toggleTask(item.id, { retry: true })}>
-                  <Text style={{ color: "#fca5a5", marginTop: 6, fontSize: 12, textDecorationLine: "underline" }}>{notice.message}</Text>
+                <Pressable onPress={() => toggleTask(task.id, { retry: true })}>
+                  <Text style={styles.errorLine}>{notice.message}</Text>
                 </Pressable>
               ) : null}
-              {notice?.type === "queued" ? (
-                <Text style={{ color: "#fcd34d", marginTop: 6, fontSize: 12 }}>{notice.message}</Text>
-              ) : null}
+              {notice?.type === "queued" ? <Text style={styles.queuedLine}>{notice.message}</Text> : null}
             </View>
           );
-        }}
-        ListFooterComponent={() => (
-          <Pressable
-            onPress={completeAll}
-            disabled={allTasksCompleted || completingAll}
-            style={{
-              marginTop: 16,
-              paddingVertical: 12,
-              borderRadius: 12,
-              alignItems: "center",
-              backgroundColor: allTasksCompleted || completingAll ? "rgba(148,163,184,0.2)" : "#3b82f6",
-            }}
-          >
-            <Text style={{ color: "#e2e8f0", fontWeight: "700" }}>
-              {completingAll ? "Completing..." : "Complete All"}
-            </Text>
-          </Pressable>
-        )}
-      />
-    </SafeAreaView>
+        })
+      )}
+
+      {remaining > 1 && !memorial ? (
+        <Pressable style={[styles.allButton, completingAll && styles.allButtonBusy]} onPress={completeAll} disabled={completingAll} accessibilityRole="button" accessibilityLabel="Mark the rest done">
+          <Text style={styles.allButtonText}>{completingAll ? "Saving…" : `Mark the other ${remaining} done`}</Text>
+        </Pressable>
+      ) : null}
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#0f1420" },
+  content: { padding: 16, paddingBottom: 40 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
+  hero: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(53,208,127,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(53,208,127,0.28)",
+    marginBottom: 14,
+  },
+  heroPet: { marginRight: 12 },
+  heroBody: { flex: 1 },
+  heroTitle: { color: "#f8fafc", fontSize: 17, fontWeight: "800" },
+  heroLine: { marginTop: 4, color: "rgba(226,232,240,0.9)", fontSize: 14, lineHeight: 20 },
+  row: { marginBottom: 2 },
+  errorLine: { color: "#fca5a5", marginTop: 4, marginBottom: 8, fontSize: 12, textDecorationLine: "underline" },
+  queuedLine: { color: "#fcd34d", marginTop: 4, marginBottom: 8, fontSize: 12 },
+  empty: { color: "rgba(148,163,184,0.85)", fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 24 },
+  allButton: {
+    marginTop: 18,
+    alignSelf: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(53,208,127,0.6)",
+    backgroundColor: "rgba(53,208,127,0.14)",
+  },
+  allButtonBusy: { opacity: 0.6 },
+  allButtonText: { color: "#86efac", fontWeight: "700", fontSize: 14 },
+});

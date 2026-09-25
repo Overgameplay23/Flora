@@ -582,6 +582,16 @@ Screens: `docs/screenshots/2026-09-25-journal/`.
 
 Owner decision (2026-09-25): "retire the chat screen for now … we can add an API; designed prompts are not good enough." The `PetChat` route is unregistered and its two entry points removed (Profile row; Pet tab tile, which now opens the Journal). Nothing is deleted: `src/screens/PetChatScreen.tsx`, `src/services/petChat.ts` and `supabase/functions/pet-chat` stay as they were, ready for a rebuild once a provider API exists.
 
+### 6.24 Seventeenth change set — 2026-09-25: the pet lives in the garden; Daily Tasks in the garden's style
+
+Screens: `docs/screenshots/2026-09-25-pet-life/` (Home at 0 s, 42 s and 72 s; the wave; Daily Tasks).
+
+**The pet moves about.** Owner ask: "cute animations", "it should look like they are in the environment". The rig gained two front legs on their own pivots, a `walking` gait (legs alternate, body bobs) and a `facing` mirror. `GardenStage` gained `petWander`: every 14–40 s (`src/domain/wander.ts`, 4 tests) the pet picks a spot within a strip of grass either side of its home point (bounded so it never leaves the painting), turns to face that way, walks there at a small-pet pace, and settles; a third of the time it heads home. Off while resting (memorial), while acting out a task, while reduced motion is on, and for photo pets (no rig). Home and the Pet tab pass `petWander`; the onboarding and welcome scenes do not.
+
+**Small life.** The idle scheduler now also does a sideways glance (eyes shift, hold, return) and runs a little more often (11–30 s instead of 18–40 s). Tapping the pet to say hello adds a **paw wave** with the near front leg on top of the head tilt and hearts.
+
+**Daily Tasks** ("See all" on Home) had its own header under the navigator's, plain rows, a blue "Complete All" and the line "Complete these tasks to improve your mood." It now uses the same task cards as Home, a "Today with <pet>" strip with the pet, "x of y done. Do what fits, in any order.", and a quiet "Mark the other N done" link that only appears when more than one is left (hidden during a memorial). The already-done notice reads "That one is already in the garden."
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

@@ -34,6 +34,10 @@ type PetRigProps = {
   reducedMotion?: boolean;
   /** the pet rests with its eyes closed (memorial mode); no idle behaviours, no reactions */
   resting?: boolean;
+  /** legs swing and the body bobs while the stage carries the pet along (garden wander) */
+  walking?: boolean;
+  /** which way the pet faces; the rig is drawn facing left and mirrored for right */
+  facing?: "left" | "right";
 };
 
 const OUTLINE_W = 2.6;
@@ -43,7 +47,7 @@ const OUTLINE_W = 2.6;
  * their own pivot. Breathing, blinking, tail wags and ear twitches run by mood; reactions and acts
  * are one-shot sequences. Nothing here needs a native module, so it runs in Expo Go and on web.
  */
-export default function PetRig({ look, size, mood = "calm", reaction = null, onReactionEnd, act = null, onActEnd, reducedMotion = false, resting = false }: PetRigProps) {
+export default function PetRig({ look, size, mood = "calm", reaction = null, onReactionEnd, act = null, onActEnd, reducedMotion = false, resting = false, walking = false, facing = "left" }: PetRigProps) {
   const p = useMemo(() => palette(look), [look]);
   const head = useMemo(() => headGeometry(look), [look]);
   const body = useMemo(() => bodyGeometry(look), [look]);
@@ -59,6 +63,9 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
   const headTilt = useRef(new Animated.Value(0)).current;
   const headNod = useRef(new Animated.Value(0)).current;
   const stretch = useRef(new Animated.Value(0)).current;
+  const legSwing = useRef(new Animated.Value(0)).current;
+  const gaze = useRef(new Animated.Value(0)).current;
+  const wave = useRef(new Animated.Value(0)).current;
   const still = reducedMotion;
 
   // ---- breathing --------------------------------------------------------------------------------------
@@ -157,7 +164,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
 
   // ---- idle life: now and then a little stretch or a head tilt, never on a fixed rhythm ------------------
   useEffect(() => {
-    if (still || act || resting) return undefined;
+    if (still || act || resting || walking) return undefined;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
@@ -165,26 +172,52 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
         if (!alive) return;
         const pick = Math.random();
         const animation =
-          pick < 0.5
+          pick < 0.3
             ? Animated.sequence([
                 Animated.timing(stretch, { toValue: 0.7, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
                 Animated.delay(380),
                 Animated.timing(stretch, { toValue: 0, duration: 460, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
               ])
-            : Animated.sequence([
-                Animated.timing(headTilt, { toValue: pick < 0.75 ? 0.7 : -0.7, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
-                Animated.delay(900),
-                Animated.timing(headTilt, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-              ]);
+            : pick < 0.65
+              ? Animated.sequence([
+                  // a glance to one side, the way a pet notices something
+                  Animated.timing(gaze, { toValue: pick < 0.48 ? 1 : -1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+                  Animated.delay(600 + Math.random() * 900),
+                  Animated.timing(gaze, { toValue: 0, duration: 220, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+                ])
+              : Animated.sequence([
+                  Animated.timing(headTilt, { toValue: pick < 0.83 ? 0.7 : -0.7, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
+                  Animated.delay(900),
+                  Animated.timing(headTilt, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+                ]);
         animation.start(() => alive && schedule());
-      }, 18000 + Math.random() * 22000);
+      }, 11000 + Math.random() * 19000);
     };
     schedule();
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [act, headTilt, resting, still, stretch]);
+  }, [act, gaze, headTilt, resting, still, stretch, walking]);
+
+  // ---- walking: legs alternate and the body bobs while the stage carries the pet along ----------------
+  useEffect(() => {
+    if (!walking || still || resting) {
+      legSwing.setValue(0);
+      return undefined;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(legSwing, { toValue: 1, duration: 200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(legSwing, { toValue: -1, duration: 200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      Animated.timing(legSwing, { toValue: 0, duration: 120, useNativeDriver: true }).start();
+    };
+  }, [legSwing, resting, still, walking]);
 
   // ---- resting pose -----------------------------------------------------------------------------------
   useEffect(() => {
@@ -203,6 +236,18 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
           Animated.timing(headTilt, { toValue: 0, duration: 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
         ]);
     animation.start();
+    if (reaction === "love" && !still) {
+      // a little wave with the near paw
+      Animated.sequence([
+        Animated.timing(wave, { toValue: 1, duration: 220, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
+        Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.delay(120),
+        Animated.timing(wave, { toValue: 0, duration: 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]).start();
+    }
     if (reaction === "cheer" && !still) {
       Animated.sequence([
         Animated.timing(earTwitch, { toValue: 1, duration: 120, useNativeDriver: true }),
@@ -293,6 +338,15 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
   const earRotL = earTwitch.interpolate({ inputRange: [0, 1], outputRange: ["0deg", look.ears === "floppy" ? "-12deg" : "-9deg"] });
   const earRotR = earTwitch.interpolate({ inputRange: [0, 1], outputRange: ["0deg", look.ears === "floppy" ? "12deg" : "9deg"] });
   const eyeScaleY = blink;
+  const walkBob = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [-size * 0.014, 0, -size * 0.014] });
+  const bodyLift = Animated.add(bodyHop, walkBob);
+  const headLift = Animated.add(headY, walkBob);
+  const gazeX = gaze.interpolate({ inputRange: [-1, 0, 1], outputRange: [-size * 0.022, 0, size * 0.022] });
+  const legRotL = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-16deg", "0deg", "16deg"] });
+  const legRotR = Animated.add(
+    legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [16, 0, -16] }),
+    wave.interpolate({ inputRange: [0, 1], outputRange: [0, -78] })
+  ).interpolate({ inputRange: [-100, 100], outputRange: ["-100deg", "100deg"] });
 
   const mouthMood = resting ? "neutral" : mood === "sad" ? "sad" : mood === "excited" ? "open" : mood === "calm" || mood === "neutral" || mood === "sleepy" ? "neutral" : "happy";
   const layer = { position: "absolute" as const, left: 0, top: 0, width: size, height: size };
@@ -302,7 +356,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
   const paws = look.marking === "socks" || look.marking === "tuxedo";
 
   return (
-    <View style={{ width: size, height: size }} pointerEvents="none">
+    <View style={{ width: size, height: size, transform: [{ scaleX: facing === "right" ? -1 : 1 }] }} pointerEvents="none">
       {/* tail */}
       <Animated.View style={[layer, { transformOrigin: toOrigin(piv.tail), transform: [{ rotate: tailRotate }] }]}>
         <Svg {...svgProps}>
@@ -315,7 +369,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       </Animated.View>
 
       {/* body + legs */}
-      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.body), transform: [{ translateY: bodyHop }, { scaleY: bodyScaleY }, { scaleX: bodyScaleX }] }]}>
+      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.body), transform: [{ translateY: bodyLift }, { scaleY: bodyScaleY }, { scaleX: bodyScaleX }] }]}>
         <Svg {...svgProps}>
           <Ellipse cx={body.cx} cy={body.cy} rx={body.rx} ry={body.ry} fill={p.coat} stroke={p.outline} strokeWidth={OUTLINE_W} />
           {/* chest / belly */}
@@ -327,18 +381,21 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
           {stripes.body.map((d, i) => (
             <Path key={i} d={d} stroke={p.stripe} strokeWidth={4} fill="none" strokeLinecap="round" />
           ))}
-          {/* front legs */}
-          {[-1, 1].map((s) => {
-            const x = body.cx + s * body.legX - body.legW / 2;
-            return (
-              <G key={s}>
-                <Rect x={x} y={legTop} width={body.legW} height={legBottom - legTop} rx={body.legW / 2} fill={p.coat} stroke={p.outline} strokeWidth={OUTLINE_W} />
-                <Ellipse cx={x + body.legW / 2} cy={legBottom - 3} rx={body.legW / 2 + 2} ry={5.5} fill={paws ? p.secondary : p.coatLight} stroke={p.outline} strokeWidth={OUTLINE_W * 0.8} />
-              </G>
-            );
-          })}
         </Svg>
       </Animated.View>
+
+      {/* front legs, each on its own pivot so they can swing (walking) and lift (a wave) */}
+      {[-1, 1].map((s) => {
+        const x = body.cx + s * body.legX - body.legW / 2;
+        return (
+          <Animated.View key={s} style={[layer, { transformOrigin: toOrigin({ x: x + body.legW / 2, y: legTop }), transform: [{ translateY: bodyLift }, { rotate: s < 0 ? legRotL : legRotR }] }]}>
+            <Svg {...svgProps}>
+              <Rect x={x} y={legTop} width={body.legW} height={legBottom - legTop} rx={body.legW / 2} fill={p.coat} stroke={p.outline} strokeWidth={OUTLINE_W} />
+              <Ellipse cx={x + body.legW / 2} cy={legBottom - 3} rx={body.legW / 2 + 2} ry={5.5} fill={paws ? p.secondary : p.coatLight} stroke={p.outline} strokeWidth={OUTLINE_W * 0.8} />
+            </Svg>
+          </Animated.View>
+        );
+      })}
 
       {/* ears (behind the head) */}
       <Animated.View style={[layer, { transformOrigin: toOrigin(piv.earLeft), transform: [{ rotate: earRotL }] }]}>
@@ -355,7 +412,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       </Animated.View>
 
       {/* head + face */}
-      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.head), transform: [{ translateY: headY }, { rotate: headRotate }, { rotate: sadTilt }] }]}>
+      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.head), transform: [{ translateY: headLift }, { rotate: headRotate }, { rotate: sadTilt }] }]}>
         <Svg {...svgProps}>
           <Ellipse cx={head.cx} cy={head.cy} rx={head.rx} ry={head.ry} fill={p.coat} stroke={p.outline} strokeWidth={OUTLINE_W} />
           {look.marking === "mask" ? (
@@ -401,7 +458,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       </Animated.View>
 
       {/* eyes (blink) */}
-      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.eyes), transform: [{ translateY: headY }, { rotate: headRotate }, { rotate: sadTilt }, { scaleY: eyeScaleY }] }]}>
+      <Animated.View style={[layer, { transformOrigin: toOrigin(piv.eyes), transform: [{ translateY: headLift }, { rotate: headRotate }, { rotate: sadTilt }, { translateX: gazeX }, { scaleY: eyeScaleY }] }]}>
         <Svg {...svgProps}>
           {[-1, 1].map((s) => {
             const ex = head.cx + s * 16;

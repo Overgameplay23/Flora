@@ -150,6 +150,7 @@ function FinchGardenHeader({
     <GardenStage
       height={height}
       variant="home"
+      petWander
       petImageSources={petImageSources}
       petLook={petLook}
       plants={plants}
