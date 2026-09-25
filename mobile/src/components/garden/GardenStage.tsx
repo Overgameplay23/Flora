@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import PetPortrait, { PetMood, PetReaction } from "../pet/PetPortrait";
+import { dayPhase, phaseWash, showStars } from "../../domain/timeOfDay";
 import type { PetAct } from "../pet/vector/PetRig";
 import type { PetLook } from "../../domain/petLook";
 import {
@@ -50,6 +51,8 @@ type GardenStageProps = {
   petScale?: number;
   /** draw the garden without any pet (onboarding, before a photo exists) */
   hidePet?: boolean;
+  /** local hour driving the light; defaults to now, fixed in tests/previews */
+  hour?: number;
 };
 
 function useReducedMotion() {
@@ -113,7 +116,13 @@ export default function GardenStage({
   onPetActEnd,
   petScale = 1,
   hidePet = false,
+  hour,
 }: GardenStageProps) {
+  // The garden follows the clock: a wash for the time of day over background and sprites alike, and a
+  // few stars once it is dark. Re-evaluated when the component re-renders (focus, data changes).
+  const phase = dayPhase(hour ?? new Date().getHours());
+  const wash = phaseWash(phase);
+  const stars = showStars(phase);
   const window = useWindowDimensions();
   const [width, setWidth] = useState(window.width);
   const onLayout = (event: LayoutChangeEvent) => {
@@ -225,7 +234,14 @@ export default function GardenStage({
       )}
 
       {/* One lighting wash over background AND sprites, so they read as the same picture. */}
-      <View pointerEvents="none" style={styles.wash} />
+      <View pointerEvents="none" style={[styles.wash, { backgroundColor: wash }]} />
+      {stars ? (
+        <View pointerEvents="none" style={styles.stars}>
+          {STARS.map((star, index) => (
+            <View key={index} style={[styles.star, { left: star.left, top: star.top, width: star.size, height: star.size, borderRadius: star.size / 2, opacity: star.opacity }]} />
+          ))}
+        </View>
+      ) : null}
 
       {children ? <View style={styles.overlay} pointerEvents="box-none">{children}</View> : null}
 
@@ -238,11 +254,32 @@ export default function GardenStage({
   );
 }
 
+const STARS: Array<{ left: `${number}%`; top: `${number}%`; size: number; opacity: number }> = [
+  { left: "8%", top: "6%", size: 3, opacity: 0.9 },
+  { left: "21%", top: "12%", size: 2, opacity: 0.7 },
+  { left: "34%", top: "4%", size: 2.5, opacity: 0.8 },
+  { left: "47%", top: "10%", size: 2, opacity: 0.6 },
+  { left: "58%", top: "3%", size: 3, opacity: 0.85 },
+  { left: "69%", top: "9%", size: 2, opacity: 0.7 },
+  { left: "81%", top: "5%", size: 2.5, opacity: 0.8 },
+  { left: "92%", top: "11%", size: 2, opacity: 0.65 },
+  { left: "15%", top: "18%", size: 2, opacity: 0.5 },
+  { left: "75%", top: "16%", size: 2, opacity: 0.55 },
+];
+
 const styles = StyleSheet.create({
   container: {
     width: "100%",
     overflow: "hidden",
     backgroundColor: "#1d2a1c",
+  },
+  stars: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5001,
+  },
+  star: {
+    position: "absolute",
+    backgroundColor: "#fff7d6",
   },
   sprite: {
     position: "absolute",

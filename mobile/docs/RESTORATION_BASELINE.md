@@ -527,6 +527,10 @@ Evidence: `npm run check` green (17 suites / 104 tests); production web build: H
 
 **Open**: R-79 (L) the analysis cannot tell ear shape or markings from the photo; R-80 (L) PNG photos (some web pickers) skip the suggestion.
 
+### 6.19 Twelfth change set — 2026-09-25: the garden follows the clock
+
+Report: "the room reflects local time". `src/domain/timeOfDay.ts` (tested) splits the day into dawn / morning / day / golden hour / dusk / night; `GardenStage` draws that phase's wash over the whole scene (background and sprites alike, so the pet and plants sit in the same light) and scatters a few stars once it is dark; Home's default title follows it ("Good morning", "Golden hour", "Quiet night"), while the protected-mode and welcome-back titles keep priority. The hour can be fixed through a prop for previews. Verified in the production web build in the morning phase (the night wash and stars are unit-tested values; a fixed-hour preview is a later nicety) (`docs/screenshots/2026-09-25-time-of-day/`).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

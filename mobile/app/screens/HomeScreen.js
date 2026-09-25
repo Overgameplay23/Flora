@@ -32,6 +32,7 @@ import { shortDate } from "../../src/domain/calendar";
 import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
 import { nextLastSeen, returnGreeting, returnStatus } from "../../src/domain/hibernation";
 import { unifiedStreak } from "../../src/domain/streaks";
+import { dayPhase, phaseGreeting } from "../../src/domain/timeOfDay";
 import { isPlayTask } from "../../src/games/playStatsLogic";
 import { supabase } from "../../src/lib/supabase";
 import { isProtectedMood } from "../../src/domain/protectedMode";
@@ -493,7 +494,7 @@ export default function HomeScreen() {
       ? hasExistingCheckin
         ? "That's enough for today"
         : "Go gently today"
-      : "Welcome back";
+      : phaseGreeting(dayPhase(new Date().getHours()));
   const headerSubtitle = returnCopy
     ? returnCopy.subtitle
     : protectedMode
