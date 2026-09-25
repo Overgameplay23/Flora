@@ -15,7 +15,7 @@ const GAMES = [
 /** The play hub: two games, best scores, and the option to make playtime a daily task. */
 export default function PlayScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { sources, look, displayName } = usePet();
+  const { sources, look, displayName, memorial } = usePet();
   const [stats, setStats] = useState<PlayStats | null>(null);
   const [hasTask, setHasTask] = useState<boolean | null>(null);
   const [addingTask, setAddingTask] = useState(false);
@@ -47,6 +47,18 @@ export default function PlayScreen({ navigation }: any) {
       setAddingTask(false);
     }
   };
+
+  if (memorial) {
+    return (
+      <View style={styles.screen}>
+        <View style={[styles.hero, { paddingTop: 40 }]}>
+          <PetPortrait sources={sources} look={look} size={110} mood="calm" allowOriginal resting />
+          <Text style={styles.title}>{displayName} is resting</Text>
+          <Text style={styles.subtitle}>The games are paused while the garden is a memorial. Memories and a quiet minute are on the Pet tab.</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

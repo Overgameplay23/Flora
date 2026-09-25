@@ -34,7 +34,7 @@ function Row({ icon, label, hint, onPress, badge, tone = "default" }) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
-  const { sources: petSources, look: petLook, displayName } = usePet();
+  const { sources: petSources, look: petLook, displayName, memorial } = usePet();
   const { enabled: cycleEnabled } = useCycle();
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +105,7 @@ export default function ProfileScreen({ navigation }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.hero}>
-        <PetPortrait sources={petSources} look={petLook} size={96} mood="calm" allowOriginal emptyLabel="Add pet" />
+        <PetPortrait sources={petSources} look={petLook} size={96} mood="calm" allowOriginal emptyLabel="Add pet" resting={!!memorial} />
         <Text style={styles.heroTitle}>You and {displayName}</Text>
         <Text style={styles.heroEmail} numberOfLines={1}>
           {user?.email || "Signed in"}
@@ -135,6 +135,12 @@ export default function ProfileScreen({ navigation }) {
       <View style={styles.group}>
         <Row icon="camera" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
         <Row icon="message-circle" label={`Talk to ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
+        <Row
+          icon="moon"
+          label={memorial ? `Remembering ${displayName}` : `If ${displayName} has passed away`}
+          hint={memorial ? "Memories, and the way back if this was a mistake" : "A quiet memorial garden, no pressure"}
+          onPress={() => navigation.navigate("Memorial")}
+        />
       </View>
 
       <Text style={styles.sectionTitle}>Account</Text>

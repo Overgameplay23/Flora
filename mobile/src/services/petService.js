@@ -3,8 +3,10 @@ import { sanitizeLegacyPetUrl } from "../utils/petImages";
 
 // Do not query pet columns directly; use fetchPet for schema compatibility.
 const PET_SELECT_NEW =
-  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name, species, look";
+  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name, species, look, memorial_at, memorial_note";
 const PET_SELECT_LEGACY = [
+  // before the 2026-09-25 memorial columns
+  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name, species, look",
   // before the 2026-09-25 species/look columns
   "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name",
   "state, photo_url, original_photo_url",
@@ -40,6 +42,8 @@ function normalizePetRow(row, schemaFallbackUsed) {
       pet_name: null,
       species: null,
       look: null,
+      memorial_at: null,
+      memorial_note: null,
       processing_status: schemaFallbackUsed ? "legacy" : "idle",
       processing_error: null,
       schema_fallback_used: schemaFallbackUsed,
@@ -55,6 +59,8 @@ function normalizePetRow(row, schemaFallbackUsed) {
     pet_name: typeof row.pet_name === "string" ? row.pet_name : null,
     species: row.species === "dog" || row.species === "cat" ? row.species : null,
     look: row.look && typeof row.look === "object" ? row.look : null,
+    memorial_at: typeof row.memorial_at === "string" ? row.memorial_at.slice(0, 10) : null,
+    memorial_note: typeof row.memorial_note === "string" ? row.memorial_note : null,
     processing_status: schemaFallbackUsed ? "legacy" : row.processing_status || "idle",
     processing_error: schemaFallbackUsed ? null : row.processing_error || null,
     schema_fallback_used: schemaFallbackUsed,

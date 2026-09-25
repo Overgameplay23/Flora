@@ -33,6 +33,7 @@ import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain
 import { nextLastSeen, returnGreeting, returnStatus } from "../../src/domain/hibernation";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { dayPhase, phaseGreeting } from "../../src/domain/timeOfDay";
+import { memorialGreeting, memorialReflection } from "../../src/domain/memorial";
 import { isPlayTask } from "../../src/games/playStatsLogic";
 import { supabase } from "../../src/lib/supabase";
 import { isProtectedMood } from "../../src/domain/protectedMode";
@@ -173,7 +174,8 @@ export default function HomeScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   // Re-read on every focus so the key cannot go stale across midnight (R-33).
   const [homeDateKey, setHomeDateKey] = useState(() => todayKey());
-  const { pet, sources: petSources, name: petName, look: petLook, refresh: refreshPet } = usePet();
+  const { pet, sources: petSources, name: petName, look: petLook, memorial, refresh: refreshPet } = usePet();
+  const inMemorial = !!memorial;
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
   const todayMood = toHomeMoodScore(moodState);
@@ -487,7 +489,7 @@ export default function HomeScreen() {
   const profileStreak = unifiedStreak(petRetentionState?.streak_days, profile?.current_streak ?? profile?.streak_count);
   const streakText = profileStreak > 0 ? `${profileStreak} ${profileStreak === 1 ? "day" : "days"} of care in a row` : "a fresh start";
   const moodText = moodState === "happy" ? "feeling happy" : moodState === "sad" ? "having a quiet day" : moodState === "neutral" ? "doing okay" : "settling in";
-  const returnCopy = returnNote ? returnGreeting(returnNote, normalizePetName(petName) || "Your pet") : null;
+  const returnCopy = inMemorial ? memorialGreeting(normalizePetName(petName) || "Your pet") : returnNote ? returnGreeting(returnNote, normalizePetName(petName) || "Your pet") : null;
   const headerTitle = returnCopy
     ? returnCopy.title
     : protectedMode
@@ -691,10 +693,33 @@ export default function HomeScreen() {
             onPetPress={() => setPetReaction("love")}
             petAct={petAct}
             onPetActEnd={() => setPetAct(null)}
-            celebration={celebration}
+            petResting={inMemorial}
+            celebration={inMemorial ? null : celebration}
           />
         </View>
 
+        {inMemorial ? (
+          <View>
+            <View style={styles.sectionSpacing} />
+            <View style={styles.memorialCard}>
+              <Text style={styles.memorialReflection}>{memorialReflection(homeDateKey)}</Text>
+              <Text style={styles.memorialMeta}>Daily tasks and prompts are paused. Check-ins and breathing are still here if you want them.</Text>
+              <View style={styles.memorialActions}>
+                <Pressable style={styles.memorialButton} onPress={() => navigation.navigate("Memorial")} accessibilityRole="button">
+                  <Text style={styles.memorialButtonText}>Memories</Text>
+                </Pressable>
+                <Pressable style={styles.memorialButtonGhost} onPress={() => setBreathingOpen(true)} accessibilityRole="button">
+                  <Text style={styles.memorialButtonGhostText}>One quiet minute</Text>
+                </Pressable>
+                <Pressable style={styles.memorialButtonGhost} onPress={() => navigation.navigate("CheckIn")} accessibilityRole="button">
+                  <Text style={styles.memorialButtonGhostText}>Check in</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
+        {inMemorial ? null : (
+        <View>
         <View style={styles.sectionSpacing} />
         <FinchProgressCard
           current={pointsSnapshot.earnedPointsToday}
@@ -813,6 +838,9 @@ export default function HomeScreen() {
               </View>
             );
           })
+        )}
+
+        </View>
         )}
 
         {__DEV__ ? (
@@ -973,6 +1001,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  memorialCard: {
+    backgroundColor: "rgba(18,24,38,0.95)",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(244,114,182,0.3)",
+  },
+  memorialReflection: { color: "#f8fafc", fontSize: 15, lineHeight: 22 },
+  memorialMeta: { marginTop: 8, color: "rgba(148,163,184,0.9)", fontSize: 12, lineHeight: 17 },
+  memorialActions: { flexDirection: "row", flexWrap: "wrap", marginTop: 12 },
+  memorialButton: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: "#35d07f", marginRight: 8, marginBottom: 8 },
+  memorialButtonText: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  memorialButtonGhost: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: "rgba(148,163,184,0.35)", marginRight: 8, marginBottom: 8 },
+  memorialButtonGhostText: { color: "#e2e8f0", fontSize: 13, fontWeight: "700" },
   cycleCard: {
     marginTop: 12,
     flexDirection: "row",

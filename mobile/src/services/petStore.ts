@@ -8,6 +8,7 @@ import { fetchPet, toPetImageSources, upsertPet } from "./petService";
 import { subscribePetImageCache } from "../utils/petImageCache";
 import type { PetImageSources } from "../components/garden/usePetCandidates";
 import { PetLook, Species, isSpecies, normalizeLook } from "../domain/petLook";
+import { MemorialState, normalizeMemorial } from "../domain/memorial";
 
 export type PetProcessingStatus = "idle" | "processing" | "ready" | "error" | "legacy" | string;
 
@@ -21,6 +22,8 @@ export type PetRecord = {
   pet_name: string | null;
   species: Species | null;
   look: Record<string, unknown> | null;
+  memorial_at: string | null;
+  memorial_note: string | null;
   processing_status: PetProcessingStatus;
   processing_error: string | null;
   schema_fallback_used: boolean;
@@ -36,6 +39,8 @@ export type PetSnapshot = {
   name: string;
   /** the illustrated pet's parameters; null until the person has chosen a species */
   look: PetLook | null;
+  /** set when the real pet has passed away and the garden is a memorial */
+  memorial: MemorialState | null;
   status: PetStatus;
   error: string | null;
   /** bumps on every change so memoised consumers can depend on one number */
@@ -63,12 +68,14 @@ const EMPTY: PetSnapshot = {
   sources: EMPTY_SOURCES,
   name: "",
   look: null,
+  memorial: null,
   status: "idle",
   error: null,
   version: 0,
 };
 
 const LOOK_KEY_PREFIX = "floura:pet-look:";
+const MEMORIAL_KEY_PREFIX = "floura:memorial:";
 
 let snapshot: PetSnapshot = EMPTY;
 const listeners = new Set<Listener>();
@@ -107,6 +114,16 @@ async function resolveLook(userId: string, pet: PetRecord | null): Promise<PetLo
   return null;
 }
 
+/** The memorial from the row when the database has the columns, otherwise the device copy. */
+async function resolveMemorial(userId: string, pet: PetRecord | null): Promise<MemorialState | null> {
+  if (pet && pet.memorial_at) return normalizeMemorial({ since: pet.memorial_at, note: pet.memorial_note });
+  try {
+    const raw = await AsyncStorage.getItem(MEMORIAL_KEY_PREFIX + userId);
+    if (raw) return normalizeMemorial(JSON.parse(raw));
+  } catch {}
+  return null;
+}
+
 /** Loads (or reloads) the pet row for a user. Concurrent calls for the same user share one request. */
 export function refreshPet(userId: string | null | undefined, profilePetPhotoUrl: string | null = null): Promise<PetSnapshot> {
   if (!userId) {
@@ -124,6 +141,7 @@ export function refreshPet(userId: string | null | undefined, profilePetPhotoUrl
     sources: sameUser ? snapshot.sources : toPetImageSources(null, profilePetPhotoUrl),
     name: sameUser ? snapshot.name : "",
     look: sameUser ? snapshot.look : null,
+    memorial: sameUser ? snapshot.memorial : null,
     status: sameUser && snapshot.status === "ready" ? "ready" : "loading",
     error: null,
   });
@@ -133,6 +151,7 @@ export function refreshPet(userId: string | null | undefined, profilePetPhotoUrl
     try {
       const pet = (await fetchPet(userId)) as PetRecord | null;
       const look = await resolveLook(userId, pet);
+      const memorial = await resolveMemorial(userId, pet);
       if (snapshot.userId !== userId) return snapshot; // user changed while loading
       emit({
         userId,
@@ -140,6 +159,7 @@ export function refreshPet(userId: string | null | undefined, profilePetPhotoUrl
         sources: toPetImageSources(pet, profilePetPhotoUrl),
         name: normalizePetName(pet?.pet_name),
         look,
+        memorial,
         status: "ready",
         error: null,
       });
@@ -195,6 +215,35 @@ export async function savePetLook(userId: string, rawLook: PetLook) {
   return { look, storedRemotely: !result?.fallbackUsed };
 }
 
+/** Turns the garden into a memorial (pet row + device copy), applied locally straight away. */
+export async function savePetMemorial(userId: string, state: MemorialState) {
+  const memorial = normalizeMemorial(state);
+  if (!memorial) return null;
+  if (snapshot.userId === userId) {
+    emit({ ...snapshot, memorial, pet: snapshot.pet ? { ...snapshot.pet, memorial_at: memorial.since, memorial_note: memorial.note } : snapshot.pet });
+  }
+  try {
+    await AsyncStorage.setItem(MEMORIAL_KEY_PREFIX + userId, JSON.stringify(memorial));
+  } catch {}
+  await upsertPet(userId, { memorial_at: memorial.since, memorial_note: memorial.note }).catch((error) => {
+    console.warn("MEMORIAL_SAVE_REMOTE_FAILED", error?.message || String(error));
+  });
+  return memorial;
+}
+
+/** Ends the memorial (a mistake, or a new companion moving in). */
+export async function clearPetMemorial(userId: string) {
+  if (snapshot.userId === userId) {
+    emit({ ...snapshot, memorial: null, pet: snapshot.pet ? { ...snapshot.pet, memorial_at: null, memorial_note: null } : snapshot.pet });
+  }
+  try {
+    await AsyncStorage.removeItem(MEMORIAL_KEY_PREFIX + userId);
+  } catch {}
+  await upsertPet(userId, { memorial_at: null, memorial_note: null }).catch((error) => {
+    console.warn("MEMORIAL_CLEAR_REMOTE_FAILED", error?.message || String(error));
+  });
+}
+
 export function clearPetStore() {
   if (snapshot === EMPTY && snapshot.version === 0) return;
   emit({ ...EMPTY });
@@ -211,6 +260,8 @@ function emptyPet(): PetRecord {
     pet_name: null,
     species: null,
     look: null,
+    memorial_at: null,
+    memorial_note: null,
     processing_status: "idle",
     processing_error: null,
     schema_fallback_used: false,

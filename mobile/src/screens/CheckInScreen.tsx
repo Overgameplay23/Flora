@@ -19,6 +19,7 @@ import { logCheckinSubmitted } from "../services/retention";
 import { derivePetState } from "../utils/petState";
 import { isProtectedMood } from "../domain/protectedMode";
 import { ENERGY_WORDS, reflectionIntro, reflectionPrompt } from "../domain/reflection";
+import { memorialPrompt } from "../domain/memorial";
 
 type CheckinCopyOptions = {
   isProtectedMode: boolean;
@@ -75,7 +76,7 @@ export function petMoodForScore(mood: number): PetMood {
 
 export default function CheckInScreen() {
   const { user, profile, setProfile, setUserStats, setPetEmotionState } = useAuth();
-  const { sources: petSources, look: petLook, name: petName } = usePet();
+  const { sources: petSources, look: petLook, name: petName, memorial } = usePet();
   const nav = useNavigation();
   const [mood, setMood] = useState<number>(3);
   const [win, setWin] = useState<string>("");
@@ -211,9 +212,9 @@ export default function CheckInScreen() {
       <Text style={styles.subtitle}>{checkinCopy.subtitle}</Text>
 
       <View style={styles.petPreview}>
-        <PetPortrait sources={petSources} look={petLook} size={132} mood={petMood} allowOriginal />
+        <PetPortrait sources={petSources} look={petLook} size={132} mood={petMood} allowOriginal resting={!!memorial} />
         <View style={styles.speechBubble}>
-          <Text style={styles.speechText}>{petMoodLine(mood, petName)}</Text>
+          <Text style={styles.speechText}>{memorial ? "No pressure today. How are you, really?" : petMoodLine(mood, petName)}</Text>
         </View>
       </View>
 
@@ -236,7 +237,7 @@ export default function CheckInScreen() {
       {!isProtectedMode ? (
         <View style={styles.promptCard}>
           <Text style={styles.promptIntro}>{reflectionIntro(petName)}</Text>
-          <Text style={styles.promptText}>{reflectionPrompt(dateKey, petName)}</Text>
+          <Text style={styles.promptText}>{memorial ? memorialPrompt(petName) : reflectionPrompt(dateKey, petName)}</Text>
         </View>
       ) : null}
       <Text style={styles.fieldLabel}>{checkinCopy.promptLabel}</Text>

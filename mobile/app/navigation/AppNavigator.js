@@ -16,6 +16,7 @@ import PetSetupScreen from '../../src/screens/PetSetupScreen.tsx';
 import OnboardingScreen from '../../src/screens/onboarding/OnboardingScreen';
 import PlayScreen from '../../src/screens/PlayScreen';
 import CycleScreen from '../../src/screens/CycleScreen';
+import MemorialScreen from '../../src/screens/MemorialScreen';
 import FetchGameScreen from '../../src/games/fetch/FetchGameScreen';
 import BubblesGameScreen from '../../src/games/bubbles/BubblesGameScreen';
 import WeeklyReflectionScreen from '../../src/screens/WeeklyReflectionScreen';
@@ -86,6 +87,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PetChat" component={PetChatScreen} options={{ title: "Talk to your pet", headerShown: true }} />
       <Stack.Screen name="Play" component={PlayScreen} options={{ title: "Play", headerShown: true }} />
       <Stack.Screen name="Cycle" component={CycleScreen} options={{ title: "Cycle", headerShown: true }} />
+      <Stack.Screen name="Memorial" component={MemorialScreen} options={{ title: "Remembering", headerShown: true }} />
       <Stack.Screen name="PlayFetch" component={FetchGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
       <Stack.Screen name="PlayBubbles" component={BubblesGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
       <Stack.Screen name="PlantStore" component={PlantStoreScreen} options={{ title: "Plant Store", headerShown: true }} />

@@ -25,6 +25,8 @@ type FinchGardenHeaderProps = {
   onPetPress?: () => void;
   petAct?: PetAct | null;
   onPetActEnd?: () => void;
+  /** memorial mode: the pet rests and the sparkles go quiet */
+  petResting?: boolean;
   /** a short line shown over the scene for a moment (task done, day complete); new id = new toast */
   celebration?: { id: number; text: string } | null;
 };
@@ -99,6 +101,7 @@ function FinchGardenHeader({
   onPetPress,
   petAct = null,
   onPetActEnd,
+  petResting = false,
   celebration = null,
 }: FinchGardenHeaderProps) {
   const subtitle = subtitleText ?? `${streakText} · ${moodText}`;
@@ -157,6 +160,7 @@ function FinchGardenHeader({
       onPetPress={onPetPress}
       petAct={petAct}
       onPetActEnd={onPetActEnd}
+      petResting={petResting}
     >
       <LinearGradient
         pointerEvents="none"
@@ -164,7 +168,7 @@ function FinchGardenHeader({
         style={styles.vignette}
       />
       <View pointerEvents="none" style={styles.sparkleLayer}>
-        {SPARKLES.map((sparkle, index) => {
+        {(petResting ? [] : SPARKLES).map((sparkle, index) => {
           const opacity = sparkleOpacities[index].interpolate({
             inputRange: [0, 1],
             outputRange: [0.05, sparkle.opacity],

@@ -28,6 +28,8 @@ type PetPortraitProps = {
   /** an acted-out routine for the rig (drink, stretch…) */
   act?: PetAct | null;
   onActEnd?: () => void;
+  /** the pet rests with its eyes closed (memorial mode) */
+  resting?: boolean;
   /** height of the pet, in layout units; the box is that tall plus room for the shadow */
   size: number;
   mood?: PetMood;
@@ -86,6 +88,7 @@ export default function PetPortrait({
   look = null,
   act = null,
   onActEnd,
+  resting = false,
   size,
   mood = "calm",
   reaction = null,
@@ -172,7 +175,7 @@ export default function PetPortrait({
   const transform = useMemo(() => {
     const list: any[] = [];
     const still = reducedMotion || isPlaceholder;
-    if (!still && !hasRig) {
+    if (!still && !hasRig && !resting) {
       switch (mood) {
         case "excited":
           list.push({ translateY: idle.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.07] }) });
@@ -212,7 +215,7 @@ export default function PetPortrait({
       });
     }
     return list;
-  }, [activeReaction, hasRig, idle, isPlaceholder, mood, react, reducedMotion, size]);
+  }, [activeReaction, hasRig, idle, isPlaceholder, mood, react, reducedMotion, resting, size]);
 
   const heartsVisible = activeReaction === "love";
   const label =
@@ -227,7 +230,7 @@ export default function PetPortrait({
 
       {hasRig ? (
         <Animated.View style={[styles.sprite, { width: size, height: size, left: (boxWidth - size) / 2, top: 0, transform, transformOrigin: "50% 100%" }]}>
-          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} />
+          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} resting={resting} />
         </Animated.View>
       ) : isPlaceholder ? (
         <View style={[styles.placeholder, { width: size * 0.82, height: size * 0.82, borderRadius: size * 0.41, top: size * 0.09, left: (boxWidth - size * 0.82) / 2 }]}>

@@ -53,6 +53,8 @@ type GardenStageProps = {
   hidePet?: boolean;
   /** local hour driving the light; defaults to now, fixed in tests/previews */
   hour?: number;
+  /** memorial mode: the pet rests, the light is soft and still */
+  petResting?: boolean;
 };
 
 function useReducedMotion() {
@@ -117,12 +119,13 @@ export default function GardenStage({
   petScale = 1,
   hidePet = false,
   hour,
+  petResting = false,
 }: GardenStageProps) {
   // The garden follows the clock: a wash for the time of day over background and sprites alike, and a
   // few stars once it is dark. Re-evaluated when the component re-renders (focus, data changes).
   const phase = dayPhase(hour ?? new Date().getHours());
-  const wash = phaseWash(phase);
-  const stars = showStars(phase);
+  const wash = petResting ? "rgba(120,100,150,0.26)" : phaseWash(phase);
+  const stars = petResting || showStars(phase);
   const window = useWindowDimensions();
   const [width, setWidth] = useState(window.width);
   const onLayout = (event: LayoutChangeEvent) => {
@@ -227,6 +230,7 @@ export default function GardenStage({
           onPress={onPetPress}
           act={petAct}
           onActEnd={onPetActEnd}
+          resting={petResting}
           allowOriginal={allowOriginal}
           emptyLabel="Add pet"
         />

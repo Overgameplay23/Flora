@@ -70,7 +70,8 @@ export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const { pet, sources, look, name, displayName, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
+  const { pet, sources, look, name, displayName, memorial, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
+  const inMemorial = !!memorial;
 
   const [scenePlants, setScenePlants] = useState([]);
   const [reaction, setReaction] = useState(null);
@@ -125,6 +126,10 @@ export default function PetScreen() {
   const sceneHeight = Math.round(Math.min(360, Math.max(260, width * 0.78)));
 
   const handlePetTheDog = useCallback(() => {
+    if (inMemorial) {
+      navigation.navigate("Memorial");
+      return;
+    }
     if (!hasAnyImage && !look) {
       navigation.navigate("Onboarding", { mode: "look" });
       return;
@@ -136,7 +141,7 @@ export default function PetScreen() {
       // Legacy "state" column; harmless, kept so older data readers still see activity.
       upsertPet(user.id, { state: "happy" }).catch(() => {});
     }
-  }, [hasAnyImage, navigation, user?.id]);
+  }, [hasAnyImage, inMemorial, look, navigation, user?.id]);
 
   const openRename = () => {
     setNameDraft(name);
@@ -213,11 +218,12 @@ export default function PetScreen() {
   };
 
   const petHint = useMemo(() => {
+    if (inMemorial) return "Resting peacefully";
     if (!hasAnyImage && !look) return "Choose a look to meet your pet";
     if (petCount === 0) return `Tap ${displayName} to say hello`;
     if (petCount < 3) return `${displayName} liked that`;
     return `${displayName} is very loved today`;
-  }, [displayName, hasAnyImage, petCount]);
+  }, [displayName, hasAnyImage, inMemorial, look, petCount]);
 
   if (status === "loading" && !pet) {
     return (
@@ -242,6 +248,7 @@ export default function PetScreen() {
             petReaction={reaction}
             onPetReactionEnd={() => setReaction(null)}
             onPetPress={handlePetTheDog}
+            petResting={inMemorial}
             petScale={1.05}
             accessibilityLabel={`${displayName} in the garden. ${moodSentence(mood, displayName)}`}
           >
@@ -254,7 +261,7 @@ export default function PetScreen() {
                   <Feather name="edit-2" size={14} color="#e2e8f0" />
                 </Pressable>
               </View>
-              <Text style={styles.moodLine}>{moodSentence(mood, displayName)}</Text>
+              <Text style={styles.moodLine}>{inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName)}</Text>
             </View>
             <View style={styles.sceneBottom} pointerEvents="none">
               <View style={styles.hintPill}>
@@ -312,6 +319,18 @@ export default function PetScreen() {
           </View>
         ) : null}
 
+        {inMemorial ? (
+          <Pressable style={styles.memorialButton} onPress={() => navigation.navigate("Memorial")} accessibilityRole="button" accessibilityLabel="Memories">
+            <View style={styles.playIcon}>
+              <Feather name="book-open" size={20} color="#0f172a" />
+            </View>
+            <View style={styles.playBody}>
+              <Text style={styles.playTitle}>Memories of {displayName}</Text>
+              <Text style={styles.playHint}>Write one down, or sit quietly for a minute</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#0f172a" />
+          </Pressable>
+        ) : (
         <Pressable style={styles.playButton} onPress={() => navigation.navigate("Play")} accessibilityRole="button" accessibilityLabel={`Play with ${displayName}`}>
           <View style={styles.playIcon}>
             <Feather name="play" size={20} color="#0f172a" />
@@ -322,9 +341,14 @@ export default function PetScreen() {
           </View>
           <Feather name="chevron-right" size={20} color="#0f172a" />
         </Pressable>
+        )}
 
         <View style={styles.tiles}>
-          <ActionTile icon="message-circle" label="Talk" hint={`Chat with ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
+          {inMemorial ? (
+            <ActionTile icon="wind" label="Quiet minute" hint="One minute of breathing" onPress={() => navigation.navigate("Breathing")} />
+          ) : (
+            <ActionTile icon="message-circle" label="Talk" hint={`Chat with ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
+          )}
           <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
           <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
           <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
@@ -468,6 +492,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(52,211,153,0.6)",
   },
   noticeButtonText: { color: "#a7f3d0", fontSize: 12, fontWeight: "700" },
+  memorialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#fbcfe8",
+  },
   playButton: {
     flexDirection: "row",
     alignItems: "center",

@@ -32,6 +32,8 @@ type PetRigProps = {
   act?: PetAct | null;
   onActEnd?: () => void;
   reducedMotion?: boolean;
+  /** the pet rests with its eyes closed (memorial mode); no idle behaviours, no reactions */
+  resting?: boolean;
 };
 
 const OUTLINE_W = 2.6;
@@ -41,7 +43,7 @@ const OUTLINE_W = 2.6;
  * their own pivot. Breathing, blinking, tail wags and ear twitches run by mood; reactions and acts
  * are one-shot sequences. Nothing here needs a native module, so it runs in Expo Go and on web.
  */
-export default function PetRig({ look, size, mood = "calm", reaction = null, onReactionEnd, act = null, onActEnd, reducedMotion = false }: PetRigProps) {
+export default function PetRig({ look, size, mood = "calm", reaction = null, onReactionEnd, act = null, onActEnd, reducedMotion = false, resting = false }: PetRigProps) {
   const p = useMemo(() => palette(look), [look]);
   const head = useMemo(() => headGeometry(look), [look]);
   const body = useMemo(() => bodyGeometry(look), [look]);
@@ -65,7 +67,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       breath.setValue(0);
       return undefined;
     }
-    const ms = mood === "excited" ? 700 : mood === "happy" ? 1200 : mood === "sleepy" ? 3200 : mood === "sad" ? 2800 : 2200;
+    const ms = resting ? 3800 : mood === "excited" ? 700 : mood === "happy" ? 1200 : mood === "sleepy" ? 3200 : mood === "sad" ? 2800 : 2200;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(breath, { toValue: 1, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -74,10 +76,14 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
     );
     loop.start();
     return () => loop.stop();
-  }, [breath, mood, still]);
+  }, [breath, mood, resting, still]);
 
   // ---- blinking (random, occasionally a double blink) ---------------------------------------------------
   useEffect(() => {
+    if (resting) {
+      blink.setValue(0.08);
+      return undefined;
+    }
     if (still) {
       blink.setValue(mood === "sleepy" ? 0.6 : 1);
       return undefined;
@@ -105,10 +111,14 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [blink, mood, still]);
+  }, [blink, mood, resting, still]);
 
   // ---- tail -------------------------------------------------------------------------------------------
   useEffect(() => {
+    if (resting) {
+      wag.setValue(-0.6);
+      return undefined;
+    }
     if (still || mood === "sad") {
       wag.setValue(mood === "sad" ? -1 : 0);
       return undefined;
@@ -122,11 +132,11 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
     );
     loop.start();
     return () => loop.stop();
-  }, [mood, still, wag]);
+  }, [mood, resting, still, wag]);
 
   // ---- ear twitch (cats often, dogs now and then) --------------------------------------------------------
   useEffect(() => {
-    if (still) return undefined;
+    if (still || resting) return undefined;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
@@ -143,11 +153,11 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [earTwitch, look.species, still]);
+  }, [earTwitch, look.species, resting, still]);
 
   // ---- idle life: now and then a little stretch or a head tilt, never on a fixed rhythm ------------------
   useEffect(() => {
-    if (still || act) return undefined;
+    if (still || act || resting) return undefined;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
@@ -174,11 +184,16 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [act, headTilt, still, stretch]);
+  }, [act, headTilt, resting, still, stretch]);
+
+  // ---- resting pose -----------------------------------------------------------------------------------
+  useEffect(() => {
+    Animated.timing(headTilt, { toValue: resting ? -0.55 : 0, duration: still ? 10 : 500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }).start();
+  }, [headTilt, resting, still]);
 
   // ---- reactions: head tilt for hearts, ear flap for cheer ----------------------------------------------
   useEffect(() => {
-    if (!reaction) return undefined;
+    if (!reaction || resting) return undefined;
     const tilt = reaction === "love" ? 1 : 0;
     const animation = still
       ? Animated.timing(headTilt, { toValue: 0, duration: 10, useNativeDriver: true })
@@ -279,7 +294,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
   const earRotR = earTwitch.interpolate({ inputRange: [0, 1], outputRange: ["0deg", look.ears === "floppy" ? "12deg" : "9deg"] });
   const eyeScaleY = blink;
 
-  const mouthMood = mood === "sad" ? "sad" : mood === "excited" ? "open" : mood === "calm" || mood === "neutral" || mood === "sleepy" ? "neutral" : "happy";
+  const mouthMood = resting ? "neutral" : mood === "sad" ? "sad" : mood === "excited" ? "open" : mood === "calm" || mood === "neutral" || mood === "sleepy" ? "neutral" : "happy";
   const layer = { position: "absolute" as const, left: 0, top: 0, width: size, height: size };
   const svgProps = { width: size, height: size, viewBox: `0 0 ${BOX} ${BOX}` };
   const legTop = body.cy + 4;

@@ -4,6 +4,7 @@ import { getPetSnapshot, refreshPet, subscribePet, type PetSnapshot } from "../s
 import { sanitizeLegacyPetUrl } from "../utils/petImages";
 import type { PetImageSources } from "../components/garden/usePetCandidates";
 import type { PetLook, Species } from "../domain/petLook";
+import type { MemorialState } from "../domain/memorial";
 
 export type UsePetResult = {
   userId: string | null;
@@ -16,6 +17,8 @@ export type UsePetResult = {
   /** the illustrated pet, once a species/look was chosen */
   look: PetLook | null;
   species: Species | null;
+  /** set when the pet has passed away and the garden is a memorial */
+  memorial: MemorialState | null;
   status: PetSnapshot["status"];
   error: string | null;
   /** true once a processed (transparent) image exists */
@@ -57,6 +60,7 @@ export function usePet(): UsePetResult {
       displayName: name || "Your pet",
       look,
       species: look?.species ?? null,
+      memorial: mine ? snapshot.memorial : null,
       status: mine ? snapshot.status : "idle",
       error: mine ? snapshot.error : null,
       hasProcessedImage: Boolean(sources.stylized || sources.cutout),

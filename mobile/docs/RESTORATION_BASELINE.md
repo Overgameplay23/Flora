@@ -531,6 +531,25 @@ Evidence: `npm run check` green (17 suites / 104 tests); production web build: H
 
 Report: "the room reflects local time". `src/domain/timeOfDay.ts` (tested) splits the day into dawn / morning / day / golden hour / dusk / night; `GardenStage` draws that phase's wash over the whole scene (background and sprites alike, so the pet and plants sit in the same light) and scatters a few stars once it is dark; Home's default title follows it ("Good morning", "Golden hour", "Quiet night"), while the protected-mode and welcome-back titles keep priority. The hour can be fixed through a prop for previews. Verified in the production web build in the morning phase (the night wash and stars are unit-tested values; a fixed-hour preview is a later nicety) (`docs/screenshots/2026-09-25-time-of-day/`).
 
+### 6.20 Thirteenth change set — 2026-09-25: Rainbow Bridge memorial mode
+
+Owner: "do the memorial mode too". The report's edge case: when a real pet has passed away, upbeat alerts and "Max is ready for a run!" cause real distress; the app should become a quiet memorial with routine prompts paused. Screens: `docs/screenshots/2026-09-25-memorial/`.
+
+**The way in.** Profile → "If <name> has passed away" (phrased as a sentence, not a toggle) → `MemorialScreen`: "We're so sorry", three plain lines about what changes (the pet rests, cheering and daily tasks pause; name, look and memories stay; it can be undone and a new companion can move in later), an optional date and an optional line for them, then a confirmation dialog. Nothing happens on a single tap.
+
+**While the memorial is on**
+- The illustrated pet **rests**: eyes closed, head lowered, tail still, slow breathing, no idle behaviours, no reactions (`PetRig resting`). The scene has a soft lavender wash and stars regardless of the clock; the Home header's sparkles stop.
+- **Home**: "Remembering <name>" / "<name>'s garden is quiet and peaceful. Take today at your own pace."; the progress card, week card, quick actions and task list are replaced by one card with a daily reflection line ("Grief is love that still wants somewhere to go…"), a note that tasks and prompts are paused, and three gentle actions: Memories, One quiet minute (breathing), Check in. No celebration toasts.
+- **Pet tab**: the resting pet, "Remembering <name>", a pink "Memories of <name>" card instead of Play; tapping the pet opens the memorial.
+- **Check-in** stays available (self-care continues) with the pet resting and the prompt "What's one small memory of <name> you'd like to keep today?"; **Play** shows "<name> is resting".
+- **Memorial screen**: the resting pet in its garden, the day's reflection, the line they wrote, "Sit quietly for a minute", write a memory (kept on the device, long-press to remove), and "Together": milestones from what the app knows (days together, small things done, check-ins, plants grown, games played). At the bottom, two quiet links: "Welcome a new companion" (archives the memorial and memories on the device under "Remembering <name>", clears the garden and opens the look chooser) and "This was a mistake" (undo, with confirmation).
+
+**Data**: forward migration `pet_memorial.sql` (`pet.memorial_at date`, `pet.memorial_note`, 23rd migration) plus a device copy (`floura:memorial:<uid>`); memories and the archive are device-only (`src/services/memoryStore.ts`). Rules and copy in `src/domain/memorial.ts` (5 tests): normalisation, no future dates, memories newest-first, ten reflections that never mention streaks, tasks or points, milestones only with data.
+
+**Found on the way (R-81, M, fixed)**: React Native Web's `Alert.alert` is a no-op, so on web every confirmation dialog in the app silently did nothing (the memorial confirmation, cycle-data deletion, and the older photo-replace and sign-out prompts). `src/utils/confirm.ts` (`confirmAsync`, `notify`) uses the browser's own dialogs on web and `Alert` on native; the memorial and cycle screens use it. The older `Alert.alert` call sites still exist and are listed in dev-notes for a sweep.
+
+**Not done on purpose**: notifications do not exist yet, so "pause alerts" is moot until the native strategy lands; multi-pet is out of scope (the archive keeps the memorial when a new companion moves in).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

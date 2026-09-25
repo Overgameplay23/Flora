@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { confirmAsync, notify } from "../utils/confirm";
 import { Feather } from "@expo/vector-icons";
 import { usePet } from "../hooks/usePet";
 import { useCycle } from "../hooks/useCycle";
@@ -61,7 +62,7 @@ export default function CycleScreen() {
 
   const togglePeriodDay = () => {
     if (selectedInFuture) {
-      Alert.alert("That day hasn't happened yet", "Log period days as they come; predictions handle the future.");
+      notify("That day hasn't happened yet", "Log period days as they come; predictions handle the future.");
       return;
     }
     void persist(selectedIsPeriod ? unlogPeriodDay(data, selected) : logPeriodDay(data, selected));
@@ -81,12 +82,10 @@ export default function CycleScreen() {
 
   const turnOn = () => userId && setCycleEnabled(userId, true);
   const turnOff = () => userId && setCycleEnabled(userId, false);
-  const deleteAll = () => {
+  const deleteAll = async () => {
     if (!userId) return;
-    Alert.alert("Delete all cycle data?", "This removes every logged day from this device. It cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => void clearCycleData(userId) },
-    ]);
+    const ok = await confirmAsync({ title: "Delete all cycle data?", message: "This removes every logged day from this device. It cannot be undone.", confirmText: "Delete", destructive: true });
+    if (ok) await clearCycleData(userId);
   };
 
   if (loading) {

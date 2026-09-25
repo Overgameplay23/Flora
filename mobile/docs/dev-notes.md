@@ -67,3 +67,11 @@ call for the owner.
   as an optional "painted portrait" and still needs provider keys to test.
 - **Health/steps, widgets, notifications, SSO.** All require a native strategy and an app identity
   (not possible in Expo Go on the App Store build without the owner's decisions); logged as roadmap items.
+
+- **Alert.alert is a no-op on web** (found 2026-09-25 while testing the memorial). `src/utils/confirm.ts` is the
+  replacement (`confirmAsync` / `notify`); the memorial and cycle screens use it. Remaining `Alert.alert` sites
+  to sweep when convenient: HomeScreen (already-completed task, habit edits), PetScreen (replace photo),
+  ProfileScreen (sign-out error), CheckInScreen (saved / failed), DailyTasksScreen, HabitsTodayScreen,
+  onboarding (permissions, picker errors), GameEndCard (none), stylize screens. On iPhone they all work as before.
+- **Memorial mode** (2026-09-25) is built as described in the report; the "pause alerts" part waits for
+  notifications to exist. Multi-pet remains out of scope: a new companion archives the memorial on the device.
