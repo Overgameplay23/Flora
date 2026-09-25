@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import GardenStage from "./garden/GardenStage";
+import { usePet } from "../hooks/usePet";
 
 /**
  * Garden tab scene. The layout itself lives in GardenStage so the Home header and the Garden tab show
@@ -18,9 +19,10 @@ export default function GardenScene({
   allowOriginal = false,
   petName,
 }) {
+  const { memorial } = usePet();
   const sources = petImageSources || (petImageUrl ? { original: petImageUrl, allowOriginal: true } : null);
   const plantCount = (plants || []).filter((plant) => plant && plant.level > 0).length;
-  const label = `${petName || "Your pet"} in the garden. ${
+  const label = `${petName || "Your pet"} ${memorial ? "resting in" : "in"} the garden. ${
     plantCount === 0 ? "Nothing is planted yet." : `${plantCount} ${plantCount === 1 ? "plant is" : "plants are"} growing in the soil patch.`
   }`;
   return (
@@ -33,6 +35,8 @@ export default function GardenScene({
         plants={plants}
         allowOriginal={allowOriginal || (!petImageSources && !!petImageUrl)}
         accessibilityLabel={label}
+        petResting={!!memorial}
+        petWander
       />
     </View>
   );
