@@ -60,7 +60,7 @@ function arcSamples(from: Point, to: Point, arcHeight: number, steps = 8) {
  */
 export default function FetchGameScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { sources, displayName } = usePet();
+  const { sources, look, displayName } = usePet();
   const reducedMotion = useReducedMotionFlag();
 
   const [size, setSize] = useState<FieldSize | null>(null);
@@ -280,6 +280,7 @@ export default function FetchGameScreen({ navigation }: any) {
             >
               <PetPortrait
                 sources={sources}
+                look={look}
                 size={PET_SIZE}
                 mood={phase === "running" || phase === "returning" ? "excited" : "happy"}
                 reaction={reaction}

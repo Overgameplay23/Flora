@@ -19,14 +19,18 @@ import { useAuth } from "../../contexts/AuthContext";
 import { usePet } from "../../hooks/usePet";
 import { supabase } from "../../lib/supabase";
 import GardenStage from "../../components/garden/GardenStage";
+import PetLookEditor from "../../components/pet/PetLookEditor";
+import PetRig from "../../components/pet/vector/PetRig";
 import type { PetImageSources } from "../../components/garden/usePetCandidates";
 import type { PetReaction } from "../../components/pet/PetPortrait";
 import { savePetName, upsertPet, upsertPetResult } from "../../services/petService";
 import { saveOriginalPetPhoto, stylizePet } from "../../services/petStylize";
-import { patchPetLocally, setPetNameLocally } from "../../services/petStore";
+import { patchPetLocally, savePetLook, setPetNameLocally } from "../../services/petStore";
 import { getPetImageCache } from "../../utils/petImageCache";
+import { LOOK_ONLY_SENTINEL } from "../../utils/petImages";
 import { completeTaskWithResilience } from "../../services/taskCompletion";
 import { celebrationLine } from "../../domain/petMood";
+import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
 import {
   NAME_SUGGESTIONS,
   OnboardingMode,
@@ -52,7 +56,7 @@ function safeErrorMessage(error: any) {
 }
 
 function StepDots({ steps, current }: { steps: OnboardingStep[]; current: OnboardingStep }) {
-  const index = Math.max(0, steps.indexOf(current));
+  const index = Math.max(0, steps.indexOf(current === "painting" ? "name" : current));
   return (
     <View style={styles.dots} accessibilityRole="progressbar" accessibilityLabel={`Step ${index + 1} of ${steps.length}`}>
       {steps.map((step, i) => (
@@ -63,17 +67,21 @@ function StepDots({ steps, current }: { steps: OnboardingStep[]; current: Onboar
 }
 
 /**
- * First run: welcome -> photo -> name -> painting -> meet -> one small thing. The same screen handles
- * "change pet" (mode "replace") with the extra steps skipped. Nothing here flips the app into the main
- * tabs until the person taps Start, so the flow can never be interrupted by a profile refresh.
+ * First run: welcome -> dog or cat -> make it look like yours -> photo (optional) -> name ->
+ * painting (only with a photo) -> meet -> one small thing. "look" mode reuses the species and look
+ * steps for "Change look"; "replace" mode is the new-photo flow. The main tabs are entered only when
+ * the person taps Start, so a profile refresh can never interrupt the flow.
  */
 export default function OnboardingScreen({ route, navigation }: any) {
-  const mode: OnboardingMode = route?.params?.mode === "replace" ? "replace" : "first";
+  const mode: OnboardingMode = route?.params?.mode === "replace" ? "replace" : route?.params?.mode === "look" ? "look" : "first";
   const { user, setProfile } = useAuth();
-  const { sources: petSources, name: existingName, refresh: refreshPet } = usePet();
-  const { width, height } = useWindowDimensions();
+  const { sources: petSources, name: existingName, look: existingLook, refresh: refreshPet } = usePet();
+  const { height } = useWindowDimensions();
 
   const [step, setStep] = useState<OnboardingStep>(firstStepFor(mode));
+  const [species, setSpecies] = useState<Species>(existingLook?.species ?? "dog");
+  const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
+  const [savingLook, setSavingLook] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
   const [picking, setPicking] = useState(false);
   const [nameDraft, setNameDraft] = useState(existingName || "");
@@ -89,6 +97,15 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const [finishing, setFinishing] = useState(false);
   const paintingStarted = useRef(false);
 
+  useEffect(() => {
+    // when the store catches up (e.g. "Change look" opened before the pet loaded), adopt what exists
+    if (existingLook && step === "species" && mode === "look") {
+      setSpecies(existingLook.species);
+      setDraftLook(existingLook);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingLook?.species]);
+
   const petName = useMemo(() => {
     const valid = validatePetName(nameDraft);
     return valid.ok ? valid.name : existingName || "your pet";
@@ -97,15 +114,38 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const sceneHeight = Math.round(Math.min(340, Math.max(220, height * 0.36)));
 
   const goNext = useCallback(() => {
-    const next = nextStep(step, mode, { hasName: !!existingName });
+    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto: !!photo });
     if (next) setStep(next);
-  }, [existingName, mode, step]);
+  }, [existingName, mode, photo, step]);
 
   const goBack = useCallback(() => {
     const prev = previousStep(step, mode);
     if (prev) setStep(prev);
-    else if (mode === "replace" && navigation?.canGoBack?.()) navigation.goBack();
+    else if (mode !== "first" && navigation?.canGoBack?.()) navigation.goBack();
   }, [mode, navigation, step]);
+
+  // ---- species / look --------------------------------------------------------------------------------
+  const chooseSpecies = (next: Species) => {
+    setSpecies(next);
+    setDraftLook((prev) => (prev.species === next ? prev : existingLook && existingLook.species === next ? existingLook : withSpecies(prev, next)));
+  };
+
+  const commitLook = async () => {
+    if (!user?.id || savingLook) return;
+    setSavingLook(true);
+    try {
+      await savePetLook(user.id, draftLook);
+      if (mode === "look") {
+        if (navigation?.canGoBack?.()) navigation.goBack();
+        return;
+      }
+      goNext();
+    } catch (error) {
+      Alert.alert("Couldn't save the look", safeErrorMessage(error));
+    } finally {
+      setSavingLook(false);
+    }
+  };
 
   // ---- photo ------------------------------------------------------------------------------------------
   const pick = useCallback(async (source: "camera" | "library") => {
@@ -173,7 +213,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
     }
   }, [goNext, nameDraft, user?.id]);
 
-  // ---- painting ---------------------------------------------------------------------------------------
+  // ---- painting (only when a photo was chosen) ------------------------------------------------------
   useEffect(() => {
     if (step !== "painting" || paintingStarted.current || !user?.id || !photo) return;
     paintingStarted.current = true;
@@ -200,7 +240,6 @@ export default function OnboardingScreen({ route, navigation }: any) {
         setPainting({ status: "done" });
       } catch (error: any) {
         console.warn("ONBOARDING_STYLIZE_FAILED", { message: error?.message, code: error?.errorCode || error?.code });
-        // stylizePet saves the original first; if that part failed too we have nothing to keep.
         const cache = getPetImageCache() as any;
         let keptPhoto = !!(cache && cache.userId === user.id && cache.original);
         if (!keptPhoto) {
@@ -235,7 +274,9 @@ export default function OnboardingScreen({ route, navigation }: any) {
       }, 900);
       return () => clearTimeout(id);
     }
+    if (step === "meet" && painting.status === "idle") setReaction("cheer");
     return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting.status, step]);
 
   const retryPainting = () => {
@@ -302,25 +343,32 @@ export default function OnboardingScreen({ route, navigation }: any) {
     try {
       await refreshPet();
       if (user?.id) {
+        // The app gate reads profiles.pet_photo_url. Without a photo the chosen look still counts as a
+        // pet, marked with a sentinel the image ladder ignores.
         const { data, error } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
         if (error) console.warn("ONBOARDING_PROFILE_REFRESH_ERROR", error.message);
         const cache = getPetImageCache() as any;
-        const fallbackUrl = cache && cache.userId === user.id ? cache.original : null;
+        const fallbackUrl = (cache && cache.userId === user.id ? cache.original : null) || LOOK_ONLY_SENTINEL;
         if (data) {
-          setProfile?.(data.pet_photo_url || !fallbackUrl ? data : { ...data, pet_photo_url: fallbackUrl });
-        } else if (fallbackUrl) {
+          if (!data.pet_photo_url) {
+            const { error: markError } = await supabase.from("profiles").update({ pet_photo_url: fallbackUrl }).eq("user_id", user.id);
+            if (markError) console.warn("ONBOARDING_PROFILE_MARK_ERROR", markError.message);
+          }
+          setProfile?.(data.pet_photo_url ? data : { ...data, pet_photo_url: fallbackUrl });
+        } else {
           setProfile?.((prev: any) => ({ ...(prev || {}), user_id: user.id, pet_photo_url: fallbackUrl }));
         }
       }
-      if (mode === "replace" && navigation?.canGoBack?.()) navigation.goBack();
+      if (mode !== "first" && navigation?.canGoBack?.()) navigation.goBack();
     } finally {
       setFinishing(false);
     }
   };
 
   const previewSources: PetImageSources | null = photo ? { original: photo.uri, allowOriginal: true } : null;
-  const canGoBack = previousStep(step, mode) !== null || (mode === "replace" && step === "photo");
+  const canGoBack = previousStep(step, mode) !== null || (mode !== "first" && (step === "photo" || step === "species"));
   const showCamera = Platform.OS !== "web";
+  const sceneLook = mode === "replace" ? existingLook : draftLook;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -342,22 +390,66 @@ export default function OnboardingScreen({ route, navigation }: any) {
             <View style={styles.sceneCard}>
               <GardenStage height={sceneHeight} variant="welcome" hidePet accessibilityLabel="An empty garden with a patch of soil, waiting" />
             </View>
-            <Text style={styles.title}>A garden that grows with you</Text>
+            <Text style={styles.title}>Bring your best friend to life</Text>
             <Text style={styles.body}>
-              Floura turns a photo of your pet into a little companion who lives here. Each small act of care for yourself,
-              a glass of water, a walk, a check-in, helps their garden grow.
+              A cozy garden where taking care of yourself takes care of them. Each small act of care, a glass of water, a
+              walk, a check-in, helps their garden grow.
             </Text>
             <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
-              <Text style={styles.primaryButtonText}>Let's meet them</Text>
+              <Text style={styles.primaryButtonText}>Create my pet</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {step === "species" ? (
+          <View>
+            <Text style={styles.title}>{mode === "look" ? "Dog or cat?" : "Who's your best friend?"}</Text>
+            <Text style={styles.body}>Pick the one that's yours. No pet? Adopt a companion, pick whichever you like.</Text>
+            <View style={styles.speciesRow}>
+              {(["dog", "cat"] as Species[]).map((option) => {
+                const active = species === option;
+                const preview = existingLook && existingLook.species === option ? existingLook : DEFAULT_LOOK[option];
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.speciesCard, active && styles.speciesCardActive]}
+                    onPress={() => chooseSpecies(option)}
+                    accessibilityRole="button"
+                    accessibilityLabel={speciesLabel(option)}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <PetRig look={preview} size={128} mood={active ? "happy" : "calm"} />
+                    <Text style={[styles.speciesLabel, active && styles.speciesLabelActive]}>{speciesLabel(option)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {step === "look" ? (
+          <View>
+            <Text style={styles.title}>Make it look like yours</Text>
+            <Text style={styles.body}>Start from a preset, then adjust the coat, eyes, ears and markings.</Text>
+            <View style={styles.editorCard}>
+              <PetLookEditor look={draftLook} onChange={setDraftLook} />
+            </View>
+            <Pressable style={[styles.primaryButton, savingLook && styles.buttonDisabled]} onPress={commitLook} disabled={savingLook} accessibilityRole="button">
+              {savingLook ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{mode === "look" ? "Save look" : "That's them"}</Text>}
             </Pressable>
           </View>
         ) : null}
 
         {step === "photo" ? (
           <View>
-            <Text style={styles.title}>{mode === "replace" ? "A new photo" : "Show us your pet"}</Text>
+            <Text style={styles.title}>{mode === "replace" ? "A new photo" : "Add a photo of them"}</Text>
             <Text style={styles.body}>
-              One clear photo is all it takes. Good light and the whole body help the portrait come out best.
+              {mode === "replace"
+                ? "A clear photo makes the best painted portrait."
+                : "Optional. Their photo stays on your profile and can be painted into a portrait later."}
             </Text>
             <View style={styles.photoStage}>
               {photo ? (
@@ -398,11 +490,16 @@ export default function OnboardingScreen({ route, navigation }: any) {
                     <Text style={showCamera ? styles.secondaryButtonText : styles.primaryButtonText}>Choose from photos</Text>
                   )}
                 </Pressable>
+                {mode === "first" ? (
+                  <Pressable style={styles.secondaryButton} onPress={goNext} accessibilityRole="button">
+                    <Text style={styles.secondaryButtonText}>Skip for now</Text>
+                  </Pressable>
+                ) : null}
               </View>
             )}
             <View style={styles.tips}>
-              <Text style={styles.tip}>• Any pet works: dog, cat, rabbit, lizard, a very good plant.</Text>
               <Text style={styles.tip}>• The photo stays private to your account.</Text>
+              <Text style={styles.tip}>• Painting a portrait from it needs the painting service, which may not be available yet.</Text>
             </View>
           </View>
         ) : null}
@@ -410,12 +507,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
         {step === "name" ? (
           <View>
             <View style={styles.photoStage}>
-              <View style={styles.photoFrameSmall}>
-                {photo ? <Image source={{ uri: photo.uri }} style={styles.photoImage} resizeMode="cover" /> : null}
-              </View>
+              <PetRig look={draftLook} size={140} mood="happy" />
             </View>
             <Text style={styles.title}>What's their name?</Text>
-            <Text style={styles.body}>This is how they'll be called all through Floura.</Text>
+            <Text style={styles.body}>This is how they'll be called all through Luna.</Text>
             <TextInput
               value={nameDraft}
               onChangeText={(text) => {
@@ -452,9 +547,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 height={sceneHeight}
                 variant="welcome"
                 petImageSources={previewSources}
+                petLook={sceneLook}
                 allowOriginal
                 petMood="calm"
-                accessibilityLabel={`${petName}'s photo waiting in the garden while the portrait is painted`}
+                accessibilityLabel={`${petName} waiting in the garden while the portrait is painted`}
               />
             </View>
             {painting.status === "failed" ? (
@@ -486,6 +582,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 height={sceneHeight}
                 variant="home"
                 petImageSources={petSources}
+                petLook={sceneLook}
                 allowOriginal
                 petMood="happy"
                 petReaction={reaction}
@@ -497,7 +594,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             <Text style={styles.title}>{petName} moved in</Text>
             <Text style={styles.body}>
               {painting.status === "kept-photo"
-                ? `The painted portrait didn't finish, so ${petName}'s photo is here for now. You can retry from the Pet tab any time.`
+                ? "The painted portrait didn't finish, so the photo is kept for later. You can retry from the Pet tab any time."
                 : `Tap ${petName} to say hello. They'll be here on Home, in the garden, and whenever you check in.`}
             </Text>
             <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={mode === "first" ? goNext : finish} disabled={finishing} accessibilityRole="button">
@@ -548,7 +645,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             ) : null}
           </View>
         ) : null}
-        <View style={{ height: Math.max(24, width * 0.04) }} />
+        <View style={{ height: 24 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -564,6 +661,7 @@ const styles = StyleSheet.create({
   dotActive: { width: 18, backgroundColor: "#35d07f" },
   dotDone: { backgroundColor: "rgba(53,208,127,0.6)" },
   sceneCard: { borderRadius: 22, overflow: "hidden", marginBottom: 18, borderWidth: 1, borderColor: "rgba(148,163,184,0.2)" },
+  editorCard: { marginTop: 16 },
   title: { color: "#f8fafc", fontSize: 26, fontWeight: "800", textAlign: "center" },
   body: { marginTop: 10, color: "rgba(203,213,225,0.92)", fontSize: 15, lineHeight: 22, textAlign: "center" },
   footnote: { marginTop: 14, color: "rgba(148,163,184,0.85)", fontSize: 12, lineHeight: 17, textAlign: "center" },
@@ -581,6 +679,20 @@ const styles = StyleSheet.create({
   secondaryButton: { marginTop: 10, minHeight: 46, alignItems: "center", justifyContent: "center" },
   secondaryButtonText: { color: "rgba(203,213,225,0.95)", fontSize: 14, fontWeight: "700" },
   buttonDisabled: { opacity: 0.7 },
+  speciesRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
+  speciesCard: {
+    width: "48%",
+    alignItems: "center",
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: "rgba(148,163,184,0.25)",
+    backgroundColor: "rgba(18,24,38,0.95)",
+  },
+  speciesCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
+  speciesLabel: { marginTop: 6, color: "#e2e8f0", fontSize: 17, fontWeight: "800" },
+  speciesLabelActive: { color: "#a7f3d0" },
   photoStage: { alignItems: "center", marginTop: 20, marginBottom: 6 },
   photoFrame: {
     width: 196,
@@ -590,16 +702,6 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: "rgba(255,255,255,0.85)",
     backgroundColor: "rgba(15,23,42,0.6)",
-  },
-  photoFrameSmall: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: "hidden",
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.85)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-    marginBottom: 12,
   },
   photoEmpty: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: "rgba(148,163,184,0.6)" },
   photoImage: { width: "100%", height: "100%" },

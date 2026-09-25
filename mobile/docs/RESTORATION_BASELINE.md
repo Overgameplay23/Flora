@@ -482,6 +482,28 @@ Owner idea: "maybe we can add a period tracker too? that's popular". Built as an
 
 **Open**: R-74 (M) a real cycle tracker usually wants reminders ("period expected in 2 days"); notifications are out of scope until the app has an identity and a build (Expo Go supports local notifications, but the owner has not decided on the native strategy). R-75 (L) export/import of the on-device data for phone changes.
 
+### 6.16 Ninth change set — 2026-09-25: Luna, the illustrated pet (dog / cat), and the strategy report
+
+Owner notes on 2026-09-25: push to GitHub (done: `Overgameplay23/Flora`, `main`), read `CLAUDE.md` and the product strategy report it links (`mobile/docs/product-strategy/`), "cute animations for the pet", "two modes to start with, cat and dog", and rename the app to **Luna** for now. Screens: `docs/screenshots/2026-09-25-illustrated-pet/`. Conflicts between the report and existing features are logged in `docs/dev-notes.md` for the owner (chat function, streak wording, garden vs room, "Sprouts", fertility predictions).
+
+**The illustrated pet (the report's "parametric 2D/2.5D rig", built in `react-native-svg`)**
+
+- `src/domain/petLook.ts` (tested): `PetLook = { species: dog | cat, coat, secondary, ear, eye, nose, ears (floppy | pointy | folded), tail (curl | straight | fluffy), marking (none | patch | mask | socks | tuxedo | tabby), build (round | slim) }`, coat/eye/nose swatches, 11 presets (golden, beagle, black lab, shiba, spaniel; grey cat, orange tabby, black cat, tuxedo, siamese, calico), `normalizeLook` (rejects options the species does not have), `withSpecies` (keeps colours when switching).
+- `src/components/pet/vector/petParts.ts` + `PetRig.tsx`: five SVG layers (tail, body + legs, two ears, head + face, eyes) each animated on its own pivot: breathing by mood, random blinks (sometimes double), tail wag (calm sway, happy wag, excited flurry, sad droop), ear twitches (cats often, dogs now and then), head tilt with hearts, ear flap on a cheer, and **acts** the pet performs when the person logs something: `drink` (nose down to the bowl), `walk` (little hops), `breathe` (one long breath), `sleep` (eyes close, head rests), `stretch`. All Animated + native driver, no native modules, off under Reduce Motion. The rig draws in a 200-unit box so it scales from the tab-bar icon (30 px) to the Pet tab (~200 px).
+- `PetPortrait` draws the rig whenever a look exists (the raster ladder stays for photo-only pets); `GardenStage`, the Home header, Garden, Pet tab, Check-in, Profile, Play, Cycle, both games and `PetTabIcon` all pass the look through. Home maps a completed task's title to an act (`actForTask`, tested: "Drink water" → drink, "Go outside" → walk, "wind-down" → sleep, "breath" → breathe, else stretch) so the pet acts it out next to the celebration toast.
+- Storage: forward migration `local-backend/sql/pet_look.sql` (`pet.species`, `pet.look jsonb`, species check, size cap; 22nd migration) and a device copy (`floura:pet-look:<uid>`) so a database without the columns still shows the same pet (`petStore.savePetLook`, `resolveLook`). The demo seed gives Biscuit a beagle-ish look.
+- `src/components/pet/PetLookEditor.tsx`: live preview, presets as tiny rigs, coat/eye/nose swatches, ears, tail, markings, build.
+
+**First run v2 (`domain/onboarding.ts` rewritten, tested)**: welcome ("Bring your best friend to life" / "Create my pet", after the report) → **Dog or cat** (with "No pet? Adopt a companion") → **Make it look like yours** → photo (**optional**, "Skip for now"; the portrait painting only runs when a photo exists) → name → meet → one small thing. "Change look" on the Pet tab opens the same screen in `look` mode (species → look → save); "New photo" keeps the `replace` mode. A look-only pet marks `profiles.pet_photo_url` with the sentinel `look://chosen` (ignored by the image ladder) so the existing app gate still works.
+
+**Luna**: `app.json` `name`, onboarding and Profile copy; slug/bundle id unchanged (owner decision); trademark note in dev-notes.
+
+**Cycle tracker**: the fertile-window estimate was removed (report: no fertility predictions); phases are period / follicular / luteal / expected; copy updated.
+
+**Evidence**: `npm run check` green (typecheck, Deno, 16 suites / 100 tests, web export). Production web build, new account: welcome → Cat → "Orange tabby" + folded ears → skipped photo → named Luna → Luna (the cat) in the garden → first task → Home / Pet tab / Check-in all show the cat; demo user: Biscuit as a dog rig on Home, Pet tab, Check-in and the tab bar; "Change look" editor opened with the beagle preset.
+
+**Open**: R-76 (M) the photo does not yet drive the look (the report's photo → parameters step); a colour-extraction pass (on-device where possible, or the Edge Function) should propose coat/eye colours and ear shape, with the editor as the adjustment step. R-77 (L) more species-specific art (breed silhouettes, patterns) and idle behaviours (yawn, sit → lie down). R-78 (L) haptics on reactions (needs `expo-haptics`).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

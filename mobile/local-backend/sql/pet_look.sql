@@ -1,0 +1,26 @@
+-- The parametric pet (restoration change set 6.16): which species the companion is and the look
+-- parameters the vector rig draws (coat, ears, markings, eyes...). The client keeps a local copy of
+-- the look as well, so an older database without these columns still shows the pet.
+
+alter table public.pet
+  add column if not exists species text;
+
+alter table public.pet
+  add column if not exists look jsonb;
+
+alter table public.pet
+  drop constraint if exists pet_species_check;
+
+alter table public.pet
+  add constraint pet_species_check
+  check (species is null or species in ('dog', 'cat'));
+
+-- the look is a small object the client validates; keep the server-side guard to a size cap
+alter table public.pet
+  drop constraint if exists pet_look_size;
+
+alter table public.pet
+  add constraint pet_look_size
+  check (look is null or pg_column_size(look) < 2048);
+
+grant update (species, look) on table public.pet to authenticated;

@@ -11,6 +11,7 @@ import GardenStage from "./garden/GardenStage";
  */
 export default function GardenScene({
   petImageSources,
+  petLook = null,
   petImageUrl,
   plants,
   compact = false,
@@ -28,6 +29,7 @@ export default function GardenScene({
         height={compact ? 190 : 320}
         variant="garden"
         petImageSources={sources}
+        petLook={petLook}
         plants={plants}
         allowOriginal={allowOriginal || (!petImageSources && !!petImageUrl)}
         accessibilityLabel={label}

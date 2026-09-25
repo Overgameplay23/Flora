@@ -68,7 +68,7 @@ export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const { pet, sources, name, displayName, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
+  const { pet, sources, look, name, displayName, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
 
   const [scenePlants, setScenePlants] = useState([]);
   const [reaction, setReaction] = useState(null);
@@ -119,8 +119,8 @@ export default function PetScreen() {
   const sceneHeight = Math.round(Math.min(360, Math.max(260, width * 0.78)));
 
   const handlePetTheDog = useCallback(() => {
-    if (!hasAnyImage) {
-      navigation.navigate("Onboarding", { mode: "replace" });
+    if (!hasAnyImage && !look) {
+      navigation.navigate("Onboarding", { mode: "look" });
       return;
     }
     setReaction("love");
@@ -207,7 +207,7 @@ export default function PetScreen() {
   };
 
   const petHint = useMemo(() => {
-    if (!hasAnyImage) return "Add a photo to meet your pet";
+    if (!hasAnyImage && !look) return "Choose a look to meet your pet";
     if (petCount === 0) return `Tap ${displayName} to say hello`;
     if (petCount < 3) return `${displayName} liked that`;
     return `${displayName} is very loved today`;
@@ -229,6 +229,7 @@ export default function PetScreen() {
             height={sceneHeight}
             variant="pet"
             petImageSources={sources}
+            petLook={look}
             plants={scenePlants}
             allowOriginal
             petMood={mood}
@@ -319,7 +320,8 @@ export default function PetScreen() {
         <View style={styles.tiles}>
           <ActionTile icon="message-circle" label="Talk" hint={`Chat with ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
           <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
-          <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Paint again" : "Meet your pet"} onPress={changePhoto} />
+          <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
+          <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
           <ActionTile icon="edit-3" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
         </View>
       </ScrollView>

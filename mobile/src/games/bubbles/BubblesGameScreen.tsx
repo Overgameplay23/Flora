@@ -89,7 +89,7 @@ function BubbleView({
  */
 export default function BubblesGameScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { sources, displayName } = usePet();
+  const { sources, look, displayName } = usePet();
   const reducedMotion = useReducedMotionFlag();
 
   const [round, setRound] = useState<BubblesRound>(() => newBubblesRound(Date.now()));
@@ -181,6 +181,7 @@ export default function BubblesGameScreen({ navigation }: any) {
             <View pointerEvents="none" style={[styles.petWrap, { left: field.width / 2 - PET_SIZE * 0.6, top: field.height * 0.86 - PET_SIZE, width: PET_SIZE * 1.2 }]}>
               <PetPortrait
                 sources={sources}
+                look={look}
                 size={PET_SIZE}
                 mood={round.streak >= 5 ? "excited" : "happy"}
                 reaction={reaction}

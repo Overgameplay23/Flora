@@ -13,6 +13,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import PetPortrait, { PetMood, PetReaction } from "../pet/PetPortrait";
+import type { PetAct } from "../pet/vector/PetRig";
+import type { PetLook } from "../../domain/petLook";
 import {
   ScenePlantInput,
   computeSceneFrame,
@@ -26,6 +28,8 @@ type GardenStageProps = {
   height: number;
   variant: SceneVariant;
   petImageSources?: PetImageSources | null;
+  /** the illustrated pet; drawn instead of the raster image when present */
+  petLook?: PetLook | null;
   /** plants the user owns; each is rooted in the painted soil patch and shown at its growth stage */
   plants?: ScenePlantInput[] | null;
   allowOriginal?: boolean;
@@ -39,6 +43,9 @@ type GardenStageProps = {
   petReaction?: PetReaction | null;
   onPetReactionEnd?: () => void;
   onPetPress?: () => void;
+  /** a routine the illustrated pet acts out (drink, walk…); cleared by onPetActEnd */
+  petAct?: PetAct | null;
+  onPetActEnd?: () => void;
   /** pet size relative to the scene's default (1 = as painted) */
   petScale?: number;
   /** draw the garden without any pet (onboarding, before a photo exists) */
@@ -92,6 +99,7 @@ export default function GardenStage({
   height,
   variant,
   petImageSources,
+  petLook = null,
   plants,
   allowOriginal = false,
   accessibilityLabel,
@@ -101,6 +109,8 @@ export default function GardenStage({
   petReaction = null,
   onPetReactionEnd,
   onPetPress,
+  petAct = null,
+  onPetActEnd,
   petScale = 1,
   hidePet = false,
 }: GardenStageProps) {
@@ -144,12 +154,12 @@ export default function GardenStage({
   // and the idle motion; the stage only decides where on the painting it stands and how large it is.
   const petGround = sceneToView(frame, SCENE.pet);
   const petHeight = SCENE.pet.heightRatio * frame.width * Math.max(0.3, petScale);
-  const isPlaceholder = buildPetCandidates(petImageSources, allowOriginal)[0]?.type === "placeholder";
+  const isPlaceholder = !petLook && buildPetCandidates(petImageSources, allowOriginal)[0]?.type === "placeholder";
   // The portrait centres itself inside a full-width row; padding shifts that row's centre to the pet's
   // ground point, which keeps the portrait's own width (from the image aspect) out of this layout.
   const petRowPadding =
     petGround.x >= width / 2 ? { paddingLeft: 2 * petGround.x - width } : { paddingRight: width - 2 * petGround.x };
-  const renderSource = isPlaceholder ? "placeholder" : petImageSources?.stylized ? "stylized" : petImageSources?.cutout ? "cutout" : petImageSources?.photo ? "photo" : "originalMasked";
+  const renderSource = petLook ? "rig" : isPlaceholder ? "placeholder" : petImageSources?.stylized ? "stylized" : petImageSources?.cutout ? "cutout" : petImageSources?.photo ? "photo" : "originalMasked";
 
   return (
     <View
@@ -200,11 +210,14 @@ export default function GardenStage({
       >
         <PetPortrait
           sources={petImageSources}
+          look={petLook}
           size={petHeight}
           mood={petMood}
           reaction={petReaction}
           onReactionEnd={onPetReactionEnd}
           onPress={onPetPress}
+          act={petAct}
+          onActEnd={onPetActEnd}
           allowOriginal={allowOriginal}
           emptyLabel="Add pet"
         />

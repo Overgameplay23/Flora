@@ -46,6 +46,18 @@ export function moodSentence(mood: PetMood, name: string): string {
   }
 }
 
+export type PetActName = "drink" | "stretch" | "breathe" | "sleep" | "walk";
+
+/** Which routine the illustrated pet acts out for a completed task, from its title. */
+export function actForTask(title: unknown): PetActName {
+  const text = String(title || "").toLowerCase();
+  if (new RegExp("water|drink|hydrat|\btea\b|coffee|\beat\b|meal|breakfast|lunch|dinner|snack").test(text)) return "drink";
+  if (/breath|breathe|meditat|calm|pause|quiet|mindful/.test(text)) return "breathe";
+  if (new RegExp("sleep|\bbed\b|wind.?down|\brest\b|\bnap\b|night").test(text)) return "sleep";
+  if (new RegExp("walk|outside|\bsun|fresh air|\brun\b|\bmove|steps|exercise|stretch|yoga|play|garden").test(text)) return "walk";
+  return "stretch";
+}
+
 /** Short line for the celebration toast after a task; varies so it does not feel canned. */
 export function celebrationLine(name: string, points: number, seed: number): string {
   const lines =

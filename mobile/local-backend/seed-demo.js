@@ -107,6 +107,8 @@ async function main() {
         processing_status: "ready",
         processing_error: null,
         pet_name: PET_NAME,
+        species: "dog",
+        look: { species: "dog", coat: "#e9c184", secondary: "#f8ecd4", ear: "#7d4d2b", eye: "#5a3b1e", nose: "#2a2530", ears: "floppy", tail: "curl", marking: "patch", build: "round" },
       },
       { onConflict: "user_id" }
     )

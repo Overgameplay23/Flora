@@ -2,18 +2,23 @@ import React from "react";
 import { Image, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { usePet } from "../../hooks/usePet";
+import PetRig from "./vector/PetRig";
 
 /**
  * The Pet tab shows the user's own pet instead of a generic icon: the stylized cutout when it exists,
  * the photo while it is still being painted, and a heart before any pet is set up.
  */
 export default function PetTabIcon({ focused }: { focused: boolean }) {
-  const { sources, hasProcessedImage } = usePet();
+  const { sources, look, hasProcessedImage } = usePet();
   const uri = sources.stylized || sources.cutout || sources.photo || sources.original || null;
   return (
     <View style={styles.iconWrap}>
       <View style={[styles.ring, focused && styles.ringActive]}>
-        {uri ? (
+        {look ? (
+          <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+            <PetRig look={look} size={30} mood="calm" reducedMotion />
+          </View>
+        ) : uri ? (
           <Image
             source={{ uri }}
             style={styles.image}

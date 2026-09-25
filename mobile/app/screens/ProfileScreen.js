@@ -32,7 +32,7 @@ function Row({ icon, label, hint, onPress, badge, tone = "default" }) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
-  const { sources: petSources, displayName } = usePet();
+  const { sources: petSources, look: petLook, displayName } = usePet();
   const { enabled: cycleEnabled } = useCycle();
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -99,7 +99,7 @@ export default function ProfileScreen({ navigation }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.hero}>
-        <PetPortrait sources={petSources} size={96} mood="calm" allowOriginal emptyLabel="Add pet" />
+        <PetPortrait sources={petSources} look={petLook} size={96} mood="calm" allowOriginal emptyLabel="Add pet" />
         <Text style={styles.heroTitle}>You and {displayName}</Text>
         <Text style={styles.heroEmail} numberOfLines={1}>
           {user?.email || "Signed in"}
@@ -149,7 +149,7 @@ export default function ProfileScreen({ navigation }) {
       </View>
 
       <Pressable style={styles.version} onPress={handleVersionTap}>
-        <Text style={styles.versionText}>Floura {appVersion}</Text>
+        <Text style={styles.versionText}>Luna {appVersion}</Text>
       </Pressable>
     </ScrollView>
   );

@@ -28,6 +28,9 @@ function FinchTaskCard({ title, reward, icon, completed, saving, disabled, onTog
         style={[styles.checkButton, completed && styles.checkButtonDone, disabled && styles.checkButtonDisabled]}
         disabled={disabled}
         onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityLabel={completed ? `${title}, completed` : `Complete ${title}`}
+        accessibilityState={{ disabled: !!disabled, checked: !!completed }}
       >
         <Feather name="check" size={14} color={completed ? "#0f172a" : "#35d07f"} />
       </Pressable>

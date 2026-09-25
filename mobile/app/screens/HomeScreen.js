@@ -29,7 +29,7 @@ import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import { phaseLabel } from "../../src/domain/cycle";
 import { shortDate } from "../../src/domain/calendar";
-import { celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
+import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
 import { isPlayTask } from "../../src/games/playStatsLogic";
 import { supabase } from "../../src/lib/supabase";
 import { isProtectedMood } from "../../src/domain/protectedMode";
@@ -170,7 +170,7 @@ export default function HomeScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   // Re-read on every focus so the key cannot go stale across midnight (R-33).
   const [homeDateKey, setHomeDateKey] = useState(() => todayKey());
-  const { pet, sources: petSources, name: petName, refresh: refreshPet } = usePet();
+  const { pet, sources: petSources, name: petName, look: petLook, refresh: refreshPet } = usePet();
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
   const todayMood = toHomeMoodScore(moodState);
@@ -199,6 +199,7 @@ export default function HomeScreen() {
   const [savingPetName, setSavingPetName] = useState(false);
   // The pet reacts to what happens on this screen: hearts when tapped, a cheer + toast when a task is done.
   const [petReaction, setPetReaction] = useState(null);
+  const [petAct, setPetAct] = useState(null);
   const [celebration, setCelebration] = useState(null);
   const { height } = useWindowDimensions();
 
@@ -508,6 +509,7 @@ export default function HomeScreen() {
           await persistLocalTasks(user?.id || "guest", dateKey, nextTasks);
           playDing();
           setPetReaction("cheer");
+          setPetAct(actForTask(task.title));
           setCelebration({ id: Date.now(), text: celebrationLine(normalizePetName(petName) || "Your pet", getTaskPoints(task), task.title.length) });
           return;
         }
@@ -542,6 +544,7 @@ export default function HomeScreen() {
         if (result.inserted) {
           playDing();
           setPetReaction("cheer");
+          setPetAct(actForTask(task.title));
           setCelebration({
             id: Date.now(),
             text: celebrationLine(normalizePetName(petName) || "Your pet", result.points_awarded, task.title.length + result.earned_points_today),
@@ -651,12 +654,15 @@ export default function HomeScreen() {
             titleText={headerTitle}
             subtitleText={headerSubtitle}
             petImageSources={petSources}
+            petLook={petLook}
             plants={scenePlants}
             petName={normalizePetName(petName) || null}
             petMood={petMood}
             petReaction={petReaction}
             onPetReactionEnd={() => setPetReaction(null)}
             onPetPress={() => setPetReaction("love")}
+            petAct={petAct}
+            onPetActEnd={() => setPetAct(null)}
             celebration={celebration}
           />
         </View>

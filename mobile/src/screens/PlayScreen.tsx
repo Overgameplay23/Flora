@@ -15,7 +15,7 @@ const GAMES = [
 /** The play hub: two games, best scores, and the option to make playtime a daily task. */
 export default function PlayScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { sources, displayName } = usePet();
+  const { sources, look, displayName } = usePet();
   const [stats, setStats] = useState<PlayStats | null>(null);
   const [hasTask, setHasTask] = useState<boolean | null>(null);
   const [addingTask, setAddingTask] = useState(false);
@@ -51,7 +51,7 @@ export default function PlayScreen({ navigation }: any) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.hero}>
-        <PetPortrait sources={sources} size={110} mood="excited" allowOriginal />
+        <PetPortrait sources={sources} look={look} size={110} mood="excited" allowOriginal />
         <Text style={styles.title}>Play with {displayName}</Text>
         <Text style={styles.subtitle}>
           {stats?.sessionsToday

@@ -1,27 +1,36 @@
-// Pure rules for the first-run flow (and the "change pet" flow that reuses it).
+// Pure rules for the first-run flow and its two shorter cousins ("new photo", "change look").
 
-export type OnboardingMode = "first" | "replace";
-export type OnboardingStep = "welcome" | "photo" | "name" | "painting" | "meet" | "firstStep";
+export type OnboardingMode = "first" | "replace" | "look";
+export type OnboardingStep = "welcome" | "species" | "look" | "photo" | "name" | "painting" | "meet" | "firstStep";
 
 export const PET_NAME_MAX = 24;
 export const NAME_SUGGESTIONS = ["Biscuit", "Mochi", "Pepper", "Luna", "Olive", "Ziggy", "Maple", "Pickle"];
 
+export type StepContext = { hasName: boolean; hasPhoto: boolean };
+
 export function firstStepFor(mode: OnboardingMode): OnboardingStep {
+  if (mode === "look") return "species";
   return mode === "first" ? "welcome" : "photo";
 }
 
 /**
- * The step after `step`. In replace mode a pet that already has a name skips the name step and the flow
- * ends right after the reveal; a first-time user is walked through to their first small action.
+ * The step after `step`. First run: welcome -> species -> look -> photo (optional) -> name ->
+ * painting (only with a photo) -> meet -> one small thing. "replace" is photo -> painting -> meet.
+ * "look" is species -> look and ends there.
  */
-export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: { hasName: boolean }): OnboardingStep | null {
+export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: StepContext): OnboardingStep | null {
   switch (step) {
     case "welcome":
-      return "photo";
+      return "species";
+    case "species":
+      return "look";
+    case "look":
+      return mode === "look" ? null : "photo";
     case "photo":
-      return mode === "replace" && context.hasName ? "painting" : "name";
+      if (mode === "replace") return context.hasPhoto ? "painting" : null;
+      return "name";
     case "name":
-      return "painting";
+      return context.hasPhoto ? "painting" : "meet";
     case "painting":
       return "meet";
     case "meet":
@@ -33,8 +42,12 @@ export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: { 
 
 export function previousStep(step: OnboardingStep, mode: OnboardingMode): OnboardingStep | null {
   switch (step) {
-    case "photo":
+    case "species":
       return mode === "first" ? "welcome" : null;
+    case "look":
+      return "species";
+    case "photo":
+      return mode === "first" ? "look" : null;
     case "name":
       return "photo";
     default:
@@ -45,7 +58,9 @@ export function previousStep(step: OnboardingStep, mode: OnboardingMode): Onboar
 
 /** Steps shown as progress dots, in order, for a mode. */
 export function visibleSteps(mode: OnboardingMode): OnboardingStep[] {
-  return mode === "first" ? ["welcome", "photo", "name", "painting", "meet", "firstStep"] : ["photo", "name", "painting", "meet"];
+  if (mode === "look") return ["species", "look"];
+  if (mode === "replace") return ["photo", "painting", "meet"];
+  return ["welcome", "species", "look", "photo", "name", "meet", "firstStep"];
 }
 
 export function validatePetName(raw: unknown): { ok: true; name: string } | { ok: false; error: string } {

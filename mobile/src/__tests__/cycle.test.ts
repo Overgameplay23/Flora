@@ -56,9 +56,9 @@ describe("cycleStatus", () => {
     expect(onPeriod.cycleDay).toBe(3);
     expect(onPeriod.nextPeriodStart).toBe("2026-09-26");
 
-    const mid = cycleStatus(data, "2026-09-12");
-    expect(mid.phase).toBe("fertile");
-    expect(mid.fertileWindow).toEqual({ start: "2026-09-06", end: "2026-09-12" });
+    const mid = cycleStatus(data, "2026-09-10");
+    expect(mid.phase).toBe("follicular");
+    expect((mid as any).fertileWindow).toBeUndefined();
 
     const late = cycleStatus(data, "2026-09-20");
     expect(late.phase).toBe("luteal");

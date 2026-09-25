@@ -38,3 +38,32 @@ curl -i https://gghesvpmskjlrlpoosgf.functions.supabase.co/pet-stylize
 - Optional override: set `EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL=https://gghesvpmskjlrlpoosgf.functions.supabase.co` (dev-only) if you need to bypass `/functions/v1`.
 - If you see HTTP 429 from the function, Gemini quota/rate limits were hit. Check Google AI Studio / Google Cloud billing + quotas and reduce request frequency (caching is enabled in the function).
 - Run `supabase/schema_pet_stylize.sql` in SQL editor to create the `pet_stylize_requests` rate limit table.
+
+
+## 2026-09-25 — strategy report vs. what exists (for Donovan to decide)
+
+Read `docs/product-strategy/PRODUCT_STRATEGY.md` before this list. Nothing below was removed; each is a
+call for the owner.
+
+- **Name.** The app is now shown as "Luna" (app.json `name`, onboarding and Profile copy) per the owner's
+  2026-09-25 note. The slug, bundle identifier and Android package are unchanged (owner decision; see
+  RESTORATION_PLAN Phase 6). The report flags trademark checks before launch ("Flora - Green Focus");
+  "Luna" is also a common app name, so the same check applies.
+- **Open-ended AI chat.** The report says no open-ended chatbot in v1 (use designed dialogue trees). The
+  `pet-chat` Edge Function and the Talk screen still exist and are reachable from the Pet tab; they only
+  work with provider keys. Options: keep behind a flag, replace with the daily reflection prompt, or remove.
+- **Fertility predictions.** The report says no fertility predictions and "never clinical". The cycle
+  tracker's fertile-window estimate was **removed from the UI on 2026-09-25** to match (the phase engine
+  keeps period / follicular / luteal / expected). The remaining copy stays non-clinical with the disclaimer.
+- **Streaks.** The report warns against punitive streaks. Luna shows streak counts (Home header, Profile)
+  but never penalises: nothing is lost, the pet never declines. Consider renaming to "days together" and
+  adding the Graceful Hibernation copy ("You're back! Let's take today easy.") on return after 5+ days.
+- **Garden vs. sanctuary room.** The report imagines a cozy room; the product identity here is a garden
+  that grows. Kept the garden (the owner's original identity); a room could be a later "space".
+- **Points vs. Sprouts.** The report names the currency "Sprouts"; the app says "pts". Renaming is a copy
+  change once the owner confirms the word.
+- **Pet generation.** The report recommends a parametric vector rig over diffusion output. Luna now has a
+  dog/cat vector rig with a customisation step (2026-09-25); the Gemini `pet-stylize` portrait path is kept
+  as an optional "painted portrait" and still needs provider keys to test.
+- **Health/steps, widgets, notifications, SSO.** All require a native strategy and an app identity
+  (not possible in Expo Go on the App Store build without the owner's decisions); logged as roadmap items.

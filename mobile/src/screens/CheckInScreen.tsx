@@ -75,7 +75,7 @@ export function petMoodForScore(mood: number): PetMood {
 
 export default function CheckInScreen() {
   const { user, profile, setProfile, setUserStats, setPetEmotionState } = useAuth();
-  const { sources: petSources, name: petName } = usePet();
+  const { sources: petSources, look: petLook, name: petName } = usePet();
   const nav = useNavigation();
   const [mood, setMood] = useState<number>(3);
   const [win, setWin] = useState<string>("");
@@ -211,7 +211,7 @@ export default function CheckInScreen() {
       <Text style={styles.subtitle}>{checkinCopy.subtitle}</Text>
 
       <View style={styles.petPreview}>
-        <PetPortrait sources={petSources} size={132} mood={petMood} allowOriginal />
+        <PetPortrait sources={petSources} look={petLook} size={132} mood={petMood} allowOriginal />
         <View style={styles.speechBubble}>
           <Text style={styles.speechText}>{petMoodLine(mood, petName)}</Text>
         </View>

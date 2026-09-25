@@ -15,12 +15,19 @@ import { Feather } from "@expo/vector-icons";
 import GroundShadow from "../garden/GroundShadow";
 import { PetImageSources, usePetCandidates } from "../garden/usePetCandidates";
 import { fitHeight } from "../../domain/gardenScene";
+import type { PetLook } from "../../domain/petLook";
+import PetRig, { type PetAct } from "./vector/PetRig";
 
 export type PetMood = "happy" | "calm" | "sad" | "excited" | "sleepy" | "neutral";
 export type PetReaction = "love" | "cheer" | "wiggle";
 
 type PetPortraitProps = {
   sources?: PetImageSources | null;
+  /** the illustrated pet; when present it is drawn instead of any raster image */
+  look?: PetLook | null;
+  /** an acted-out routine for the rig (drink, stretch…) */
+  act?: PetAct | null;
+  onActEnd?: () => void;
   /** height of the pet, in layout units; the box is that tall plus room for the shadow */
   size: number;
   mood?: PetMood;
@@ -76,6 +83,9 @@ const HEARTS = [
  */
 export default function PetPortrait({
   sources,
+  look = null,
+  act = null,
+  onActEnd,
   size,
   mood = "calm",
   reaction = null,
@@ -88,8 +98,10 @@ export default function PetPortrait({
   style,
 }: PetPortraitProps) {
   const reducedMotion = useReducedMotion();
-  const { choice, onError, framed } = usePetCandidates(sources, allowOriginal);
-  const isPlaceholder = choice.type === "placeholder";
+  const { choice, onError, framed: framedImage } = usePetCandidates(sources, allowOriginal);
+  const hasRig = !!look;
+  const isPlaceholder = !hasRig && choice.type === "placeholder";
+  const framed = !hasRig && framedImage;
 
   // ---- sprite box -----------------------------------------------------------------------------------
   const [aspect, setAspect] = useState<{ w: number; h: number } | null>(null);
@@ -109,7 +121,7 @@ export default function PetPortrait({
       alive = false;
     };
   }, [choice.uri, framed]);
-  const box = fitHeight(size, aspect?.w ?? 1, aspect?.h ?? 1);
+  const box = hasRig ? { width: size, height: size } : fitHeight(size, aspect?.w ?? 1, aspect?.h ?? 1);
   const shadowPad = Math.round(size * 0.12);
   const boxWidth = Math.max(box.width, size * 0.9);
   const totalHeight = size + shadowPad;
@@ -160,7 +172,7 @@ export default function PetPortrait({
   const transform = useMemo(() => {
     const list: any[] = [];
     const still = reducedMotion || isPlaceholder;
-    if (!still) {
+    if (!still && !hasRig) {
       switch (mood) {
         case "excited":
           list.push({ translateY: idle.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.07] }) });
@@ -200,7 +212,7 @@ export default function PetPortrait({
       });
     }
     return list;
-  }, [activeReaction, idle, isPlaceholder, mood, react, reducedMotion, size]);
+  }, [activeReaction, hasRig, idle, isPlaceholder, mood, react, reducedMotion, size]);
 
   const heartsVisible = activeReaction === "love";
   const label =
@@ -210,10 +222,14 @@ export default function PetPortrait({
   const body = (
     <View style={[styles.wrap, { width: boxWidth, height: totalHeight }, style]} accessible accessibilityLabel={label} accessibilityRole={onPress ? "button" : "image"}>
       {showShadow && !isPlaceholder ? (
-        <GroundShadow x={boxWidth / 2} y={size} width={(framed ? size * 0.8 : box.width) * 0.86} strength={framed ? 0.7 : 1} />
+        <GroundShadow x={boxWidth / 2} y={hasRig ? size * 0.94 : size} width={(framed ? size * 0.8 : hasRig ? size * 0.66 : box.width) * 0.86} strength={framed ? 0.7 : 1} />
       ) : null}
 
-      {isPlaceholder ? (
+      {hasRig ? (
+        <Animated.View style={[styles.sprite, { width: size, height: size, left: (boxWidth - size) / 2, top: 0, transform, transformOrigin: "50% 100%" }]}>
+          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} />
+        </Animated.View>
+      ) : isPlaceholder ? (
         <View style={[styles.placeholder, { width: size * 0.82, height: size * 0.82, borderRadius: size * 0.41, top: size * 0.09, left: (boxWidth - size * 0.82) / 2 }]}>
           <Feather name="camera" size={Math.max(16, size * 0.22)} color="rgba(255,255,255,0.85)" />
           <Text style={[styles.placeholderText, { fontSize: Math.max(10, size * 0.09) }]}>{emptyLabel}</Text>

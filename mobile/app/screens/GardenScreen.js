@@ -25,7 +25,7 @@ function toUpgradeCost(plant, level) {
 export default function GardenScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { sources: petSources, name: petName, refresh: refreshPet } = usePet();
+  const { sources: petSources, name: petName, look: petLook, refresh: refreshPet } = usePet();
   const [loading, setLoading] = useState(true);
   const [progressCount, setProgressCount] = useState(0);
   const [catalogRows, setCatalogRows] = useState([]);
@@ -163,7 +163,7 @@ export default function GardenScreen() {
               <Text style={styles.title}>Your Garden</Text>
               <Text style={styles.subtitle}>Grow your collection and upgrade levels with points.</Text>
             </View>
-            <GardenScene petImageSources={petSources} plants={scenePlants} petName={petName || null} />
+            <GardenScene petImageSources={petSources} petLook={petLook} plants={scenePlants} petName={petName || null} />
             <View style={styles.pointsCard}>
               <Text style={styles.pointsTitle}>Available points: {toSafeInt(pointsSummary?.remainingPoints, 0)}</Text>
               <Text style={styles.pointsMeta}>

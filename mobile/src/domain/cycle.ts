@@ -110,7 +110,7 @@ export function averagePeriodLength(entries: CycleEntry[]): number {
   return clamp(Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length), MIN_PERIOD, MAX_PERIOD);
 }
 
-export type Phase = "period" | "follicular" | "fertile" | "luteal" | "late" | "unknown";
+export type Phase = "period" | "follicular" | "luteal" | "late" | "unknown";
 
 export type CycleStatus = {
   phase: Phase;
@@ -122,8 +122,6 @@ export type CycleStatus = {
   nextPeriodStart: DateKey | null;
   /** days from today until the predicted start (negative = overdue) */
   daysUntilNextPeriod: number | null;
-  /** rough estimate; not for contraception */
-  fertileWindow: { start: DateKey; end: DateKey } | null;
   /** how many cycles the averages are based on */
   sample: number;
   /** the current period entry when bleeding is logged as ongoing today */
@@ -137,24 +135,19 @@ export function cycleStatus(data: CycleData, today: DateKey = getLocalDateKey())
   const past = data.entries.filter((e) => e.start <= today);
   const last = past[past.length - 1] ?? null;
   if (!last) {
-    return { phase: "unknown", cycleDay: null, cycleLength, periodLength, nextPeriodStart: null, daysUntilNextPeriod: null, fertileWindow: null, sample, ongoing: null };
+    return { phase: "unknown", cycleDay: null, cycleLength, periodLength, nextPeriodStart: null, daysUntilNextPeriod: null, sample, ongoing: null };
   }
   const cycleDay = daysBetween(last.start, today) + 1;
   const nextPeriodStart = addDaysToDateKey(last.start, cycleLength);
   const daysUntilNextPeriod = daysBetween(today, nextPeriodStart);
-  // ovulation ~14 days before the next period; fertile window ~5 days before to 1 day after
-  const ovulationDay = Math.max(8, cycleLength - 14);
-  const fertileWindow = {
-    start: addDaysToDateKey(last.start, ovulationDay - 5 - 1),
-    end: addDaysToDateKey(last.start, ovulationDay + 1 - 1),
-  };
+  // the two halves of the cycle split roughly 14 days before the next period; no fertility estimate is made
+  const midpoint = Math.max(8, cycleLength - 14);
   const bleedingToday =
     (last.end == null && cycleDay <= MAX_PERIOD + 2) || (last.end != null && today <= last.end);
   let phase: Phase;
   if (bleedingToday) phase = "period";
   else if (cycleDay > cycleLength + 1) phase = "late";
-  else if (today >= fertileWindow.start && today <= fertileWindow.end) phase = "fertile";
-  else if (cycleDay <= ovulationDay) phase = "follicular";
+  else if (cycleDay <= midpoint) phase = "follicular";
   else phase = "luteal";
   return {
     phase,
@@ -163,7 +156,6 @@ export function cycleStatus(data: CycleData, today: DateKey = getLocalDateKey())
     periodLength,
     nextPeriodStart,
     daysUntilNextPeriod,
-    fertileWindow,
     sample,
     ongoing: bleedingToday && last.end == null ? last : null,
   };
@@ -243,8 +235,6 @@ export function phaseLine(status: CycleStatus, petName: string): string {
       return `${name} brought a blanket. Warmth, water and rest are all fair game today.`;
     case "late":
       return `Your period is a few days past the estimate. Cycles vary; ${name} is not worried, but log it when it comes.`;
-    case "fertile":
-      return `Around the middle of your cycle. ${name} notices you have a bit more energy this week.`;
     case "luteal":
       return status.daysUntilNextPeriod != null && status.daysUntilNextPeriod <= 3
         ? `Your period is expected in about ${Math.max(0, status.daysUntilNextPeriod)} ${status.daysUntilNextPeriod === 1 ? "day" : "days"}. ${name} suggests an easy few days.`
@@ -262,8 +252,6 @@ export function phaseLabel(phase: Phase): string {
       return "Period";
     case "follicular":
       return "Follicular";
-    case "fertile":
-      return "Fertile window (estimate)";
     case "luteal":
       return "Luteal";
     case "late":

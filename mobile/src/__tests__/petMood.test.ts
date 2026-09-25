@@ -1,4 +1,15 @@
-import { celebrationLine, moodSentence, petMoodFromStores } from "../domain/petMood";
+import { actForTask, celebrationLine, moodSentence, petMoodFromStores } from "../domain/petMood";
+
+describe("actForTask", () => {
+  it("maps task titles to something the pet can act out", () => {
+    expect(actForTask("Drink water")).toBe("drink");
+    expect(actForTask("Go outside / get sunlight")).toBe("walk");
+    expect(actForTask("Took a slow breath")).toBe("breathe");
+    expect(actForTask("Evening wind-down")).toBe("sleep");
+    expect(actForTask("10-minute focus session")).toBe("stretch");
+    expect(actForTask(null)).toBe("stretch");
+  });
+});
 
 describe("petMoodFromStores", () => {
   it("mirrors the live check-in slider first", () => {

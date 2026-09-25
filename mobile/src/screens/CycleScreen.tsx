@@ -30,7 +30,7 @@ const FLOWS: Flow[] = ["light", "medium", "heavy"];
  */
 export default function CycleScreen() {
   const { userId, enabled, data, status, loading, today } = useCycle();
-  const { sources, displayName } = usePet();
+  const { sources, look, displayName } = usePet();
   const todayDate = parseDateKey(today) || new Date();
   const [view, setView] = useState({ year: todayDate.getFullYear(), month: todayDate.getMonth() });
   const [selected, setSelected] = useState(today);
@@ -101,7 +101,7 @@ export default function CycleScreen() {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.hero}>
-          <PetPortrait sources={sources} size={110} mood="calm" allowOriginal />
+          <PetPortrait sources={sources} look={look} size={110} mood="calm" allowOriginal />
           <Text style={styles.title}>Track your cycle with {displayName}</Text>
           <Text style={styles.body}>
             Log period days and a few symptoms; {displayName} keeps track of where you are in your cycle and when the next one is likely.
@@ -110,7 +110,7 @@ export default function CycleScreen() {
         <View style={styles.card}>
           <Row icon="smartphone" text="Stays on this device. It is never uploaded or shared." />
           <Row icon="trash-2" text="Delete everything in one tap, any time." />
-          <Row icon="info" text="Estimates only, based on your own dates. Not medical advice, and not for contraception." />
+          <Row icon="info" text="Estimates only, based on your own dates. Not medical advice, and no fertility predictions." />
         </View>
         <Pressable style={styles.primary} onPress={turnOn} accessibilityRole="button">
           <Text style={styles.primaryText}>Turn on cycle tracking</Text>
@@ -122,7 +122,7 @@ export default function CycleScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.statusCard}>
-        <PetPortrait sources={sources} size={84} mood={status.phase === "period" ? "calm" : "happy"} allowOriginal />
+        <PetPortrait sources={sources} look={look} size={84} mood={status.phase === "period" ? "calm" : "happy"} allowOriginal />
         <View style={styles.statusBody}>
           <Text style={styles.statusPhase}>{phaseLabel(status.phase)}</Text>
           {status.cycleDay != null ? <Text style={styles.statusMeta}>Cycle day {status.cycleDay} of about {status.cycleLength}</Text> : null}
@@ -158,7 +158,6 @@ export default function CycleScreen() {
             {week.map((cell) => {
               const period = isPeriodDay(data, cell.date);
               const isPredicted = !period && predicted.has(cell.date);
-              const fertile = !period && status.fertileWindow && cell.date >= status.fertileWindow.start && cell.date <= status.fertileWindow.end;
               const isToday = cell.date === today;
               const isSelected = cell.date === selected;
               const logged = !!dayLogFor(data, cell.date);
@@ -171,7 +170,7 @@ export default function CycleScreen() {
                   accessibilityLabel={`${humanDate(cell.date)}${period ? ", period day" : isPredicted ? ", period expected" : ""}${isToday ? ", today" : ""}`}
                 >
                   <Text style={[styles.cellText, !cell.inMonth && styles.cellTextMuted, period && styles.cellTextPeriod, isToday && styles.cellTextToday]}>{cell.day}</Text>
-                  {fertile ? <View style={styles.fertileDot} /> : logged ? <View style={styles.loggedDot} /> : null}
+                  {logged ? <View style={styles.loggedDot} /> : null}
                 </Pressable>
               );
             })}
@@ -180,7 +179,7 @@ export default function CycleScreen() {
         <View style={styles.legend}>
           <Legend swatch={styles.legendPeriod} label="Period" />
           <Legend swatch={styles.legendPredicted} label="Expected" />
-          <Legend swatch={styles.legendFertile} label="Fertile estimate" />
+          <Legend swatch={styles.legendLogged} label="Notes" />
         </View>
       </View>
 
@@ -234,7 +233,7 @@ export default function CycleScreen() {
           Cycle about {status.cycleLength} days{status.sample > 0 ? ` (from ${status.sample} ${status.sample === 1 ? "cycle" : "cycles"})` : " (default until two cycles are logged)"} · period about {status.periodLength} days
         </Text>
         <Text style={styles.disclaimer}>
-          Estimates come only from the dates you log here and can be off by several days. They are not medical advice and the fertile estimate must not be relied on for contraception. Everything stays on this device.
+          Estimates come only from the dates you log here and can be off by several days. They are not medical advice, and Luna makes no fertility predictions. Everything stays on this device.
         </Text>
       </View>
 
@@ -321,14 +320,13 @@ const styles = StyleSheet.create({
   cellTextMuted: { color: "rgba(148,163,184,0.45)" },
   cellTextPeriod: { color: "#0f172a", fontWeight: "800" },
   cellTextToday: { textDecorationLine: "underline" },
-  fertileDot: { position: "absolute", bottom: 3, width: 5, height: 5, borderRadius: 3, backgroundColor: "#5eead4" },
   loggedDot: { position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(226,232,240,0.7)" },
   legend: { flexDirection: "row", flexWrap: "wrap", marginTop: 10 },
   legendItem: { flexDirection: "row", alignItems: "center", marginRight: 14, marginTop: 4 },
   legendSwatch: { width: 12, height: 12, borderRadius: 4, marginRight: 6 },
   legendPeriod: { backgroundColor: "#f472b6" },
   legendPredicted: { borderWidth: 1, borderColor: "rgba(244,114,182,0.8)", borderStyle: "dashed" },
-  legendFertile: { backgroundColor: "#5eead4", borderRadius: 6 },
+  legendLogged: { backgroundColor: "rgba(226,232,240,0.7)", borderRadius: 6 },
   legendText: { color: "rgba(203,213,225,0.9)", fontSize: 11 },
   dayTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
   periodToggle: {

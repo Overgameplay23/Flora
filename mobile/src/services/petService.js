@@ -3,8 +3,10 @@ import { sanitizeLegacyPetUrl } from "../utils/petImages";
 
 // Do not query pet columns directly; use fetchPet for schema compatibility.
 const PET_SELECT_NEW =
-  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name";
+  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name, species, look";
 const PET_SELECT_LEGACY = [
+  // before the 2026-09-25 species/look columns
+  "state, photo_url, stylized_url, cutout_url, mask_url, processing_status, processing_error, original_photo_url, pet_name",
   "state, photo_url, original_photo_url",
   "state, photo_url, original_url",
   "state, photo_url",
@@ -36,6 +38,8 @@ function normalizePetRow(row, schemaFallbackUsed) {
       cutout_url: null,
       mask_url: null,
       pet_name: null,
+      species: null,
+      look: null,
       processing_status: schemaFallbackUsed ? "legacy" : "idle",
       processing_error: null,
       schema_fallback_used: schemaFallbackUsed,
@@ -49,6 +53,8 @@ function normalizePetRow(row, schemaFallbackUsed) {
     cutout_url: row.cutout_url || row.cutoutUrl || null,
     mask_url: row.mask_url || row.maskUrl || null,
     pet_name: typeof row.pet_name === "string" ? row.pet_name : null,
+    species: row.species === "dog" || row.species === "cat" ? row.species : null,
+    look: row.look && typeof row.look === "object" ? row.look : null,
     processing_status: schemaFallbackUsed ? "legacy" : row.processing_status || "idle",
     processing_error: schemaFallbackUsed ? null : row.processing_error || null,
     schema_fallback_used: schemaFallbackUsed,
@@ -144,7 +150,7 @@ export async function upsertPet(userId, patch = {}) {
     throw fallbackError;
   }
 
-  return { savedStylized: false, fullPatchApplied: false, fallbackUsed: true };
+  return { savedStylized: false, fullPatchApplied: false, fallbackUsed: true, droppedKeys: Object.keys(patch) };
 }
 
 export async function savePetName(userId, petName) {

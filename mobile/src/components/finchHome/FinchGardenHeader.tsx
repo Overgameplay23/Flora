@@ -4,6 +4,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import GardenStage from "../garden/GardenStage";
 import type { PetImageSources } from "../garden/usePetCandidates";
 import type { PetMood, PetReaction } from "../pet/PetPortrait";
+import type { PetAct } from "../pet/vector/PetRig";
+import type { PetLook } from "../../domain/petLook";
 import type { ScenePlantInput } from "../../domain/gardenScene";
 
 type FinchGardenHeaderProps = {
@@ -13,6 +15,7 @@ type FinchGardenHeaderProps = {
   titleText?: string;
   subtitleText?: string;
   petImageSources?: PetImageSources;
+  petLook?: PetLook | null;
   /** plants the user owns; they grow in the garden's soil patch */
   plants?: ScenePlantInput[] | null;
   petName?: string | null;
@@ -20,6 +23,8 @@ type FinchGardenHeaderProps = {
   petReaction?: PetReaction | null;
   onPetReactionEnd?: () => void;
   onPetPress?: () => void;
+  petAct?: PetAct | null;
+  onPetActEnd?: () => void;
   /** a short line shown over the scene for a moment (task done, day complete); new id = new toast */
   celebration?: { id: number; text: string } | null;
 };
@@ -85,12 +90,15 @@ function FinchGardenHeader({
   titleText,
   subtitleText,
   petImageSources,
+  petLook = null,
   plants,
   petName,
   petMood = "calm",
   petReaction = null,
   onPetReactionEnd,
   onPetPress,
+  petAct = null,
+  onPetActEnd,
   celebration = null,
 }: FinchGardenHeaderProps) {
   const subtitle = subtitleText ?? `${streakText} · ${moodText}`;
@@ -140,12 +148,15 @@ function FinchGardenHeader({
       height={height}
       variant="home"
       petImageSources={petImageSources}
+      petLook={petLook}
       plants={plants}
       accessibilityLabel={sceneLabel}
       petMood={petMood}
       petReaction={petReaction}
       onPetReactionEnd={onPetReactionEnd}
       onPetPress={onPetPress}
+      petAct={petAct}
+      onPetActEnd={onPetActEnd}
     >
       <LinearGradient
         pointerEvents="none"

@@ -1,26 +1,33 @@
 import { firstStepFor, nextStep, paintingLine, previousStep, validatePetName, visibleSteps } from "../domain/onboarding";
 
+function walk(mode: any, context: any) {
+  const steps: string[] = [firstStepFor(mode)];
+  let step = steps[0] as any;
+  while (step) {
+    step = nextStep(step, mode, context);
+    if (step) steps.push(step);
+  }
+  return steps;
+}
+
 describe("onboarding steps", () => {
-  it("walks a new user welcome -> photo -> name -> painting -> meet -> first step", () => {
-    const steps: string[] = [firstStepFor("first")];
-    let step = steps[0] as any;
-    while (step) {
-      step = nextStep(step, "first", { hasName: false });
-      if (step) steps.push(step);
-    }
-    expect(steps).toEqual(["welcome", "photo", "name", "painting", "meet", "firstStep"]);
-    expect(visibleSteps("first")).toEqual(steps);
+  it("walks a new user through species and look, skipping painting without a photo", () => {
+    expect(walk("first", { hasName: false, hasPhoto: false })).toEqual(["welcome", "species", "look", "photo", "name", "meet", "firstStep"]);
+    expect(walk("first", { hasName: false, hasPhoto: true })).toEqual(["welcome", "species", "look", "photo", "name", "painting", "meet", "firstStep"]);
+    expect(visibleSteps("first")).not.toContain("painting");
   });
 
-  it("keeps the replace flow short and skips naming when the pet already has a name", () => {
-    expect(firstStepFor("replace")).toBe("photo");
-    expect(nextStep("photo", "replace", { hasName: true })).toBe("painting");
-    expect(nextStep("photo", "replace", { hasName: false })).toBe("name");
-    expect(nextStep("meet", "replace", { hasName: true })).toBeNull();
+  it("keeps the new-photo flow short and the look flow shorter", () => {
+    expect(walk("replace", { hasName: true, hasPhoto: true })).toEqual(["photo", "painting", "meet"]);
+    expect(nextStep("photo", "replace", { hasName: true, hasPhoto: false })).toBeNull();
+    expect(walk("look", { hasName: true, hasPhoto: false })).toEqual(["species", "look"]);
   });
 
-  it("only allows going back before the photo is committed", () => {
-    expect(previousStep("photo", "first")).toBe("welcome");
+  it("only allows going back before anything is committed", () => {
+    expect(previousStep("species", "first")).toBe("welcome");
+    expect(previousStep("species", "look")).toBeNull();
+    expect(previousStep("look", "first")).toBe("species");
+    expect(previousStep("photo", "first")).toBe("look");
     expect(previousStep("photo", "replace")).toBeNull();
     expect(previousStep("name", "first")).toBe("photo");
     expect(previousStep("painting", "first")).toBeNull();

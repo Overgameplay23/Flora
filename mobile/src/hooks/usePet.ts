@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getPetSnapshot, refreshPet, subscribePet, type PetSnapshot } from "../services/petStore";
 import { sanitizeLegacyPetUrl } from "../utils/petImages";
 import type { PetImageSources } from "../components/garden/usePetCandidates";
+import type { PetLook, Species } from "../domain/petLook";
 
 export type UsePetResult = {
   userId: string | null;
@@ -12,6 +13,9 @@ export type UsePetResult = {
   name: string;
   /** name, or a friendly fallback for copy */
   displayName: string;
+  /** the illustrated pet, once a species/look was chosen */
+  look: PetLook | null;
+  species: Species | null;
   status: PetSnapshot["status"];
   error: string | null;
   /** true once a processed (transparent) image exists */
@@ -44,12 +48,15 @@ export function usePet(): UsePetResult {
     const sources = mine ? snapshot.sources : getPetSnapshot().sources;
     const name = mine ? snapshot.name : "";
     const pet = mine ? snapshot.pet : null;
+    const look = mine ? snapshot.look : null;
     return {
       userId,
       pet,
       sources,
       name,
       displayName: name || "Your pet",
+      look,
+      species: look?.species ?? null,
       status: mine ? snapshot.status : "idle",
       error: mine ? snapshot.error : null,
       hasProcessedImage: Boolean(sources.stylized || sources.cutout),

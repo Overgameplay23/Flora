@@ -156,6 +156,16 @@ Phase 3 (pet created and rendered) is now done on the client side except for the
 
 Run locally: `npm run backend:start`, `npm run backend:env`, `npm run backend:seed`, `npx expo start` (web) or `npm run start:phone` (iPhone). New migrations on a running stack: `npx supabase migration up --workdir local-backend`.
 
+## Status update — 2026-09-25
+
+- The tree is on GitHub: `Overgameplay23/Flora`, branch `main` (first commit 9a6981a on 2026-09-25 with the owner's approval; secrets stay ignored).
+- The owner added `CLAUDE.md` and the product strategy research (`mobile/docs/product-strategy/`). It is now the product north star; conflicts with existing code are logged in `mobile/docs/dev-notes.md` for the owner.
+- The app is called **Luna** for now (display name and copy only).
+- **Illustrated pet** (baseline 6.16): dog / cat vector rig with looks, presets, a customisation step, idle animations, reactions and acted-out routines; onboarding v2 (species → look → optional photo → name); the painted-portrait path remains optional.
+- Cycle tracker: fertility estimate removed to match the report.
+
+Next, in order of value: photo → look parameters (R-76); Graceful Hibernation copy on return; unify the streak stores (R-27) and soften streak wording; a designed daily reflection prompt in place of open chat (owner decision); native strategy for notifications / Health / widgets.
+
 ## Immediate next decisions for the owner
 
 1. Approve (or amend) the **initial commit** contents (Phase 0).
