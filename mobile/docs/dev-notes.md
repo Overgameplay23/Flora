@@ -71,6 +71,10 @@ call for the owner.
 - **Alert.alert is a no-op on web** (found 2026-09-25 while testing the memorial). `src/utils/confirm.ts` is the
   replacement (`confirmAsync` / `notify`). Swept the same day: every live screen uses it now; only the superseded
   `PetSetupScreen` still imports `Alert`. Rule for new code: never call `Alert.alert` directly.
+- **Journal** (2026-09-25): rebuilt as a private, prompt-led journal. Dropped from the UI: voice entries (no audio
+  storage or transcription existed) and the AI "follow-up question" (the `aiPrompt` API is gone, and the report
+  argues for designed prompts). If you want voice notes back (report Ph3 "scrapbooks w/ voice notes"), that needs
+  a storage bucket and a transcription provider; the original screen is in `docs/baseline/originals`.
 - **Weekly recap** (2026-09-25): the report's Sunday "scrapbook" push is not possible without notifications, so
   "Our week" is pull-only for now (Home week card and Profile). The "room item" reward it mentions is not built;
   the garden already rewards points daily. Decide later whether the recap should unlock anything.

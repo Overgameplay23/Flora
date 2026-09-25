@@ -165,7 +165,7 @@ export default function HabitsTodayScreen() {
         </Pressable>
       </View>
       <Text style={styles.subtitle}>
-        {completedCount}/{habits.length} completed - Streak {userStats?.streak ?? 0}
+        {completedCount} of {habits.length} done today
       </Text>
 
       {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}

@@ -563,6 +563,21 @@ Screens: `docs/screenshots/2026-09-25-our-week/`.
 
 **Found on the way (R-82, M, fixed)**: `actForTask` built its word-boundary rules with `new RegExp("…\btea\b…")`, where `\b` inside a string literal is a backspace character, so "tea", "eat", "bed", "rest", "nap", "run", "move" never matched as whole words (the pet stretched instead of drinking or sleeping). Regex literals now; six new cases in `petMood.test.ts`. Cause: the rules were written through a shell heredoc that ate backslashes, and the test suite only covered the non-boundary words.
 
+### 6.22 Fifteenth change set — 2026-09-25: the Journal, and one streak number on Habits
+
+Screens: `docs/screenshots/2026-09-25-journal/`.
+
+**What was there.** The Journal screen (light theme, its own back arrow under the navigator's, "Text / Voice" tabs, "Submit Entry") inserted into `public.journal_entries`, a table no migration ever created, then posted the entry to `EXPO_PUBLIC_API_URL/aiPrompt`, an external service that no longer exists, and showed its "follow-up question" in a modal. So it failed on every submit, on every backend. The original is preserved at `docs/baseline/originals/src/screens/JournalScreen.tsx`.
+
+**What it is now.** A private journal in the garden's visual language:
+- The pet **asks today's question** (the same daily prompt as the check-in, `reflectionPrompt`; the memorial prompt during a memorial). Tapping the card switches to writing freely; the prompt is kept with the entry when it was used.
+- **Keep this** saves; a short "Kept" confirmation; entries are listed under Today / Yesterday / "Sun 20 Sep"; long-press removes one after a confirmation.
+- The privacy line says what is true: "Private. Nobody reads this, not even <pet>." No AI touches the journal, nothing is derived from it, and it feeds no score.
+- **Data**: the device copy is the source of truth (`floura:journal:<uid>`) and `public.journal_entries` is kept in step when it exists (forward migration `journal_entries.sql`, 24th, creates it with owner-only RLS and keeps the old columns for compatibility). Server failures are logged and never block writing. Rules in `src/domain/journal.ts` (5 tests): normalisation of device and server rows, newest first, uuid ids shared with the server, day grouping.
+- **Not carried over**: voice recording (there was nowhere to store audio and no transcription; the code is in the preserved original) and the AI follow-up (report: designed prompts, not open-ended AI). Logged in dev-notes for Donovan.
+
+**Habits Today** showed a second, different streak ("2/5 completed - Streak 7" from the profile's habit streak, next to Home's 24 days). It now says "2 of 5 done today"; the one number lives on Home and Profile (R-27).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent
@@ -686,11 +701,13 @@ Duplicates: pet render candidate ladder x3 (`Pet.js`, `GardenScene.js`, `FinchGa
 
 Superseded on 2026-09-24 (kept on disk, still registered as routes so nothing breaks; delete in a later reviewable change once the owner agrees): `src/screens/PetSetupScreen.tsx`, `app/screens/PetStylizeLoadingScreen.js`, `app/screens/PetStylizeResultScreen.js` (replaced by `src/screens/onboarding/OnboardingScreen.tsx`), `src/components/Pet.js` and `src/components/pet/PetExpressionOverlay.tsx` (replaced by `PetPortrait`), `src/services/taskCompletion.ts#utcDateKey` (kept as a deprecated export), the `assets/garden/flower_*.png`, `assets/garden.png` (source of the generated scene; keep), `assets/meadow.png` and `assets/pets/*` sample art (only `assets/pet.png` is used, by the local demo seed).
 
+Superseded on 2026-09-25: the original `src/screens/JournalScreen.tsx` (voice recording + external `aiPrompt` follow-up; never worked against any migrated backend) is preserved at `docs/baseline/originals/src/screens/JournalScreen.tsx`; the live screen was rewritten (6.22).
+
 ## 11. Unknowns, grouped by what resolves them
 
 **Owner decision**
 - Where should Floura's backend live now: a new Supabase project in this account (fresh ref, new anon key, rewritten scripts/docs), a project in another account that still hosts `gghesvpmskjlrlpoosgf` data, or a local Docker stack for development only?
-- Product intent between the legacy `garden_items` unlock system and the `plant_catalog` upgrade system; whether `PlantStore`, `Journal`, `Breathing`, `weekly-summary` are to be revived or retired.
+- Product intent between the legacy `garden_items` unlock system and the `plant_catalog` upgrade system; whether `PlantStore`, `Breathing`, `weekly-summary` are to be revived or retired (`Journal` was revived in 6.22).
 - Intended app identity: name, slug, iOS bundle identifier, Android package, URL scheme, EAS project ownership.
 - Whether the 10-row `plant_catalog` seed and the three generic flower sprites are final content.
 - Approval to create the initial git commit (and whether `android/`, `liftiq/`, the 3 MB `meadow.png` duplicate, and `supabase/.temp` should be in it).

@@ -13,7 +13,10 @@ demonstrated again. Nothing here touches any hosted project.
 | `sql/restoration_local_compat.sql` | Objects the client already uses but no SQL ever defined: `pet.original_photo_url` and the `pets` storage bucket with own-path policies. |
 | `sql/fix_complete_task_variable_conflict.sql` | Forward fix for the `complete_task` parameter/column ambiguity (2026-09-17). |
 | `sql/local_day_rpcs.sql` | Forward migration (2026-09-24): `complete_task`, `log_event_and_rollup` and `recompute_pet_state` accept the client's local calendar day (validated within one day of UTC) so evening activity lands on the right day. |
-| `supabase/migrations/` | Generated output of `build-migrations.js` (21 files). Regenerate, never edit. |
+| `sql/pet_look.sql` | Forward migration (2026-09-25): `pet.species` and `pet.look` for the illustrated dog/cat rig. |
+| `sql/pet_memorial.sql` | Forward migration (2026-09-25): `pet.memorial_at` / `pet.memorial_note` for Rainbow Bridge memorial mode. |
+| `sql/journal_entries.sql` | Forward migration (2026-09-25): creates `journal_entries` (never existed in any migration) with owner-only RLS; keeps the old columns for compatibility. |
+| `supabase/migrations/` | Generated output of `build-migrations.js` (24 files). Regenerate, never edit. |
 | `write-env-local.js` | Writes `mobile/.env.local` (gitignored, overrides `.env`) with the local API URL and the CLI's development anon key. `.env` is never read or changed. |
 | `seed-demo.js` | Creates one demo account and a week of gentle activity **through the app's own tables, RPCs and storage policies**, so it doubles as a backend smoke test. |
 
@@ -22,7 +25,7 @@ demonstrated again. Nothing here touches any hosted project.
 Requires Docker Desktop running and the Supabase CLI (`supabase --version`).
 
 ```bash
-npm run backend:start     # build migrations, start the stack, apply all 21 migrations
+npm run backend:start     # build migrations, start the stack, apply all 24 migrations
 npm run backend:env       # write .env.local using this machine's LAN IP (add -- --localhost for web-only)
 npm run backend:seed      # optional: demo account + sample pet + a week of activity
 npx expo start            # then press w for web, or scan the QR code

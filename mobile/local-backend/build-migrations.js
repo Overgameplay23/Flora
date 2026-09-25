@@ -38,6 +38,7 @@ const PLAN = [
   ["local-backend/sql/local_day_rpcs.sql", "20260924000000_local_day_rpcs.sql"],
   ["local-backend/sql/pet_look.sql", "20260925000000_pet_look.sql"],
   ["local-backend/sql/pet_memorial.sql", "20260925000100_pet_memorial.sql"],
+  ["local-backend/sql/journal_entries.sql", "20260925000200_journal_entries.sql"],
 ];
 
 fs.mkdirSync(outDir, { recursive: true });
