@@ -26,6 +26,8 @@ export type PetLook = {
   tail: TailStyle;
   marking: Marking;
   build: Build;
+  /** "adopted": an illustrated shelter companion, no real animal behind it (memorial and photo features step aside) */
+  origin?: "own" | "adopted";
 };
 
 export const COAT_SWATCHES: { id: string; label: string; coat: string; secondary: string; ear: string }[] = [
@@ -112,6 +114,7 @@ export function normalizeLook(raw: unknown, fallbackSpecies: Species = "dog"): P
     tail: pick(value.tail, TAIL_STYLES[species], base.tail),
     marking: pick(value.marking, MARKINGS[species], base.marking),
     build: pick(value.build, ["round", "slim"] as const, base.build),
+    ...(value.origin === "adopted" ? { origin: "adopted" as const } : {}),
   };
 }
 

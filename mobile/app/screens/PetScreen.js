@@ -23,6 +23,7 @@ import { sanitizeLegacyPetUrl } from "../../src/utils/petImages";
 import GardenStage from "../../src/components/garden/GardenStage";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
+import { isAdopted } from "../../src/domain/shelter";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
@@ -355,7 +356,9 @@ export default function PetScreen() {
           )}
           <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
           <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
-          <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
+          {isAdopted(look) ? null : (
+            <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
+          )}
           <ActionTile icon="edit-3" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
         </View>
       </ScrollView>

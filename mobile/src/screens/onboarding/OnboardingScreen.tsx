@@ -30,6 +30,8 @@ import { getPetImageCache } from "../../utils/petImageCache";
 import { LOOK_ONLY_SENTINEL } from "../../utils/petImages";
 import { completeTaskWithResilience } from "../../services/taskCompletion";
 import { celebrationLine } from "../../domain/petMood";
+import type { OnboardingTrack } from "../../domain/onboarding";
+import { Companion, adoptedLook, shelterFor } from "../../domain/shelter";
 import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
 import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
@@ -84,6 +86,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const [step, setStep] = useState<OnboardingStep>(firstStepFor(mode));
   const [species, setSpecies] = useState<Species>(existingLook?.species ?? "dog");
   const place = sanctuaryCopy(sanctuaryFor(species)).place;
+  // "own": bring a real pet to life; "adopt": no pet, pick an illustrated companion from the shelter
+  const [track, setTrack] = useState<OnboardingTrack>("own");
+  const [companion, setCompanion] = useState<Companion | null>(null);
+  const [adopting, setAdopting] = useState(false);
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
@@ -115,19 +121,36 @@ export default function OnboardingScreen({ route, navigation }: any) {
     const valid = validatePetName(nameDraft);
     return valid.ok ? valid.name : existingName || "your pet";
   }, [nameDraft, existingName]);
-  const steps = useMemo(() => visibleSteps(mode), [mode]);
+  const steps = useMemo(() => visibleSteps(mode, track), [mode, track]);
   const sceneHeight = Math.round(Math.min(340, Math.max(220, height * 0.36)));
 
   const goNext = useCallback(() => {
-    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto: !!photo });
+    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto: !!photo, track });
     if (next) setStep(next);
-  }, [existingName, mode, photo, step]);
+  }, [existingName, mode, photo, step, track]);
 
   const goBack = useCallback(() => {
-    const prev = previousStep(step, mode);
+    const prev = previousStep(step, mode, track);
     if (prev) setStep(prev);
     else if (mode !== "first" && navigation?.canGoBack?.()) navigation.goBack();
-  }, [mode, navigation, step]);
+  }, [mode, navigation, step, track]);
+
+  // ---- adopt a companion -------------------------------------------------------------------------------
+  const adopt = async () => {
+    if (!user?.id || !companion || adopting) return;
+    setAdopting(true);
+    try {
+      const look = adoptedLook(companion);
+      await savePetLook(user.id, look);
+      setDraftLook(look);
+      if (!nameDraft.trim()) setNameDraft(companion.name);
+      goNext();
+    } catch (error) {
+      notify("Couldn't bring them home yet", safeErrorMessage(error));
+    } finally {
+      setAdopting(false);
+    }
+  };
 
   // ---- species / look --------------------------------------------------------------------------------
   const chooseSpecies = (next: Species) => {
@@ -378,7 +401,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
   };
 
   const previewSources: PetImageSources | null = photo ? { original: photo.uri, allowOriginal: true } : null;
-  const canGoBack = previousStep(step, mode) !== null || (mode !== "first" && (step === "photo" || step === "species"));
+  const canGoBack = previousStep(step, mode, track) !== null || (mode !== "first" && (step === "photo" || step === "species"));
   const showCamera = Platform.OS !== "web";
   const sceneLook = mode === "replace" ? existingLook : draftLook;
 
@@ -407,16 +430,36 @@ export default function OnboardingScreen({ route, navigation }: any) {
               A cozy garden where taking care of yourself takes care of them. Each small act of care, a glass of water, a
               walk, a check-in, helps their garden grow.
             </Text>
-            <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
+            <Pressable
+              style={styles.primaryButton}
+              onPress={() => {
+                setTrack("own");
+                goNext();
+              }}
+              accessibilityRole="button"
+            >
               <Text style={styles.primaryButtonText}>Create my pet</Text>
+            </Pressable>
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => {
+                setTrack("adopt");
+                setStep("species");
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Adopt a companion"
+            >
+              <Text style={styles.secondaryButtonText}>No pet? Adopt a companion</Text>
             </Pressable>
           </View>
         ) : null}
 
         {step === "species" ? (
           <View>
-            <Text style={styles.title}>{mode === "look" ? "Dog or cat?" : "Who's your best friend?"}</Text>
-            <Text style={styles.body}>Pick the one that's yours. No pet? Adopt a companion, pick whichever you like.</Text>
+            <Text style={styles.title}>{mode === "look" ? "Dog or cat?" : track === "adopt" ? "Who would you like to adopt?" : "Who's your best friend?"}</Text>
+            <Text style={styles.body}>
+              {track === "adopt" ? "Dog or cat, whichever feels like company. The shelter has a few of each." : "Pick the one that's yours."}
+            </Text>
             <View style={styles.speciesRow}>
               {(["dog", "cat"] as Species[]).map((option) => {
                 const active = species === option;
@@ -438,6 +481,38 @@ export default function OnboardingScreen({ route, navigation }: any) {
             </View>
             <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
               <Text style={styles.primaryButtonText}>Continue</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {step === "shelter" ? (
+          <View>
+            <Text style={styles.title}>Meet the shelter</Text>
+            <Text style={styles.body}>Each of them is looking for someone. Pick who feels right; you can change their look and name any time.</Text>
+            <View style={styles.shelterList}>
+              {shelterFor(species).map((c) => {
+                const active = companion?.id === c.id;
+                return (
+                  <Pressable
+                    key={c.id}
+                    style={[styles.shelterCard, active && styles.shelterCardActive]}
+                    onPress={() => setCompanion(c)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${c.name}: ${c.bio}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <PetRig look={c.look} size={92} mood={active ? "happy" : "calm"} />
+                    <View style={styles.shelterBody}>
+                      <Text style={[styles.shelterName, active && styles.speciesLabelActive]}>{c.name}</Text>
+                      <Text style={styles.shelterBio}>{c.bio}</Text>
+                    </View>
+                    {active ? <Feather name="check-circle" size={20} color="#35d07f" /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable style={[styles.primaryButton, (!companion || adopting) && styles.buttonDisabled]} onPress={adopt} disabled={!companion || adopting} accessibilityRole="button">
+              {adopting ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{companion ? `Take ${companion.name} home` : "Pick a companion"}</Text>}
             </Pressable>
           </View>
         ) : null}
@@ -541,7 +616,11 @@ export default function OnboardingScreen({ route, navigation }: any) {
               <PetRig look={draftLook} size={140} mood="happy" />
             </View>
             <Text style={styles.title}>What's their name?</Text>
-            <Text style={styles.body}>This is how they'll be called all through Luna.</Text>
+            <Text style={styles.body}>
+              {track === "adopt" && companion
+                ? `${companion.name} came with that name. Keep it, or give them a new one.`
+                : "This is how they'll be called all through Luna."}
+            </Text>
             <TextInput
               value={nameDraft}
               onChangeText={(text) => {
@@ -724,6 +803,21 @@ const styles = StyleSheet.create({
   speciesCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
   speciesLabel: { marginTop: 6, color: "#e2e8f0", fontSize: 17, fontWeight: "800" },
   speciesLabelActive: { color: "#a7f3d0" },
+  shelterList: { marginBottom: 6 },
+  shelterCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    marginBottom: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.22)",
+    backgroundColor: "rgba(18,24,38,0.95)",
+  },
+  shelterCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
+  shelterBody: { flex: 1, marginLeft: 10, marginRight: 8 },
+  shelterName: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
+  shelterBio: { marginTop: 3, color: "rgba(226,232,240,0.85)", fontSize: 13, lineHeight: 18 },
   photoStage: { alignItems: "center", marginTop: 20, marginBottom: 6 },
   photoAside: { alignItems: "center" },
   photoAsideImage: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: "rgba(255,255,255,0.8)" },

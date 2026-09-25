@@ -17,6 +17,16 @@ describe("onboarding steps", () => {
     expect(visibleSteps("first")).not.toContain("painting");
   });
 
+  it("the adopt track skips the photo and the look editor for a shelter pick", () => {
+    expect(walk("first", { hasName: false, hasPhoto: false, track: "adopt" })).toEqual(["welcome", "species", "shelter", "name", "meet", "firstStep"]);
+    expect(visibleSteps("first", "adopt")).toEqual(["welcome", "species", "shelter", "name", "meet", "firstStep"]);
+    expect(previousStep("shelter", "first", "adopt")).toBe("species");
+    expect(previousStep("name", "first", "adopt")).toBe("shelter");
+    expect(previousStep("name", "first", "own")).toBe("look");
+    // the track only exists on the first run
+    expect(nextStep("species", "look", { hasName: true, hasPhoto: false, track: "adopt" })).toBe("look");
+  });
+
   it("keeps the new-photo flow short and the look flow shorter", () => {
     expect(walk("replace", { hasName: true, hasPhoto: true })).toEqual(["photo", "painting", "meet"]);
     expect(nextStep("photo", "replace", { hasName: true, hasPhoto: false })).toBeNull();

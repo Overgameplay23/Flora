@@ -1,12 +1,14 @@
 // Pure rules for the first-run flow and its two shorter cousins ("new photo", "change look").
 
 export type OnboardingMode = "first" | "replace" | "look";
-export type OnboardingStep = "welcome" | "species" | "look" | "photo" | "name" | "painting" | "meet" | "firstStep";
+export type OnboardingStep = "welcome" | "species" | "shelter" | "look" | "photo" | "name" | "painting" | "meet" | "firstStep";
+/** "own": bring a real pet to life; "adopt": no pet, adopt an illustrated companion (report edge case) */
+export type OnboardingTrack = "own" | "adopt";
 
 export const PET_NAME_MAX = 24;
 export const NAME_SUGGESTIONS = ["Biscuit", "Mochi", "Pepper", "Luna", "Olive", "Ziggy", "Maple", "Pickle"];
 
-export type StepContext = { hasName: boolean; hasPhoto: boolean };
+export type StepContext = { hasName: boolean; hasPhoto: boolean; track?: OnboardingTrack };
 
 export function firstStepFor(mode: OnboardingMode): OnboardingStep {
   if (mode === "look") return "species";
@@ -19,11 +21,15 @@ export function firstStepFor(mode: OnboardingMode): OnboardingStep {
  * photo -> painting -> meet. "look" is species -> look and ends there.
  */
 export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: StepContext): OnboardingStep | null {
+  const adopt = mode === "first" && context.track === "adopt";
   switch (step) {
     case "welcome":
       return "species";
     case "species":
-      return mode === "look" ? "look" : "photo";
+      if (mode === "look") return "look";
+      return adopt ? "shelter" : "photo";
+    case "shelter":
+      return "name";
     case "look":
       return mode === "look" ? null : "name";
     case "photo":
@@ -40,16 +46,18 @@ export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: St
   }
 }
 
-export function previousStep(step: OnboardingStep, mode: OnboardingMode): OnboardingStep | null {
+export function previousStep(step: OnboardingStep, mode: OnboardingMode, track: OnboardingTrack = "own"): OnboardingStep | null {
   switch (step) {
     case "species":
       return mode === "first" ? "welcome" : null;
+    case "shelter":
+      return "species";
     case "look":
       return mode === "look" ? "species" : "photo";
     case "photo":
       return mode === "first" ? "species" : null;
     case "name":
-      return "look";
+      return mode === "first" && track === "adopt" ? "shelter" : "look";
     default:
       // painting, meet and firstStep cannot go back: the photo is already saved
       return null;
@@ -57,9 +65,10 @@ export function previousStep(step: OnboardingStep, mode: OnboardingMode): Onboar
 }
 
 /** Steps shown as progress dots, in order, for a mode. */
-export function visibleSteps(mode: OnboardingMode): OnboardingStep[] {
+export function visibleSteps(mode: OnboardingMode, track: OnboardingTrack = "own"): OnboardingStep[] {
   if (mode === "look") return ["species", "look"];
   if (mode === "replace") return ["photo", "painting", "meet"];
+  if (track === "adopt") return ["welcome", "species", "shelter", "name", "meet", "firstStep"];
   return ["welcome", "species", "photo", "look", "name", "meet", "firstStep"];
 }
 

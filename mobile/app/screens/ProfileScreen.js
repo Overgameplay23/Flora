@@ -9,6 +9,7 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import PetPortrait from "../../src/components/pet/PetPortrait";
+import { isAdopted } from "../../src/domain/shelter";
 import { getISOWeekKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
@@ -36,6 +37,7 @@ function Row({ icon, label, hint, onPress, badge, tone = "default" }) {
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
   const { sources: petSources, look: petLook, displayName, memorial } = usePet();
+  const adopted = isAdopted(petLook);
   const { enabled: cycleEnabled } = useCycle();
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -134,13 +136,19 @@ export default function ProfileScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Your pet</Text>
       <View style={styles.group}>
-        <Row icon="camera" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
-        <Row
-          icon="moon"
-          label={memorial ? `Remembering ${displayName}` : `If ${displayName} has passed away`}
-          hint={memorial ? "Memories, and the way back if this was a mistake" : "A quiet memorial garden, no pressure"}
-          onPress={() => navigation.navigate("Memorial")}
-        />
+        {adopted ? (
+          <Row icon="heart" label={`${displayName} is an adopted companion`} hint="Change their look or name from the Pet tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
+        ) : (
+          <Row icon="camera" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
+        )}
+        {!adopted || memorial ? (
+          <Row
+            icon="moon"
+            label={memorial ? `Remembering ${displayName}` : `If ${displayName} has passed away`}
+            hint={memorial ? "Memories, and the way back if this was a mistake" : "A quiet memorial garden, no pressure"}
+            onPress={() => navigation.navigate("Memorial")}
+          />
+        ) : null}
       </View>
 
       <Text style={styles.sectionTitle}>Account</Text>

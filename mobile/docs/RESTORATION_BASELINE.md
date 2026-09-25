@@ -606,6 +606,18 @@ Owner: "do the cat pass and the garden cards … keep in mind the report, since 
 
 **Found on the way (R-83, L, open)**: a brand-new account logs two 406s from PostgREST on first load (a `.single()` profile read before the profile row exists). Harmless (the first-run gate handles the missing row) but noisy; worth switching to `.maybeSingle()` in the auth context.
 
+### 6.26 Nineteenth change set — 2026-09-25: "Adopt a companion", and the nook after dark
+
+Screens: `docs/screenshots/2026-09-25-adopt/` (the welcome screen's second button, the adopt species step, the shelter, a picked companion, the pre-filled name, meet, Home, the adopted Profile and Pet tab; then the cat's nook at 22:00, 18:00 and 06:00, taken with the driver's new `clock` step that pins the browser's hour).
+
+**The second onboarding track** (report edge case: "Users without living pets… 'Bring Your Best Friend to Life' or 'Adopt a Companion Today'"). The welcome screen keeps "Create my pet" and adds "No pet? Adopt a companion". The adopt track is welcome → species ("Who would you like to adopt?") → **shelter** → name → meet → one small thing: no photo step and no look editor, because the companion arrives ready-made. The shelter (`src/domain/shelter.ts`, 2 tests) holds four dogs and four cats, each a look plus a name and one line of character, deliberately never a sad backstory (Pepper "naps in sunbeams and barks at leaves", Olive "supervises from the windowsill", Pickle "formal on the outside, chaos inside"). "Take Pepper home" saves the look and pre-fills the name, which can be changed on the spot or later.
+
+**What "adopted" changes.** The look carries `origin: "adopted"` (kept by `normalizeLook`, stored in `pet.look` and the device copy, so no new column). An adopted companion has no real animal behind it, so the Profile's "Change pet photo" row becomes "<name> is an adopted companion · change their look or name from the Pet tab", the "If <name> has passed away" row is hidden (unless a memorial is already on), and the Pet tab drops the photo tile. Everything else (garden or nook by species, wander, games, journal, cycle, week) is the same.
+
+**The nook after dark.** Verified with the clock pinned: at 22:00 the window shows a moon and stars over dark hills, the lamp glows, the night wash settles over the room; at 18:00 the sun sits low and orange with the golden wash; at 06:00 the sky is peach. Nothing needed changing.
+
+**Not done on purpose**: the report's curated "hand-illustrated" rescue pets are, here, rig looks with character lines; a wider shelter (more breeds, seasonal arrivals) is content work for later. The Home progress card still says "Next Garden Item" for cat owners (legacy card copy).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

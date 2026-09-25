@@ -69,7 +69,10 @@ call for the owner.
   that grows. Resolved 2026-09-25 by species, following the report's "Species Dynamics": dogs keep the
   garden (outdoor, kinesthetic), cats get a **window nook** (interior, calm) drawn as vectors in
   `src/components/garden/NookBackdrop.tsx` so it needs no painting and follows the clock. Same plants,
-  same loop, different place and words (`src/domain/sanctuary.ts`). "Adopt a companion" is still open.
+  same loop, different place and words (`src/domain/sanctuary.ts`). "Adopt a companion" was built the same day
+  (6.26): a shelter of eight ready-made companions; the look carries `origin: "adopted"`, which hides the photo and
+  memorial entry points. If you want the shelter to grow (more breeds, seasonal arrivals), that is content in
+  `src/domain/shelter.ts`.
 - **Points vs. Sprouts.** The report names the currency "Sprouts"; the app says "pts". Renaming is a copy
   change once the owner confirms the word.
 - **Pet generation.** The report recommends a parametric vector rig over diffusion output. Luna now has a
