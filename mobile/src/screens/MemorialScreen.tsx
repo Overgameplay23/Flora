@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { confirmAsync } from "../utils/confirm";
+import { sanctuaryCopy, sanctuaryFor } from "../domain/sanctuary";
 import { useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
@@ -25,6 +26,7 @@ import { humanDate } from "../domain/calendar";
 export default function MemorialScreen({ navigation, route }: any) {
   const { user, profile } = useAuth();
   const { look, name, displayName, memorial, refresh } = usePet();
+  const place = sanctuaryCopy(sanctuaryFor(look?.species)).place;
   const { height } = useWindowDimensions();
   const archiveIndex: number | null = typeof route?.params?.archiveIndex === "number" ? route.params.archiveIndex : null;
 
@@ -98,8 +100,8 @@ export default function MemorialScreen({ navigation, route }: any) {
   const undoMemorial = async () => {
     if (!user?.id) return;
     const ok = await confirmAsync({
-      title: "Bring the garden back?",
-      message: `${displayName} will be awake in the garden again and daily tasks will resume. Your memories stay on this device.`,
+      title: `Bring the ${place} back?`,
+      message: `${displayName} will be awake in the ${place} again and daily tasks will resume. Your memories stay on this device.`,
       confirmText: "Bring it back",
       cancelText: "Keep the memorial",
     });
@@ -191,9 +193,9 @@ export default function MemorialScreen({ navigation, route }: any) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>If {displayName} has passed away</Text>
-        <Text style={styles.body}>We're so sorry. Luna can turn the garden into a quiet place to remember them.</Text>
+        <Text style={styles.body}>We're so sorry. Luna can turn the {place} into a quiet place to remember them.</Text>
         <View style={styles.card}>
-          <Row icon="moon" text={`${displayName} rests in the garden. Cheering, prompts and daily tasks pause.`} />
+          <Row icon="moon" text={`${displayName} rests in the ${place}. Cheering, prompts and daily tasks pause.`} />
           <Row icon="book-open" text="You keep their name and look, and can write memories here whenever you like." />
           <Row icon="rotate-ccw" text="You can undo this any time, and later welcome a new companion while keeping the memorial." />
         </View>

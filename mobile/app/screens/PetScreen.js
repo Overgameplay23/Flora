@@ -22,6 +22,7 @@ import { stylizePet } from "../../src/services/petStylize";
 import { sanitizeLegacyPetUrl } from "../../src/utils/petImages";
 import GardenStage from "../../src/components/garden/GardenStage";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
+import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
@@ -70,8 +71,9 @@ export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const { pet, sources, look, name, displayName, memorial, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
+  const { pet, sources, look, species, name, displayName, memorial, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
   const inMemorial = !!memorial;
+  const place = sanctuaryCopy(sanctuaryFor(species));
 
   const [scenePlants, setScenePlants] = useState([]);
   const [reaction, setReaction] = useState(null);
@@ -252,7 +254,7 @@ export default function PetScreen() {
             onPetPress={handlePetTheDog}
             petResting={inMemorial}
             petScale={1.05}
-            accessibilityLabel={`${displayName} in the garden. ${moodSentence(mood, displayName)}`}
+            accessibilityLabel={`${displayName} in the ${place.place}. ${moodSentence(mood, displayName, species)}`}
           >
             <View style={styles.sceneTop} pointerEvents="box-none">
               <View style={styles.nameRow}>
@@ -263,7 +265,7 @@ export default function PetScreen() {
                   <Feather name="edit-2" size={14} color="#e2e8f0" />
                 </Pressable>
               </View>
-              <Text style={styles.moodLine}>{inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName)}</Text>
+              <Text style={styles.moodLine}>{inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName, species)}</Text>
             </View>
             <View style={styles.sceneBottom} pointerEvents="none">
               <View style={styles.hintPill}>
@@ -285,7 +287,7 @@ export default function PetScreen() {
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{scenePlants.filter((plant) => plant.level > 0).length}</Text>
-            <Text style={styles.statLabel}>plants growing</Text>
+            <Text style={styles.statLabel}>{place.plantsStat}</Text>
           </View>
         </View>
 

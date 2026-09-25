@@ -4,6 +4,8 @@
 // store written by the daily loop, and the time of day. The rule is deliberately simple and the pet
 // never looks worse than "sad": it is a companion, not a scoreboard.
 
+import { sanctuaryCopy, sanctuaryFor } from "./sanctuary";
+
 export type PetMood = "happy" | "calm" | "sad" | "excited" | "sleepy" | "neutral";
 
 export type PetMoodInput = {
@@ -31,10 +33,11 @@ export function petMoodFromStores({ liveState, dailyMood, hour }: PetMoodInput):
   return "calm";
 }
 
-export function moodSentence(mood: PetMood, name: string): string {
+export function moodSentence(mood: PetMood, name: string, species?: string | null): string {
+  const place = sanctuaryCopy(sanctuaryFor(species));
   switch (mood) {
     case "excited":
-      return `${name} is full of beans today.`;
+      return place.excitedLine(name);
     case "happy":
       return `${name} is happy and settled.`;
     case "sad":
@@ -42,7 +45,7 @@ export function moodSentence(mood: PetMood, name: string): string {
     case "sleepy":
       return `${name} is getting sleepy. Rest is part of it.`;
     default:
-      return `${name} is calm, watching the garden.`;
+      return place.calmLine(name);
   }
 }
 

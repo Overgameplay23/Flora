@@ -17,6 +17,10 @@ import { dayPhase, phaseWash, showStars } from "../../domain/timeOfDay";
 import type { PetAct } from "../pet/vector/PetRig";
 import type { PetLook } from "../../domain/petLook";
 import { nextWanderTarget, wanderDelay } from "../../domain/wander";
+import { sanctuaryFor, type SanctuaryTheme } from "../../domain/sanctuary";
+import NookBackdrop from "./NookBackdrop";
+import PlantGlyph from "./PlantGlyph";
+import { NOOK_FRAMING, NOOK_SCENE } from "./nookScene";
 import {
   ScenePlantInput,
   computeSceneFrame,
@@ -58,6 +62,8 @@ type GardenStageProps = {
   petResting?: boolean;
   /** now and then the pet ambles a few steps along the grass (off while resting, acting, or reduced motion) */
   petWander?: boolean;
+  /** which sanctuary to draw; defaults to the pet's species (cats: the window nook, otherwise the garden) */
+  theme?: SanctuaryTheme;
 };
 
 function useReducedMotion() {
@@ -124,6 +130,7 @@ export default function GardenStage({
   hour,
   petResting = false,
   petWander = false,
+  theme: themeProp,
 }: GardenStageProps) {
   // The garden follows the clock: a wash for the time of day over background and sprites alike, and a
   // few stars once it is dark. Re-evaluated when the component re-renders (focus, data changes).
@@ -137,10 +144,13 @@ export default function GardenStage({
     if (next > 0 && Math.abs(next - width) > 0.5) setWidth(next);
   };
 
-  const framing = SCENE_FRAMING[variant];
+  // Dogs keep the painted garden; cats get the window nook (report: "Species Dynamics").
+  const theme: SanctuaryTheme = themeProp ?? sanctuaryFor(petLook?.species);
+  const scene = theme === "nook" ? NOOK_SCENE : SCENE;
+  const framing = (theme === "nook" ? NOOK_FRAMING : SCENE_FRAMING)[variant];
   const frame = useMemo(
-    () => computeSceneFrame(width, height, SCENE.image.width, SCENE.image.height, framing.focus, framing.zoom),
-    [width, height, framing]
+    () => computeSceneFrame(width, height, scene.image.width, scene.image.height, framing.focus, framing.zoom),
+    [width, height, framing, scene]
   );
 
   const reducedMotion = useReducedMotion();
@@ -148,9 +158,9 @@ export default function GardenStage({
 
   // ---- plants, rooted at the painted planting spots -------------------------------------------------
   const placedPlants = useMemo(() => {
-    return layoutGardenPlants(plants || [], SCENE.spots.length).map((placed) => {
-      const spot = SCENE.spots[placed.spotIndex];
-      const sprite = SCENE.sprites[placed.stage];
+    return layoutGardenPlants(plants || [], scene.spots.length).map((placed) => {
+      const spot = scene.spots[placed.spotIndex];
+      const sprite = scene.sprites[placed.stage];
       const size = frame.scale * (spot.scale ?? 1);
       const w = sprite.width * size;
       const h = sprite.height * size;
@@ -168,8 +178,8 @@ export default function GardenStage({
   // ---- pet, standing on the grass beside the patch --------------------------------------------------
   // PetPortrait handles the image ladder, the contact shadow, the framed-photo fallback, the placeholder
   // and the idle motion; the stage only decides where on the painting it stands and how large it is.
-  const petGround = sceneToView(frame, SCENE.pet);
-  const petHeight = SCENE.pet.heightRatio * frame.width * Math.max(0.3, petScale);
+  const petGround = sceneToView(frame, scene.pet);
+  const petHeight = scene.pet.heightRatio * frame.width * Math.max(0.3, petScale);
   const isPlaceholder = !petLook && buildPetCandidates(petImageSources, allowOriginal)[0]?.type === "placeholder";
   // The portrait centres itself inside a full-width row; padding shifts that row's centre to the pet's
   // ground point, which keeps the portrait's own width (from the image aspect) out of this layout.
@@ -212,13 +222,15 @@ export default function GardenStage({
         }
         setFacing(plan.facing);
         setWalking(true);
-        running = Animated.timing(wanderX, { toValue: plan.target, duration: plan.duration, easing: Easing.linear, useNativeDriver: true });
+        // cats take their time: fewer walks, at a slower, smoother pace
+        const pace = petLook?.species === "cat" ? 1.3 : 1;
+        running = Animated.timing(wanderX, { toValue: plan.target, duration: Math.round(plan.duration * pace), easing: Easing.linear, useNativeDriver: true });
         running.start(({ finished }) => {
           if (!alive) return;
           setWalking(false);
           if (finished) schedule();
         });
-      }, wanderDelay());
+      }, Math.round(wanderDelay() * (petLook?.species === "cat" ? 1.5 : 1)));
     };
     schedule();
     return () => {
@@ -227,7 +239,7 @@ export default function GardenStage({
       running?.stop();
       setWalking(false);
     };
-  }, [frame.width, wanderActive, wanderBounds, wanderX]);
+  }, [frame.width, petLook?.species, wanderActive, wanderBounds, wanderX]);
 
   return (
     <View
@@ -237,15 +249,24 @@ export default function GardenStage({
       accessibilityRole={accessibilityLabel ? "image" : undefined}
       accessibilityLabel={accessibilityLabel}
     >
-      <Image
-        source={SCENE_BACKGROUND}
-        style={{ position: "absolute", left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
-        resizeMode="stretch"
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-      />
+      {theme === "nook" ? (
+        <NookBackdrop phase={phase} left={frame.left} top={frame.top} width={frame.width} height={frame.height} resting={petResting} />
+      ) : (
+        <Image
+          source={SCENE_BACKGROUND}
+          style={{ position: "absolute", left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
+          resizeMode="stretch"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      )}
 
-      {placedPlants.map((plant, index) => (
+      {placedPlants.map((plant, index) =>
+        theme === "nook" ? (
+          <View key={plant.id} style={[styles.sprite, plant.box, { zIndex: 10 + Math.round(plant.groundY) }]} pointerEvents="none">
+            <PlantGlyph stage={plant.stage} potted width={plant.box.width} height={plant.box.height} />
+          </View>
+        ) : (
         <Animated.Image
           key={plant.id}
           source={PLANT_SPRITES[plant.stage]}
@@ -269,7 +290,8 @@ export default function GardenStage({
             },
           ]}
         />
-      ))}
+        )
+      )}
 
       {hidePet ? null : (
       <View
@@ -299,7 +321,7 @@ export default function GardenStage({
 
       {/* One lighting wash over background AND sprites, so they read as the same picture. */}
       <View pointerEvents="none" style={[styles.wash, { backgroundColor: wash }]} />
-      {stars ? (
+      {stars && theme === "garden" ? (
         <View pointerEvents="none" style={styles.stars}>
           {STARS.map((star, index) => (
             <View key={index} style={[styles.star, { left: star.left, top: star.top, width: star.size, height: star.size, borderRadius: star.size / 2, opacity: star.opacity }]} />

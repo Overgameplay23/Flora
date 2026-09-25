@@ -107,7 +107,7 @@ export function milestones(input: MilestoneInput): string[] {
   }
   if ((input.tasksCompleted ?? 0) > 0) lines.push(`${input.tasksCompleted} small things done with ${name} cheering`);
   if ((input.checkins ?? 0) > 0) lines.push(`${input.checkins} ${input.checkins === 1 ? "check-in" : "check-ins"} shared`);
-  if ((input.plantsGrown ?? 0) > 0) lines.push(`${input.plantsGrown} ${input.plantsGrown === 1 ? "plant" : "plants"} grown in the garden`);
+  if ((input.plantsGrown ?? 0) > 0) lines.push(`${input.plantsGrown} ${input.plantsGrown === 1 ? "plant" : "plants"} grown together`);
   if ((input.gamesPlayed ?? 0) > 0) lines.push(`${input.gamesPlayed} ${input.gamesPlayed === 1 ? "game" : "games"} of fetch and bubbles`);
   return lines;
 }

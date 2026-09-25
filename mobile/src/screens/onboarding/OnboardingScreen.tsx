@@ -31,6 +31,7 @@ import { LOOK_ONLY_SENTINEL } from "../../utils/petImages";
 import { completeTaskWithResilience } from "../../services/taskCompletion";
 import { celebrationLine } from "../../domain/petMood";
 import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
+import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
 import { suggestLookFromPhoto } from "../../services/photoLook";
 import {
@@ -82,6 +83,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
 
   const [step, setStep] = useState<OnboardingStep>(firstStepFor(mode));
   const [species, setSpecies] = useState<Species>(existingLook?.species ?? "dog");
+  const place = sanctuaryCopy(sanctuaryFor(species)).place;
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
@@ -617,14 +619,14 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 petReaction={reaction}
                 onPetReactionEnd={() => setReaction(null)}
                 onPetPress={() => setReaction("love")}
-                accessibilityLabel={`${petName} sitting in the garden`}
+                accessibilityLabel={`${petName} sitting in the ${place}`}
               />
             </View>
             <Text style={styles.title}>{petName} moved in</Text>
             <Text style={styles.body}>
               {painting.status === "kept-photo"
                 ? "The painted portrait didn't finish, so the photo is kept for later. You can retry from the Pet tab any time."
-                : `Tap ${petName} to say hello. They'll be here on Home, in the garden, and whenever you check in.`}
+                : `Tap ${petName} to say hello. They'll be here on Home, in the ${place}, and whenever you check in.`}
             </Text>
             <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={mode === "first" ? goNext : finish} disabled={finishing} accessibilityRole="button">
               {finishing ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{mode === "first" ? "Continue" : "Done"}</Text>}
@@ -665,7 +667,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             )}
             {doneTask ? <Text style={styles.celebration}>{doneTask.line}</Text> : null}
             <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={finish} disabled={finishing} accessibilityRole="button">
-              {finishing ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{doneTask ? "Into the garden" : "Start"}</Text>}
+              {finishing ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{doneTask ? `Into the ${place}` : "Start"}</Text>}
             </Pressable>
             {!doneTask ? (
               <Pressable style={styles.secondaryButton} onPress={finish} disabled={finishing} accessibilityRole="button">

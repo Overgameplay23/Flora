@@ -592,6 +592,20 @@ Screens: `docs/screenshots/2026-09-25-pet-life/` (Home at 0 s, 42 s and 72 s; th
 
 **Daily Tasks** ("See all" on Home) had its own header under the navigator's, plain rows, a blue "Complete All" and the line "Complete these tasks to improve your mood." It now uses the same task cards as Home, a "Today with <pet>" strip with the pet, "x of y done. Do what fits, in any order.", and a quiet "Mark the other N done" link that only appears when more than one is left (hidden during a memorial). The already-done notice reads "That one is already in the garden."
 
+### 6.25 Eighteenth change set — 2026-09-25: the cat's window nook, a cat pass on the rig, and the Garden cards
+
+Owner: "do the cat pass and the garden cards … keep in mind the report, since we should have a different environment and theme for cat owners." Screens: `docs/screenshots/2026-09-25-window-nook/` (a fresh cat account through onboarding, Home at 0 s and 50 s, the Garden and Pet tabs, the paw bat; then the dog's new Garden cards).
+
+**Two sanctuaries, by species** (report, "Species Dynamics": dogs outdoor and kinesthetic, cats interior and calming). `src/domain/sanctuary.ts` (3 tests) maps species → `garden` | `nook` and carries the words for each place. Dogs keep the painted garden. Cats get a **window nook**: a vector room (`src/components/garden/NookBackdrop.tsx`, no painting needed) with a big window whose sky follows the clock (sun by day, moon and stars at night), a sunbeam across the floor by day and a lamp that comes on at dusk, curtains, a sill, a rug the cat sits on, a cushion, a side table and a ball of yarn. The plants are the same catalogue, drawn as **pots** (`PlantGlyph.tsx`) on the sill, the side table and the floor; the pet placement, wander bounds, memorial rest and time-of-day wash all work unchanged because the room is described the same way as the painting (`nookScene.ts`: a virtual 1200 × 1000 canvas with spots, a pet point and framings per variant). `GardenStage` picks the theme from the pet's species (or a `theme` prop). The garden's overlay stars are gated to the garden; the nook draws its own in the window.
+
+**Words follow the place.** "Your window nook / Pots on the sill, grown by the small things you do", "Not potted yet", "Pot · 8 pts", "pots growing", "Mochi is calm, watching the window", "Mochi has the zoomies", onboarding "They'll be here on Home, in the window nook…", the memorial ("Bring the window nook back?"), the Home week line. Two lines lost their garden reference for both species ("glad you came by", "plants grown together").
+
+**Cat pass on the rig.** Cats pad along quicker and lighter (shorter stride, faster cadence, less bob) and wander less often and more slowly; the tap-hello is a small quick paw bat instead of the dog's wave; the idle mix gains the **slow blink** (a cat's "I feel safe with you") and a tail-tip flick with each glance.
+
+**Garden cards.** "Lvl 4/5 · common · Next cost: 27 pts · Upgrade (27)" became a small plant drawing at its stage, a stage word (Just planted / Sprouting / Growing / In bloom, or Not planted yet), level dots, a rarity pill only when it is not common, and one button: "Grow · 27 pts" / "Plant · 11 pts" / "Fully grown". A card you cannot afford is muted with "5 more to go" instead of failing on tap. The points card reads "84 points to spend · 172 earned · 3 plants growing"; the legacy unlock link only appears when there are any.
+
+**Found on the way (R-83, L, open)**: a brand-new account logs two 406s from PostgREST on first load (a `.single()` profile read before the profile row exists). Harmless (the first-run gate handles the missing row) but noisy; worth switching to `.maybeSingle()` in the auth context.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

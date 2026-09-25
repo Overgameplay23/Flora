@@ -14,6 +14,7 @@ import {
   ToastAndroid,
 } from "react-native";
 import { notify } from "../../src/utils/confirm";
+import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -175,6 +176,7 @@ export default function HomeScreen() {
   // Re-read on every focus so the key cannot go stale across midnight (R-33).
   const [homeDateKey, setHomeDateKey] = useState(() => todayKey());
   const { pet, sources: petSources, name: petName, look: petLook, memorial, refresh: refreshPet } = usePet();
+  const homePlace = sanctuaryCopy(sanctuaryFor(petLook?.species)).place;
   const inMemorial = !!memorial;
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
@@ -610,7 +612,7 @@ export default function HomeScreen() {
   const weekSentence =
     weekActiveDays === 0
       ? "Nothing logged yet this week. One small thing is plenty to start."
-      : `${weekActiveDays} active ${weekActiveDays === 1 ? "day" : "days"} this week \u00b7 ${weekPoints} pts for the garden`;
+      : `${weekActiveDays} active ${weekActiveDays === 1 ? "day" : "days"} this week \u00b7 ${weekPoints} pts for the ${homePlace}`;
   const weekSummaryLabel = `Activity over the last seven days: ${retentionMetrics
     .map((row) => `${toWeekdayFromDateKey(row.day)} ${row.activity_count}`)
     .join(", ")}`;

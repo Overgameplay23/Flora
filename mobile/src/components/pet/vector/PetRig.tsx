@@ -66,6 +66,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
   const legSwing = useRef(new Animated.Value(0)).current;
   const gaze = useRef(new Animated.Value(0)).current;
   const wave = useRef(new Animated.Value(0)).current;
+  const flick = useRef(new Animated.Value(0)).current;
   const still = reducedMotion;
 
   // ---- breathing --------------------------------------------------------------------------------------
@@ -171,25 +172,47 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       timer = setTimeout(() => {
         if (!alive) return;
         const pick = Math.random();
-        const animation =
-          pick < 0.3
-            ? Animated.sequence([
-                Animated.timing(stretch, { toValue: 0.7, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-                Animated.delay(380),
-                Animated.timing(stretch, { toValue: 0, duration: 460, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        const cat = look.species === "cat";
+        const open = mood === "sleepy" ? 0.6 : 1;
+        let animation: Animated.CompositeAnimation;
+        if (cat && pick < 0.24) {
+          // the slow blink: a cat's way of saying it feels safe with you
+          animation = Animated.sequence([
+            Animated.timing(blink, { toValue: 0.28, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            Animated.delay(420),
+            Animated.timing(blink, { toValue: open, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]);
+        } else if (pick < 0.42) {
+          animation = Animated.sequence([
+            Animated.timing(stretch, { toValue: 0.7, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.delay(380),
+            Animated.timing(stretch, { toValue: 0, duration: 460, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]);
+        } else if (pick < 0.74) {
+          // a glance to one side, the way a pet notices something; a cat's tail tip flicks with it
+          const glance = Animated.sequence([
+            Animated.timing(gaze, { toValue: pick < 0.58 ? 1 : -1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.delay(600 + Math.random() * 900),
+            Animated.timing(gaze, { toValue: 0, duration: 220, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]);
+          animation = cat
+            ? Animated.parallel([
+                glance,
+                Animated.sequence([
+                  Animated.timing(flick, { toValue: 1, duration: 130, useNativeDriver: true }),
+                  Animated.timing(flick, { toValue: 0, duration: 260, useNativeDriver: true }),
+                  Animated.timing(flick, { toValue: 0.6, duration: 120, useNativeDriver: true }),
+                  Animated.timing(flick, { toValue: 0, duration: 300, useNativeDriver: true }),
+                ]),
               ])
-            : pick < 0.65
-              ? Animated.sequence([
-                  // a glance to one side, the way a pet notices something
-                  Animated.timing(gaze, { toValue: pick < 0.48 ? 1 : -1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-                  Animated.delay(600 + Math.random() * 900),
-                  Animated.timing(gaze, { toValue: 0, duration: 220, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-                ])
-              : Animated.sequence([
-                  Animated.timing(headTilt, { toValue: pick < 0.83 ? 0.7 : -0.7, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
-                  Animated.delay(900),
-                  Animated.timing(headTilt, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-                ]);
+            : glance;
+        } else {
+          animation = Animated.sequence([
+            Animated.timing(headTilt, { toValue: pick < 0.87 ? 0.7 : -0.7, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
+            Animated.delay(900),
+            Animated.timing(headTilt, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]);
+        }
         animation.start(() => alive && schedule());
       }, 11000 + Math.random() * 19000);
     };
@@ -198,7 +221,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [act, gaze, headTilt, resting, still, stretch, walking]);
+  }, [act, blink, flick, gaze, headTilt, look.species, mood, resting, still, stretch, walking]);
 
   // ---- walking: legs alternate and the body bobs while the stage carries the pet along ----------------
   useEffect(() => {
@@ -206,10 +229,12 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       legSwing.setValue(0);
       return undefined;
     }
+    // cats pad along quickly and lightly; dogs trot
+    const gaitMs = look.species === "cat" ? 165 : 200;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(legSwing, { toValue: 1, duration: 200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(legSwing, { toValue: -1, duration: 200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(legSwing, { toValue: 1, duration: gaitMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(legSwing, { toValue: -1, duration: gaitMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
     loop.start();
@@ -217,7 +242,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
       loop.stop();
       Animated.timing(legSwing, { toValue: 0, duration: 120, useNativeDriver: true }).start();
     };
-  }, [legSwing, resting, still, walking]);
+  }, [legSwing, look.species, resting, still, walking]);
 
   // ---- resting pose -----------------------------------------------------------------------------------
   useEffect(() => {
@@ -237,16 +262,25 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
         ]);
     animation.start();
     if (reaction === "love" && !still) {
-      // a little wave with the near paw
-      Animated.sequence([
-        Animated.timing(wave, { toValue: 1, duration: 220, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
-        Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
-        Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
-        Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
-        Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
-        Animated.delay(120),
-        Animated.timing(wave, { toValue: 0, duration: 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ]).start();
+      // dogs wave with the near paw; cats give it a quick, small bat-bat
+      const paw =
+        look.species === "cat"
+          ? [
+              Animated.timing(wave, { toValue: 0.7, duration: 150, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 0.4, duration: 110, useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 0.7, duration: 110, useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 0, duration: 220, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            ]
+          : [
+              Animated.timing(wave, { toValue: 1, duration: 220, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 0.72, duration: 150, useNativeDriver: true }),
+              Animated.timing(wave, { toValue: 1, duration: 150, useNativeDriver: true }),
+              Animated.delay(120),
+              Animated.timing(wave, { toValue: 0, duration: 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            ];
+      Animated.sequence(paw).start();
     }
     if (reaction === "cheer" && !still) {
       Animated.sequence([
@@ -330,22 +364,28 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
     headNod.interpolate({ inputRange: [0, 1], outputRange: [0, 18] })
   ).interpolate({ inputRange: [-30, 30], outputRange: ["-30deg", "30deg"] });
   const sadTilt = mood === "sad" ? "-5deg" : "0deg";
-  const tailRotate = wag.interpolate({
+  const tailDeg = wag.interpolate({
     inputRange: [-1, 0, 1],
-    outputRange:
-      mood === "sad" ? ["-38deg", "-20deg", "0deg"] : mood === "excited" ? ["-32deg", "0deg", "32deg"] : mood === "happy" ? ["-24deg", "0deg", "24deg"] : ["-9deg", "0deg", "9deg"],
+    outputRange: mood === "sad" ? [-38, -20, 0] : mood === "excited" ? [-32, 0, 32] : mood === "happy" ? [-24, 0, 24] : [-9, 0, 9],
+  });
+  const tailRotate = Animated.add(tailDeg, flick.interpolate({ inputRange: [0, 1], outputRange: [0, 16] })).interpolate({
+    inputRange: [-60, 60],
+    outputRange: ["-60deg", "60deg"],
   });
   const earRotL = earTwitch.interpolate({ inputRange: [0, 1], outputRange: ["0deg", look.ears === "floppy" ? "-12deg" : "-9deg"] });
   const earRotR = earTwitch.interpolate({ inputRange: [0, 1], outputRange: ["0deg", look.ears === "floppy" ? "12deg" : "9deg"] });
   const eyeScaleY = blink;
-  const walkBob = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [-size * 0.014, 0, -size * 0.014] });
+  const isCat = look.species === "cat";
+  const bob = isCat ? 0.009 : 0.014;
+  const stride = isCat ? 11 : 16;
+  const walkBob = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [-size * bob, 0, -size * bob] });
   const bodyLift = Animated.add(bodyHop, walkBob);
   const headLift = Animated.add(headY, walkBob);
   const gazeX = gaze.interpolate({ inputRange: [-1, 0, 1], outputRange: [-size * 0.022, 0, size * 0.022] });
-  const legRotL = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: ["-16deg", "0deg", "16deg"] });
+  const legRotL = legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [`-${stride}deg`, "0deg", `${stride}deg`] });
   const legRotR = Animated.add(
-    legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [16, 0, -16] }),
-    wave.interpolate({ inputRange: [0, 1], outputRange: [0, -78] })
+    legSwing.interpolate({ inputRange: [-1, 0, 1], outputRange: [stride, 0, -stride] }),
+    wave.interpolate({ inputRange: [0, 1], outputRange: [0, isCat ? -62 : -78] })
   ).interpolate({ inputRange: [-100, 100], outputRange: ["-100deg", "100deg"] });
 
   const mouthMood = resting ? "neutral" : mood === "sad" ? "sad" : mood === "excited" ? "open" : mood === "calm" || mood === "neutral" || mood === "sleepy" ? "neutral" : "happy";

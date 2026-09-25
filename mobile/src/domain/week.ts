@@ -186,7 +186,7 @@ export function buildWeekStory({ endDateKey, checkins, metrics, petName, memoria
     noticed.push(`${fullest.weekday} was the fullest day: ${fullest.tasks} small ${fullest.tasks === 1 ? "thing" : "things"}.`);
   }
   if (activeDays === 0 && !memorial) {
-    noticed.push(`Nothing logged this week. ${pet} is just glad you opened the garden.`);
+    noticed.push(`Nothing logged this week. ${pet} is just glad you came by.`);
   }
 
   let closing: string;

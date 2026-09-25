@@ -55,6 +55,10 @@ call for the owner.
   instead); `src/screens/PetChatScreen.tsx`, `src/services/petChat.ts` and the `pet-chat` Edge Function
   stay on disk untouched. When the API exists, the conversation should be rebuilt around the pet's
   character and the person's real week (energy, wins, heavier days) rather than the old coach/chat toggle.
+  **Donovan, later on 2026-09-25: plans to use OpenAI's API for this ("the openai luna api, gpt 6luna").**
+  Nothing is wired yet (no key, no endpoint chosen). When it is: keep the key server-side (an Edge Function
+  or the future backend, never the app bundle), give the model the pet's character and the week story, and
+  keep the memorial and cycle rules in front of it (no cheering, no clinical claims).
 - **Fertility predictions.** The report says no fertility predictions and "never clinical". The cycle
   tracker's fertile-window estimate was **removed from the UI on 2026-09-25** to match (the phase engine
   keeps period / follicular / luteal / expected). The remaining copy stays non-clinical with the disclaimer.
@@ -62,7 +66,10 @@ call for the owner.
   but never penalises: nothing is lost, the pet never declines. Consider renaming to "days together" and
   adding the Graceful Hibernation copy ("You're back! Let's take today easy.") on return after 5+ days.
 - **Garden vs. sanctuary room.** The report imagines a cozy room; the product identity here is a garden
-  that grows. Kept the garden (the owner's original identity); a room could be a later "space".
+  that grows. Resolved 2026-09-25 by species, following the report's "Species Dynamics": dogs keep the
+  garden (outdoor, kinesthetic), cats get a **window nook** (interior, calm) drawn as vectors in
+  `src/components/garden/NookBackdrop.tsx` so it needs no painting and follows the clock. Same plants,
+  same loop, different place and words (`src/domain/sanctuary.ts`). "Adopt a companion" is still open.
 - **Points vs. Sprouts.** The report names the currency "Sprouts"; the app says "pts". Renaming is a copy
   change once the owner confirms the word.
 - **Pet generation.** The report recommends a parametric vector rig over diffusion output. Luna now has a

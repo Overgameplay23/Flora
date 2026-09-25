@@ -6,6 +6,7 @@ import type { PetImageSources } from "../garden/usePetCandidates";
 import type { PetMood, PetReaction } from "../pet/PetPortrait";
 import type { PetAct } from "../pet/vector/PetRig";
 import type { PetLook } from "../../domain/petLook";
+import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import type { ScenePlantInput } from "../../domain/gardenScene";
 
 type FinchGardenHeaderProps = {
@@ -142,7 +143,8 @@ function FinchGardenHeader({
   }, [reducedMotion, sparkleOpacities]);
 
   const plantCount = (plants || []).filter((plant) => plant && plant.level > 0).length;
-  const sceneLabel = `${petName || "Your pet"} is sitting in the garden beside the planting patch. ${
+  const place = sanctuaryCopy(sanctuaryFor(petLook?.species)).place;
+  const sceneLabel = `${petName || "Your pet"} is sitting in the ${place}${place === "garden" ? " beside the planting patch" : " on the rug by the window"}. ${
     plantCount === 0 ? "Nothing is planted yet." : `${plantCount} ${plantCount === 1 ? "plant is" : "plants are"} growing.`
   }`;
 

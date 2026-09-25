@@ -29,7 +29,7 @@ describe("buildWeekStory", () => {
     expect(story.activeDays).toBe(0);
     expect(story.energyAverage).toBeNull();
     expect(story.headline).toBe("A quiet week, and that's allowed.");
-    expect(story.noticed.join(" ")).toContain("glad you opened the garden");
+    expect(story.noticed.join(" ")).toContain("glad you came by");
     expect(story.closing).toBe("Today isn't in the scrapbook yet.");
     expect(story.checkedInToday).toBe(false);
   });
