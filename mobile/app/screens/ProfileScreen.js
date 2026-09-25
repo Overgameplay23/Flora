@@ -107,12 +107,12 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>current streak</Text>
+            <Text style={styles.statLabel}>days in a row</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
             <Text style={styles.statValue}>{bestStreak}</Text>
-            <Text style={styles.statLabel}>best streak</Text>
+            <Text style={styles.statLabel}>best run</Text>
           </View>
         </View>
       </View>

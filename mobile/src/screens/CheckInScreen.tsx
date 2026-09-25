@@ -18,6 +18,7 @@ import {
 import { logCheckinSubmitted } from "../services/retention";
 import { derivePetState } from "../utils/petState";
 import { isProtectedMood } from "../domain/protectedMode";
+import { ENERGY_WORDS, reflectionIntro, reflectionPrompt } from "../domain/reflection";
 
 type CheckinCopyOptions = {
   isProtectedMode: boolean;
@@ -39,14 +40,13 @@ function getCheckinCopy({ isProtectedMode, hasExistingCheckin }: CheckinCopyOpti
   return {
     title: "Daily check-in",
     subtitle: "How are you feeling today?",
-    promptLabel: "One win today (optional)",
-    promptPlaceholder: "I took a short walk...",
+    promptLabel: "A line for today (optional)",
+    promptPlaceholder: "A sentence is plenty.",
     submitLabel: hasExistingCheckin ? "Update today" : "Save check-in",
     breathingLabel: "",
   };
 }
 
-const MOOD_WORDS = ["", "Rough", "Low", "Okay", "Good", "Great"];
 
 /** What the pet "says" for each mood; it mirrors the person without judging the number. */
 export function petMoodLine(mood: number, petName: string) {
@@ -230,9 +230,15 @@ export default function CheckInScreen() {
         accessibilityLabel="Mood"
       />
       <Text style={styles.moodLabel}>
-        {MOOD_WORDS[Math.max(1, Math.min(5, mood))]} <Text style={styles.moodScore}>{mood}/5</Text>
+        {ENERGY_WORDS[Math.max(1, Math.min(5, mood))]} <Text style={styles.moodScore}>{mood}/5</Text>
       </Text>
 
+      {!isProtectedMode ? (
+        <View style={styles.promptCard}>
+          <Text style={styles.promptIntro}>{reflectionIntro(petName)}</Text>
+          <Text style={styles.promptText}>{reflectionPrompt(dateKey, petName)}</Text>
+        </View>
+      ) : null}
       <Text style={styles.fieldLabel}>{checkinCopy.promptLabel}</Text>
       <TextInput
         style={styles.input}
@@ -287,6 +293,17 @@ const styles = StyleSheet.create({
   slider: { width: "100%", height: 40, marginTop: 16, marginBottom: 6 },
   moodLabel: { fontSize: 16, color: "#e2e8f0", textAlign: "center", marginBottom: 14, fontWeight: "700" },
   moodScore: { color: "rgba(148,163,184,0.9)", fontWeight: "600" },
+  promptCard: {
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(53,208,127,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(53,208,127,0.3)",
+  },
+  promptIntro: { color: "#a7f3d0", fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  promptText: { marginTop: 4, color: "#f8fafc", fontSize: 15, fontWeight: "600", lineHeight: 21 },
   fieldLabel: { color: "#cbd5e1", fontSize: 12, marginBottom: 6 },
   input: {
     borderWidth: 1,

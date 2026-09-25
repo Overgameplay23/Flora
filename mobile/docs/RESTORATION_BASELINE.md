@@ -504,6 +504,17 @@ Owner notes on 2026-09-25: push to GitHub (done: `Overgameplay23/Flora`, `main`)
 
 **Open**: R-76 (M) the photo does not yet drive the look (the report's photo → parameters step); a colour-extraction pass (on-device where possible, or the Edge Function) should propose coat/eye colours and ear shape, with the editor as the adjustment step. R-77 (L) more species-specific art (breed silhouettes, patterns) and idle behaviours (yawn, sit → lie down). R-78 (L) haptics on reactions (needs `expo-haptics`).
 
+### 6.17 Tenth change set — 2026-09-25: the gentle loop (report alignment, small)
+
+Three things the strategy report asks for that cost little and change the tone:
+
+- **Graceful Hibernation** (`src/domain/hibernation.ts`, tested): Home remembers the last day the app was opened (`floura:last-seen:<uid>` on the device). After five or more days away the header says "You're back!" / "<pet> missed you. Let's just take today easy." (two to four days: "Welcome back" / "<pet> kept the garden warm. Pick up wherever you like.") and the pet greets with hearts. Nothing is owed, nothing is reset by the app; the copy never mentions streaks or what was missed. Notifications tapering off is a native-strategy item (no notifications exist yet).
+- **Daily reflection prompt** (`src/domain/reflection.ts`, tested): fourteen approachable questions, one per calendar day (stable while typing), shown on the check-in as "<pet> asks: What was the quietest part of your day?" above the one-line field. The 1–5 words are now the report's energy scale: Exhausted · Low · Okay · Good · Energized.
+- **Softer streak wording**: "7 days of care in a row" / "a fresh start" on Home, "days in a row" on the Pet tab, "days in a row" / "best run" on Profile. The numbers and the server logic are unchanged (R-27 remains).
+- **Idle life for the rig**: every 18–40 s the illustrated pet stretches or tilts its head on its own.
+
+Evidence: `npm run check` green (17 suites / 104 tests); production web build: Home (normal), Check-in with the prompt and energy words, Home after a simulated 12-day absence showing "You're back!" (`docs/screenshots/2026-09-25-gentle-loop/`).
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

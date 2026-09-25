@@ -145,6 +145,37 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
     };
   }, [earTwitch, look.species, still]);
 
+  // ---- idle life: now and then a little stretch or a head tilt, never on a fixed rhythm ------------------
+  useEffect(() => {
+    if (still || act) return undefined;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (!alive) return;
+        const pick = Math.random();
+        const animation =
+          pick < 0.5
+            ? Animated.sequence([
+                Animated.timing(stretch, { toValue: 0.7, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+                Animated.delay(380),
+                Animated.timing(stretch, { toValue: 0, duration: 460, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              ])
+            : Animated.sequence([
+                Animated.timing(headTilt, { toValue: pick < 0.75 ? 0.7 : -0.7, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
+                Animated.delay(900),
+                Animated.timing(headTilt, { toValue: 0, duration: 300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              ]);
+        animation.start(() => alive && schedule());
+      }, 18000 + Math.random() * 22000);
+    };
+    schedule();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [act, headTilt, still, stretch]);
+
   // ---- reactions: head tilt for hearts, ear flap for cheer ----------------------------------------------
   useEffect(() => {
     if (!reaction) return undefined;

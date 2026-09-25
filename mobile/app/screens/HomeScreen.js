@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { useCycle } from "../../src/hooks/useCycle";
 import { phaseLabel } from "../../src/domain/cycle";
 import { shortDate } from "../../src/domain/calendar";
 import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
+import { nextLastSeen, returnGreeting, returnStatus } from "../../src/domain/hibernation";
 import { isPlayTask } from "../../src/games/playStatsLogic";
 import { supabase } from "../../src/lib/supabase";
 import { isProtectedMood } from "../../src/domain/protectedMode";
@@ -201,6 +202,9 @@ export default function HomeScreen() {
   const [petReaction, setPetReaction] = useState(null);
   const [petAct, setPetAct] = useState(null);
   const [celebration, setCelebration] = useState(null);
+  // Graceful Hibernation: after days away the header welcomes the person back, once per visit, without guilt.
+  const [returnNote, setReturnNote] = useState(null);
+  const lastSeenChecked = useRef(null);
   const { height } = useWindowDimensions();
 
   // Ask for a name once the pet is painted and still unnamed.
@@ -374,6 +378,23 @@ export default function HomeScreen() {
     setLoadingTasks(false);
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id || lastSeenChecked.current === user.id) return;
+    lastSeenChecked.current = user.id;
+    const key = `floura:last-seen:${user.id}`;
+    (async () => {
+      try {
+        const previous = await AsyncStorage.getItem(key);
+        const status = returnStatus(previous, todayKey());
+        if (status.kind === "hibernation" || (status.kind === "back" && status.daysAway >= 2)) {
+          setReturnNote(status);
+          setPetReaction("love");
+        }
+        await AsyncStorage.setItem(key, nextLastSeen(previous, todayKey()));
+      } catch (_error) {}
+    })();
+  }, [user?.id]);
+
   useFocusEffect(
     useCallback(() => {
       setHomeDateKey(todayKey());
@@ -462,14 +483,19 @@ export default function HomeScreen() {
   const completedCount = useMemo(() => tasks.filter((task) => task.done).length, [tasks]);
 
   const profileStreak = profile?.current_streak ?? profile?.streak_count;
-  const streakText = profileStreak > 0 ? `${profileStreak}-day streak` : "no streak yet";
+  const streakText = profileStreak > 0 ? `${profileStreak} ${profileStreak === 1 ? "day" : "days"} of care in a row` : "a fresh start";
   const moodText = moodState === "happy" ? "feeling happy" : moodState === "sad" ? "having a quiet day" : moodState === "neutral" ? "doing okay" : "settling in";
-  const headerTitle = protectedMode
-    ? hasExistingCheckin
-      ? "That's enough for today"
-      : "Go gently today"
-    : "Welcome back";
-  const headerSubtitle = protectedMode
+  const returnCopy = returnNote ? returnGreeting(returnNote, normalizePetName(petName) || "Your pet") : null;
+  const headerTitle = returnCopy
+    ? returnCopy.title
+    : protectedMode
+      ? hasExistingCheckin
+        ? "That's enough for today"
+        : "Go gently today"
+      : "Welcome back";
+  const headerSubtitle = returnCopy
+    ? returnCopy.subtitle
+    : protectedMode
     ? hasExistingCheckin
       ? "You already checked in. Keep things light."
       : "No pressure. Keep it simple today."

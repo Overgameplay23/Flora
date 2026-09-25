@@ -262,7 +262,7 @@ export default function PetScreen() {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>day streak</Text>
+            <Text style={styles.statLabel}>{streak === 1 ? "day in a row" : "days in a row"}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{together ?? "—"}</Text>
