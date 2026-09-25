@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { notify } from "../../utils/confirm";
 import * as ImagePicker from "expo-image-picker";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
@@ -147,7 +147,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       }
       goNext();
     } catch (error) {
-      Alert.alert("Couldn't save the look", safeErrorMessage(error));
+      notify("Couldn't save the look", safeErrorMessage(error));
     } finally {
       setSavingLook(false);
     }
@@ -163,7 +163,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
           ? await ImagePicker.requestCameraPermissionsAsync()
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
+        notify(
           "Permission needed",
           source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose a picture of your pet."
         );
@@ -181,7 +181,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri || !asset?.base64) {
-        Alert.alert("Couldn't read that photo", "Please try another picture.");
+        notify("Couldn't read that photo", "Please try another picture.");
         return;
       }
       setPhoto({
@@ -195,7 +195,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       if (next) setDraftLook((prev) => applySuggestion(prev, next));
     } catch (error) {
       console.error("ONBOARDING_PICK_ERROR", { message: (error as any)?.message });
-      Alert.alert("Couldn't open the picker", "Please try again.");
+      notify("Couldn't open the picker", "Please try again.");
     } finally {
       setPicking(false);
     }
@@ -340,7 +340,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       playDing();
     } catch (error) {
       console.error("ONBOARDING_FIRST_TASK_ERROR", { message: (error as any)?.message });
-      Alert.alert("Couldn't save that yet", "No problem, you can do it from Home in a moment.");
+      notify("Couldn't save that yet", "No problem, you can do it from Home in a moment.");
     } finally {
       setCompletingId(null);
     }

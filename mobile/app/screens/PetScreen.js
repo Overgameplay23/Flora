@@ -4,13 +4,13 @@ import {
   Text,
   Pressable,
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Modal,
   TextInput,
   useWindowDimensions,
 } from "react-native";
+import { confirmAsync, notify } from "../../src/utils/confirm";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -178,7 +178,7 @@ export default function PetScreen() {
     if (!user?.id || retrying) return;
     const originalUrl = sources?.original || sanitizeLegacyPetUrl(profile?.pet_photo_url || null);
     if (!originalUrl) {
-      Alert.alert("Missing photo", "We couldn't find the original photo to retry. Please choose a photo again.");
+      notify("Missing photo", "We couldn't find the original photo to retry. Please choose a photo again.");
       return;
     }
     setRetrying(true);
@@ -206,13 +206,14 @@ export default function PetScreen() {
     }
   };
 
-  const changePhoto = () => {
+  const changePhoto = async () => {
     if (hasAnyImage) {
-      Alert.alert("Replace the photo?", `${displayName} will be painted again from the new photo.`, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Choose photo", onPress: () => navigation.navigate("Onboarding", { mode: "replace" }) },
-      ]);
-      return;
+      const ok = await confirmAsync({
+        title: "Replace the photo?",
+        message: `${displayName} will be painted again from the new photo.`,
+        confirmText: "Choose photo",
+      });
+      if (!ok) return;
     }
     navigation.navigate("Onboarding", { mode: "replace" });
   };

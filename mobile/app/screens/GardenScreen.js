@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { SafeAreaView, View, Text, ActivityIndicator, StyleSheet, Pressable, FlatList, Alert } from "react-native";
+import { SafeAreaView, View, Text, ActivityIndicator, StyleSheet, Pressable, FlatList } from "react-native";
+import { notify } from "../../src/utils/confirm";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
@@ -133,7 +134,7 @@ export default function GardenScreen() {
         await loadGardenUpgradeData();
       } catch (error) {
         console.error("GARDEN_UPGRADE_ERROR", { message: error?.message || String(error), plantId: plant?.id });
-        Alert.alert("Upgrade failed", error?.message || "Could not upgrade this plant.");
+        notify("Upgrade failed", error?.message || "Could not upgrade this plant.");
       } finally {
         setUpgradingPlantId(null);
       }

@@ -79,7 +79,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Tasks" component={DailyTasksScreen} options={{ title: "Daily Tasks", headerShown: true }} />
       <Stack.Screen name="Journal" component={JournalScreen} options={{ title: "Journal", headerShown: true }} />
       <Stack.Screen name="Breathing" component={BreathingScreen} options={{ title: "1-minute breathing", headerShown: true, presentation: "modal" }} />
-      <Stack.Screen name="WeeklyReflection" component={WeeklyReflectionScreen} options={{ title: "Weekly Reflection", headerShown: true }} />
+      <Stack.Screen name="WeeklyReflection" component={WeeklyReflectionScreen} options={{ title: "Our week", headerShown: true }} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} initialParams={{ mode: "replace" }} />
       <Stack.Screen name="PetSetup" component={PetSetupScreen} options={{ title: "Pet Setup", headerShown: true }} />
       <Stack.Screen name="PetStylizeLoading" component={PetStylizeLoadingScreen} options={{ headerShown: false }} />

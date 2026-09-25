@@ -69,9 +69,10 @@ call for the owner.
   (not possible in Expo Go on the App Store build without the owner's decisions); logged as roadmap items.
 
 - **Alert.alert is a no-op on web** (found 2026-09-25 while testing the memorial). `src/utils/confirm.ts` is the
-  replacement (`confirmAsync` / `notify`); the memorial and cycle screens use it. Remaining `Alert.alert` sites
-  to sweep when convenient: HomeScreen (already-completed task, habit edits), PetScreen (replace photo),
-  ProfileScreen (sign-out error), CheckInScreen (saved / failed), DailyTasksScreen, HabitsTodayScreen,
-  onboarding (permissions, picker errors), GameEndCard (none), stylize screens. On iPhone they all work as before.
+  replacement (`confirmAsync` / `notify`). Swept the same day: every live screen uses it now; only the superseded
+  `PetSetupScreen` still imports `Alert`. Rule for new code: never call `Alert.alert` directly.
+- **Weekly recap** (2026-09-25): the report's Sunday "scrapbook" push is not possible without notifications, so
+  "Our week" is pull-only for now (Home week card and Profile). The "room item" reward it mentions is not built;
+  the garden already rewards points daily. Decide later whether the recap should unlock anything.
 - **Memorial mode** (2026-09-25) is built as described in the report; the "pause alerts" part waits for
   notifications to exist. Multi-pet remains out of scope: a new companion archives the memorial on the device.

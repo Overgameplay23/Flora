@@ -7,13 +7,13 @@ import {
   ScrollView,
   ActivityIndicator,
   useWindowDimensions,
-  Alert,
   AppState,
   Modal,
   TextInput,
   Platform,
   ToastAndroid,
 } from "react-native";
+import { notify } from "../../src/utils/confirm";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -107,7 +107,7 @@ function showSavePetNameError(message) {
     ToastAndroid.show(text, ToastAndroid.LONG);
     return;
   }
-  Alert.alert("Could not save pet name", text);
+  notify("Could not save pet name", text);
 }
 
 function taskStorageKey(userId, dateKey) {
@@ -516,7 +516,7 @@ export default function HomeScreen() {
       const task = tasks.find((row) => row.id === taskId);
       if (!task) return;
       if (task.done) {
-        Alert.alert("Already completed today", "This task was already completed today.");
+        notify("Already completed today", "This task was already completed today.");
         return;
       }
       if (completingTaskIds[taskId]) return;
@@ -580,7 +580,7 @@ export default function HomeScreen() {
             text: celebrationLine(normalizePetName(petName) || "Your pet", result.points_awarded, task.title.length + result.earned_points_today),
           });
         } else {
-          Alert.alert("Already completed today", "This task was already completed today.");
+          notify("Already completed today", "This task was already completed today.");
         }
         await Promise.all([loadGardenData(), loadRetentionData(), syncQueuedCompletions("post_success")]);
       } catch (error) {
@@ -632,7 +632,7 @@ export default function HomeScreen() {
         setEditHabitsOpen(false);
       } catch (error) {
         console.error("HOME_HABIT_EDIT_SAVE_ERROR", error);
-        Alert.alert("Error", "Could not save habit edits. Please try again.");
+        notify("Error", "Could not save habit edits. Please try again.");
       } finally {
         setSavingHabitEdits(false);
       }
@@ -729,7 +729,7 @@ export default function HomeScreen() {
         <PointsDebugPanel snapshot={pointsSnapshot} />
 
         <View style={styles.sectionSpacing} />
-        <View style={styles.retentionCard}>
+        <Pressable style={styles.retentionCard} onPress={() => navigation.navigate("WeeklyReflection")} accessibilityRole="button" accessibilityLabel="Our week">
           <View style={styles.weekHeaderRow}>
             <Text style={styles.retentionTitle}>This week with {petDisplayName}</Text>
             <Text style={styles.retentionMeta}>
@@ -755,7 +755,8 @@ export default function HomeScreen() {
             </View>
           )}
           <Text style={styles.retentionRow}>{weekSentence}</Text>
-        </View>
+          <Text style={styles.weekLink}>What {petDisplayName} noticed ›</Text>
+        </Pressable>
 
         {cycle.enabled ? (
           <Pressable style={styles.cycleCard} onPress={() => navigation.navigate("Cycle")} accessibilityRole="button" accessibilityLabel="Cycle tracking">
@@ -1057,6 +1058,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
   },
+  weekLink: { marginTop: 8, color: "#35d07f", fontSize: 13, fontWeight: "700" },
   weekHeaderRow: {
     flexDirection: "row",
     alignItems: "baseline",

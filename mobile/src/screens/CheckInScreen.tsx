@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, TextInput, Alert, ActivityIndicator, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from "react-native";
+import { notify } from "../utils/confirm";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "../contexts/AuthContext";
@@ -184,7 +185,7 @@ export default function CheckInScreen() {
       });
       setUserStats?.(stats);
       const name = petName || "Your pet";
-      Alert.alert(
+      notify(
         "Saved",
         hasCompletedDay ? `Day complete. ${name} is happier for it.` : `Check-in saved. ${name} is glad you stopped by.`
       );
@@ -192,7 +193,7 @@ export default function CheckInScreen() {
     } catch (error: any) {
       console.error("CHECKIN_SAVE_ERROR", error);
       setErrorMessage("Failed to save. Please try again.");
-      Alert.alert("Error", "Failed to save your check-in. Please try again.");
+      notify("Error", "Failed to save your check-in. Please try again.");
     } finally {
       setSaving(false);
     }

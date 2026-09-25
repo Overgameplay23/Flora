@@ -320,7 +320,7 @@ export async function applyGentleStreakUpdate(userId: string, dateKey = todayKey
   };
 }
 
-type ReflectionRow = {
+export type ReflectionRow = {
   date: string;
   mood: number | null;
   win: string | null;
@@ -343,10 +343,8 @@ function inDateRange(dateKey: string, startDateKey: string, endDateKey: string) 
   return dateKey >= startDateKey && dateKey <= endDateKey;
 }
 
-export async function fetchWeeklyReflectionSummary(
-  userId: string,
-  endDateKey = getLocalDateKey()
-): Promise<WeeklyReflectionSummary> {
+/** The check-ins of the seven days ending on endDateKey (newest first), tolerant of older schemas. */
+export async function fetchWeeklyCheckins(userId: string, endDateKey = getLocalDateKey()): Promise<ReflectionRow[]> {
   const startDateKey = addDaysToDateKey(endDateKey, -6);
   let normalizedRows: ReflectionRow[] = [];
 
@@ -381,6 +379,16 @@ export async function fetchWeeklyReflectionSummary(
       .map((row) => normalizeReflectionRow(row, endDateKey))
       .filter((row) => inDateRange(row.date, startDateKey, endDateKey));
   }
+
+  return normalizedRows;
+}
+
+export async function fetchWeeklyReflectionSummary(
+  userId: string,
+  endDateKey = getLocalDateKey()
+): Promise<WeeklyReflectionSummary> {
+  const startDateKey = addDaysToDateKey(endDateKey, -6);
+  const normalizedRows = await fetchWeeklyCheckins(userId, endDateKey);
 
   const moodRows = normalizedRows.filter((row) => row.mood != null) as Array<{ date: string; mood: number; win: string | null }>;
   const moodAverage =

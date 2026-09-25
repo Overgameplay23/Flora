@@ -546,9 +546,22 @@ Owner: "do the memorial mode too". The report's edge case: when a real pet has p
 
 **Data**: forward migration `pet_memorial.sql` (`pet.memorial_at date`, `pet.memorial_note`, 23rd migration) plus a device copy (`floura:memorial:<uid>`); memories and the archive are device-only (`src/services/memoryStore.ts`). Rules and copy in `src/domain/memorial.ts` (5 tests): normalisation, no future dates, memories newest-first, ten reflections that never mention streaks, tasks or points, milestones only with data.
 
-**Found on the way (R-81, M, fixed)**: React Native Web's `Alert.alert` is a no-op, so on web every confirmation dialog in the app silently did nothing (the memorial confirmation, cycle-data deletion, and the older photo-replace and sign-out prompts). `src/utils/confirm.ts` (`confirmAsync`, `notify`) uses the browser's own dialogs on web and `Alert` on native; the memorial and cycle screens use it. The older `Alert.alert` call sites still exist and are listed in dev-notes for a sweep.
+**Found on the way (R-81, M, fixed)**: React Native Web's `Alert.alert` is a no-op, so on web every confirmation dialog in the app silently did nothing (the memorial confirmation, cycle-data deletion, and the older photo-replace and sign-out prompts). `src/utils/confirm.ts` (`confirmAsync`, `notify`) uses the browser's own dialogs on web and `Alert` on native; the memorial and cycle screens use it. The older `Alert.alert` call sites were swept in 6.21.
 
 **Not done on purpose**: notifications do not exist yet, so "pause alerts" is moot until the native strategy lands; multi-pet is out of scope (the archive keeps the memorial when a new companion moves in).
+
+### 6.21 Fourteenth change set — 2026-09-25: "Our week", the Alert sweep, and a regex fix
+
+Screens: `docs/screenshots/2026-09-25-our-week/`.
+
+**Our week (weekly scrapbook, report MVP "weekly recap").** The old Weekly Reflection screen (light theme, "Avg Mood", "Hard Days detected") is replaced by the pet telling the last seven days back. Rules live in `src/domain/week.ts` (`buildWeekStory`, 4 tests) over the two stores the app already keeps: check-ins (energy 1–5 + the win) and the `daily_user_metrics` roll-up.
+- **"<Pet> noticed"** card: the resting-or-happy portrait, one headline by active days ("You showed up almost every day." / "A steady week, one small thing at a time." / "You came by when you could. That counts." / "A quiet week, and that's allowed."), then up to three observations: energy word plus trend (first three days vs last three, ±0.75), heavier days named by weekday with "<pet> stayed close" and "you still did something on those days", and the fullest day. Never a verdict, never a streak.
+- **Energy** strip: seven capsules coloured by the energy word, today ringed, no check-in = grey stub. **Kept**: the week's wins in order. **Small things**: done / check-ins / days of 7, and points into the garden. Closing line invites today's check-in if it is missing; memorial weeks say "Take the coming week at your own pace." and skip the cheering lines.
+- Entry points: the Home week card now opens it ("What <pet> noticed ›"); the Profile row is "Our week". `fetchWeeklyCheckins` was split out of `fetchWeeklyReflectionSummary` in `dailyLoop.ts` (same schema fallbacks); the "New" badge logic is unchanged.
+
+**Alert sweep (R-81 closed).** Every remaining `Alert.alert` outside the superseded `PetSetupScreen` now goes through `src/utils/confirm.ts`: eleven files, one real dialog (Pet tab "Replace the photo?" → `confirmAsync`) and the rest notifications (`notify`). On web they now show; on iPhone nothing changes.
+
+**Found on the way (R-82, M, fixed)**: `actForTask` built its word-boundary rules with `new RegExp("…\btea\b…")`, where `\b` inside a string literal is a backspace character, so "tea", "eat", "bed", "rest", "nap", "run", "move" never matched as whole words (the pet stretched instead of drinking or sleeping). Regex literals now; six new cases in `petMood.test.ts`. Cause: the rules were written through a shell heredoc that ate backslashes, and the test suite only covered the non-boundary words.
 
 ### 6.7 Remote Supabase (read-only)
 ```

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, Modal, SafeAreaView, TouchableOpacity, Alert } from "react-native";
+import { View, Text, TextInput, Pressable, Modal, SafeAreaView, TouchableOpacity } from "react-native";
+import { notify } from "../utils/confirm";
 import { Audio } from "expo-av";
 import { Feather } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
@@ -72,7 +73,7 @@ export default function JournalScreen({ navigation }: any) {
       setFollowUpPrompt(prompt);
       setModalVisible(true);
     } catch (e) {
-      Alert.alert("Error", "Failed to submit. Try again.");
+      notify("Error", "Failed to submit. Try again.");
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { View, Text, Pressable, SafeAreaView, FlatList, ActivityIndicator, Alert } from "react-native";
+import { View, Text, Pressable, SafeAreaView, FlatList, ActivityIndicator } from "react-native";
+import { notify } from "../utils/confirm";
 import { Feather } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -78,7 +79,7 @@ export default function DailyTasksScreen({ navigation }: any) {
     const task = tasks.find((t) => t.id === id);
     if (!task || !user?.id) return;
     if (task.done) {
-      Alert.alert("Already completed today", "This task was already completed today.");
+      notify("Already completed today", "This task was already completed today.");
       return;
     }
 
@@ -114,7 +115,7 @@ export default function DailyTasksScreen({ navigation }: any) {
       if (result.inserted) {
         playDing();
       } else {
-        Alert.alert("Already completed today", "This task was already completed today.");
+        notify("Already completed today", "This task was already completed today.");
       }
     } catch (error) {
       setTaskMutationNoticeById((prev) => ({
@@ -166,7 +167,7 @@ export default function DailyTasksScreen({ navigation }: any) {
         playDing();
       }
       if (alreadyCompletedCount > 0) {
-        Alert.alert("Already completed today", "Some tasks were already completed today.");
+        notify("Already completed today", "Some tasks were already completed today.");
       }
     } catch (error) {
       console.error("TASK_COMPLETE_ALL_ERROR", error);

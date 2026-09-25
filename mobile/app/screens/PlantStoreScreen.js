@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { SafeAreaView, View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { SafeAreaView, View, Text, Pressable, FlatList, StyleSheet, ActivityIndicator } from "react-native";
+import { notify } from "../../src/utils/confirm";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -125,7 +126,7 @@ export default function PlantStoreScreen({ navigation }) {
       await loadStoreData();
     } catch (error) {
       console.error("PLANT_STORE_UNLOCK_ERROR", error);
-      Alert.alert("Error", "Could not unlock that item. Please try again.");
+      notify("Error", "Could not unlock that item. Please try again.");
     } finally {
       setUnlockingItemId(null);
     }

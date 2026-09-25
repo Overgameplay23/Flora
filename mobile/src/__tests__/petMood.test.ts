@@ -9,6 +9,15 @@ describe("actForTask", () => {
     expect(actForTask("10-minute focus session")).toBe("stretch");
     expect(actForTask(null)).toBe("stretch");
   });
+
+  it("matches whole words where the rule says so", () => {
+    expect(actForTask("Cup of tea")).toBe("drink");
+    expect(actForTask("Go to bed early")).toBe("sleep");
+    expect(actForTask("Rest for ten minutes")).toBe("sleep");
+    expect(actForTask("Take a nap")).toBe("sleep");
+    expect(actForTask("Go for a run")).toBe("walk");
+    expect(actForTask("Steady heartbeat")).toBe("stretch"); // "eat" inside "heartbeat" is not a meal
+  });
 });
 
 describe("petMoodFromStores", () => {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
+import { notify } from "../../src/utils/confirm";
 import { useFocusEffect } from "@react-navigation/native";
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
@@ -125,7 +126,7 @@ export default function ProfileScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Reflect</Text>
       <View style={styles.group}>
-        <Row icon="book-open" label="Reflect on my week" hint="Moods, wins and hard days" badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
+        <Row icon="book-open" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
         <Row icon="sun" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />
         <Row icon="edit-3" label="Journal" hint="A few lines for yourself" onPress={() => navigation.navigate("Journal")} />
         <Row icon="calendar" label="Cycle tracking" hint={cycleEnabled ? "On · stays on this device" : "Off · optional, on-device only"} onPress={() => navigation.navigate("Cycle")} />
@@ -154,7 +155,7 @@ export default function ProfileScreen({ navigation }) {
               await signOut();
             } catch (error) {
               console.error("PROFILE_SIGNOUT_ERROR", error);
-              Alert.alert("Error", "Could not sign out. Please try again.");
+              notify("Error", "Could not sign out. Please try again.");
             }
           }}
         />

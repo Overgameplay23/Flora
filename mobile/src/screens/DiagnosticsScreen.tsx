@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { Alert, FlatList, Pressable, SafeAreaView, Share, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, SafeAreaView, Share, StyleSheet, Text, View } from "react-native";
+import { notify } from "../utils/confirm";
 import { useFocusEffect } from "@react-navigation/native";
 import { clearDiagLogs, getDiagLogs, type DiagEntry } from "../utils/diagLog";
 
@@ -51,9 +52,9 @@ export default function DiagnosticsScreen() {
     const text = JSON.stringify(getDiagLogs(), null, 2);
     const ok = await copyText(text);
     if (ok) {
-      Alert.alert("Copied", "Diagnostics logs copied.");
+      notify("Copied", "Diagnostics logs copied.");
     } else {
-      Alert.alert("Unavailable", "Could not copy logs on this device.");
+      notify("Unavailable", "Could not copy logs on this device.");
     }
   }, []);
 

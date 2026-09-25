@@ -6,12 +6,12 @@ import {
   SafeAreaView,
   FlatList,
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Modal,
   TextInput,
   ScrollView,
 } from "react-native";
+import { notify } from "../utils/confirm";
 import { useAuth } from "../contexts/AuthContext";
 import {
   fetchHabitsWithCompletions,
@@ -80,7 +80,7 @@ export default function HabitsTodayScreen() {
     } catch (error) {
       console.error("HABITS_TOGGLE_ERROR", error);
       setErrorMessage("Could not update habit. Please try again.");
-      Alert.alert("Error", "Could not update that habit. Please try again.");
+      notify("Error", "Could not update that habit. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -124,7 +124,7 @@ export default function HabitsTodayScreen() {
     } catch (error) {
       console.error("HABITS_SAVE_ERROR", error);
       setErrorMessage("Could not save habit names.");
-      Alert.alert("Error", "Could not save habit names. Please try again.");
+      notify("Error", "Could not save habit names. Please try again.");
     } finally {
       setEditorSaving(false);
     }
@@ -142,7 +142,7 @@ export default function HabitsTodayScreen() {
     } catch (error) {
       console.error("HABITS_RESET_ERROR", error);
       setErrorMessage("Could not reset habits.");
-      Alert.alert("Error", "Could not reset habits. Please try again.");
+      notify("Error", "Could not reset habits. Please try again.");
     } finally {
       setEditorSaving(false);
     }
