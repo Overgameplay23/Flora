@@ -1,0 +1,51 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# Environment variables
+.env
+
+# typescript
+*.tsbuildinfo
+
+# Supabase CLI link cache
+supabase/.temp/
+
+# restoration check artefacts
+.expo-export-check/
+
+# local Supabase stack (CLI state and demo session are machine-local)
+local-backend/supabase/.temp/
+local-backend/supabase/.branches/
+local-backend/.demo-session.json

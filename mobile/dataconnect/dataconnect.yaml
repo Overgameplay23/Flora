@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "mobile"
+location: "us-east4"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "mobile-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

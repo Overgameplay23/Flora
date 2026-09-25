@@ -1,0 +1,128 @@
+-- Fix: public.complete_task always failed with
+--   ERROR 42702: column reference "task_id" is ambiguous
+-- because its parameter is named task_id and PL/pgSQL also substitutes variables inside
+-- ON CONFLICT (user_id, task_id, completed_date). The parameter name is part of the client contract
+-- (supabase.rpc('complete_task', { task_id, completed_at })), so it cannot be renamed. Every parameter
+-- reference in the body is already qualified (complete_task.task_id / complete_task.completed_at),
+-- so resolving bare identifiers to columns is safe.
+-- The function body below is byte-identical to supabase/migrations/2026_02_17_task_completion_atomic.sql
+-- except for the single added #variable_conflict line.
+
+create or replace function public.complete_task(task_id text, completed_at timestamptz default now())
+returns table (
+  inserted boolean,
+  points_awarded integer,
+  earned_points_today integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_user_id uuid := auth.uid();
+  v_task_id public.tasks.id%type;
+  v_task_json jsonb;
+  v_points integer := 2;
+  v_inserted boolean := false;
+  v_completed_at timestamptz := coalesce(complete_task.completed_at, now());
+  v_completed_date date := (coalesce(complete_task.completed_at, now()) at time zone 'UTC')::date;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  select t.id, to_jsonb(t)
+  into v_task_id, v_task_json
+  from public.tasks t
+  where t.user_id = v_user_id
+    and t.id::text = complete_task.task_id
+  limit 1;
+
+  if not found then
+    raise exception 'Task not found for current user'
+      using errcode = 'P0002';
+  end if;
+
+  begin
+    v_points := coalesce(nullif(trim(v_task_json ->> 'points'), '')::integer, 2);
+  exception
+    when others then
+      v_points := 2;
+  end;
+
+  v_points := greatest(1, least(v_points, 100));
+
+  insert into public.task_completions (
+    user_id,
+    task_id,
+    completed_at,
+    completed_date,
+    points,
+    completion_date,
+    done
+  )
+  values (
+    v_user_id,
+    v_task_id,
+    v_completed_at,
+    v_completed_date,
+    v_points,
+    v_completed_date,
+    true
+  )
+  on conflict (user_id, task_id, completed_date) do nothing;
+
+  v_inserted := found;
+
+  if v_inserted then
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'completed_at'
+    ) then
+      execute 'update public.tasks set completed_at = $1 where id = $2 and user_id = $3'
+        using v_completed_at, v_task_id, v_user_id;
+    end if;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'status'
+    ) then
+      execute 'update public.tasks set status = ''completed'' where id = $1 and user_id = $2 and status is distinct from ''completed'''
+        using v_task_id, v_user_id;
+    end if;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'done'
+    ) then
+      execute 'update public.tasks set done = true where id = $1 and user_id = $2'
+        using v_task_id, v_user_id;
+    end if;
+  end if;
+
+  select coalesce(sum(tc.points), 0)::integer
+  into earned_points_today
+  from public.task_completions tc
+  where tc.user_id = v_user_id
+    and tc.completed_date = v_completed_date;
+
+  inserted := v_inserted;
+  points_awarded := case when v_inserted then v_points else 0 end;
+  return next;
+end;
+$$;
+
+revoke all on function public.complete_task(text, timestamptz) from public;
+grant execute on function public.complete_task(text, timestamptz) to authenticated;
+grant execute on function public.complete_task(text, timestamptz) to service_role;

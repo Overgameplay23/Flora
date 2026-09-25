@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "floura-expo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["mobile/node_modules/expo/bin/cli", "start", "mobile", "--port", "8081"],
+      "port": 8081
+    },
+    {
+      "name": "floura-expo-phone",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["mobile/scripts/start-expo-phone.js", "--port", "8081", "--clear"],
+      "port": 8081
+    }
+  ]
+}

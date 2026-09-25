@@ -1,0 +1,17 @@
+- Garden visible on Home (garden window) with pet rendered.
+- Pet appears inside the Garden tab scene.
+- Daily tasks screen reachable and functional.
+- Daily check-in saves without schema errors.
+- Habits toggles save without schema errors.
+- Streak updates and pet mood reflects check-in + habits.
+- Garden progress visible under Garden tab (Progress button) with no SQL errors.
+- Home buttons show text labels (Garden, Tasks, Check-in, Habits).
+- Garden progress button only on Garden tab (not on Home).
+- Flower sprite has transparent background and is placed naturally in garden.
+- Pet uses cute-max transparent PNG (processed path) and blends into garden.
+- Garden progress shows without errors even if streak_at_unlock is missing (fallback works).
+- Stylized pet uses transparent PNG (processed path) and renders cleanly in garden.
+- Manual pet swap test:
+  - Upload a new pet photo and confirm a masked preview shows immediately in the stylize loading screen.
+  - Within a few seconds, confirm the Home/Garden views swap to `stylized.png` (no circle mask, no background rectangle).
+  - If stylize fails, confirm `cutout.png` still appears in the garden (transparent alpha).

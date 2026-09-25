@@ -1,0 +1,29 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "App.js",
+    "index.js",
+    "app/**/*",
+    "src/**/*",
+    "nativewind-env.d.ts",
+    "C:\\Users\\donov\\floura\\mobile\\nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "liftiq",
+    "supabase",
+    "android",
+    "ios",
+    "dist",
+    ".expo",
+    ".expo-export-check",
+    "scripts",
+    "server",
+    "dataconnect",
+    "tmp",
+    "docs"
+  ]
+}

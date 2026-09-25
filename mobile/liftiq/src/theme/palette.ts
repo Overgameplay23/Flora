@@ -1,0 +1,16 @@
+export const palette = {
+  bg: '#f4eee6',
+  surface: '#fffaf5',
+  ink: '#181411',
+  muted: '#75685b',
+  line: '#dccdbe',
+  sand: '#e9d7be',
+  bronze: '#b06d2c',
+  bronzeDeep: '#8d4f18',
+  moss: '#4f6b43',
+  mossSoft: '#dce8d4',
+  red: '#b4534a',
+  gold: '#e7b544',
+  white: '#ffffff',
+  navy: '#27324a',
+};

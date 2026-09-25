@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- App Transport Security (ATS) settings for network access. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <!-- Allow all network loads (broad relaxation; keep only if required for debugging). -->
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+    <!-- Explicit exception to allow Supabase subdomains over HTTPS. -->
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>supabase.co</key>
+      <dict>
+        <!-- Allow all project subdomains like <project>.supabase.co. -->
+        <key>NSIncludesSubdomains</key>
+        <true/>
+        <!-- Require modern TLS even when exceptions are present. -->
+        <key>NSTemporaryExceptionMinimumTLSVersion</key>
+        <string>TLSv1.2</string>
+      </dict>
+    </dict>
+  </dict>
+</dict>
+</plist>

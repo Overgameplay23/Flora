@@ -1,0 +1,96 @@
+{
+  "image": {
+    "width": 1696,
+    "height": 2528,
+    "file": "garden_bg.jpg"
+  },
+  "patch": {
+    "u": 0.6108,
+    "v": 0.6954,
+    "ru": 0.1769,
+    "rv": 0.0653
+  },
+  "spots": [
+    {
+      "u": 0.615,
+      "v": 0.679,
+      "scale": 0.94
+    },
+    {
+      "u": 0.7,
+      "v": 0.69,
+      "scale": 0.96
+    },
+    {
+      "u": 0.535,
+      "v": 0.69,
+      "scale": 0.96
+    },
+    {
+      "u": 0.58,
+      "v": 0.73,
+      "scale": 1.06
+    },
+    {
+      "u": 0.665,
+      "v": 0.735,
+      "scale": 1.06
+    },
+    {
+      "u": 0.5,
+      "v": 0.725,
+      "scale": 1.04
+    }
+  ],
+  "pet": {
+    "u": 0.375,
+    "v": 0.802,
+    "heightRatio": 0.24
+  },
+  "sprites": {
+    "seed": {
+      "file": "patch_seed.png",
+      "width": 107,
+      "height": 124,
+      "anchorX": 0.4953,
+      "anchorY": 0.7581,
+      "homeSpot": {
+        "u": 0.513,
+        "v": 0.6938
+      }
+    },
+    "sproutSmall": {
+      "file": "patch_sproutSmall.png",
+      "width": 130,
+      "height": 117,
+      "anchorX": 0.4962,
+      "anchorY": 0.7436,
+      "homeSpot": {
+        "u": 0.6135,
+        "v": 0.7188
+      }
+    },
+    "sprout": {
+      "file": "patch_sprout.png",
+      "width": 166,
+      "height": 148,
+      "anchorX": 0.497,
+      "anchorY": 0.7973,
+      "homeSpot": {
+        "u": 0.6094,
+        "v": 0.6594
+      }
+    },
+    "bloom": {
+      "file": "patch_bloom.png",
+      "width": 192,
+      "height": 212,
+      "anchorX": 0.4974,
+      "anchorY": 0.8585,
+      "homeSpot": {
+        "u": 0.7102,
+        "v": 0.6938
+      }
+    }
+  }
+}

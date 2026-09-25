@@ -1,0 +1,211 @@
+-- Atomic + idempotent task completion for beta hardening.
+-- NOTE: tasks.id is bigint in this codebase, so task_completions.task_id is bigint.
+
+create extension if not exists "pgcrypto";
+
+create table if not exists public.task_completions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  task_id bigint not null references public.tasks(id) on delete cascade,
+  completed_at timestamptz not null default now(),
+  completed_date date not null,
+  points integer not null default 2,
+  completion_date date not null,
+  done boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.task_completions
+  add column if not exists completed_at timestamptz,
+  add column if not exists completed_date date,
+  add column if not exists points integer,
+  add column if not exists completion_date date,
+  add column if not exists done boolean not null default true;
+
+update public.task_completions
+set completed_at = coalesce(completed_at, created_at, now())
+where completed_at is null;
+
+update public.task_completions
+set completed_date = coalesce(completed_date, completion_date, (completed_at at time zone 'UTC')::date)
+where completed_date is null;
+
+update public.task_completions
+set completion_date = coalesce(completion_date, completed_date)
+where completion_date is null;
+
+update public.task_completions
+set points = coalesce(points, 2)
+where points is null;
+
+alter table public.task_completions
+  alter column completed_at set default now(),
+  alter column completed_at set not null,
+  alter column completed_date set not null,
+  alter column completion_date set not null,
+  alter column points set default 2,
+  alter column points set not null;
+
+-- Keep legacy date column aligned with canonical completed_date.
+update public.task_completions
+set completion_date = completed_date
+where completion_date is distinct from completed_date;
+
+-- Defensive dedupe before adding the new unique key.
+delete from public.task_completions a
+using public.task_completions b
+where a.user_id = b.user_id
+  and a.task_id = b.task_id
+  and a.completed_date = b.completed_date
+  and a.ctid < b.ctid;
+
+create unique index if not exists task_completions_user_task_completed_date_key
+  on public.task_completions (user_id, task_id, completed_date);
+
+create index if not exists task_completions_user_completed_date_idx
+  on public.task_completions (user_id, completed_date);
+
+create index if not exists task_completions_task_id_idx
+  on public.task_completions (task_id);
+
+alter table public.task_completions enable row level security;
+
+drop policy if exists task_completions_select_own on public.task_completions;
+drop policy if exists task_completions_insert_own on public.task_completions;
+drop policy if exists task_completions_update_own on public.task_completions;
+drop policy if exists task_completions_delete_own on public.task_completions;
+
+create policy task_completions_select_own on public.task_completions
+  for select using (auth.uid() = user_id);
+
+create policy task_completions_insert_own on public.task_completions
+  for insert with check (auth.uid() = user_id);
+
+create policy task_completions_update_own on public.task_completions
+  for update using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy task_completions_delete_own on public.task_completions
+  for delete using (auth.uid() = user_id);
+
+drop function if exists public.complete_task(text, timestamptz);
+drop function if exists public.complete_task(text);
+
+create or replace function public.complete_task(task_id text, completed_at timestamptz default now())
+returns table (
+  inserted boolean,
+  points_awarded integer,
+  earned_points_today integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_task_id public.tasks.id%type;
+  v_task_json jsonb;
+  v_points integer := 2;
+  v_inserted boolean := false;
+  v_completed_at timestamptz := coalesce(complete_task.completed_at, now());
+  v_completed_date date := (coalesce(complete_task.completed_at, now()) at time zone 'UTC')::date;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  select t.id, to_jsonb(t)
+  into v_task_id, v_task_json
+  from public.tasks t
+  where t.user_id = v_user_id
+    and t.id::text = complete_task.task_id
+  limit 1;
+
+  if not found then
+    raise exception 'Task not found for current user'
+      using errcode = 'P0002';
+  end if;
+
+  begin
+    v_points := coalesce(nullif(trim(v_task_json ->> 'points'), '')::integer, 2);
+  exception
+    when others then
+      v_points := 2;
+  end;
+
+  v_points := greatest(1, least(v_points, 100));
+
+  insert into public.task_completions (
+    user_id,
+    task_id,
+    completed_at,
+    completed_date,
+    points,
+    completion_date,
+    done
+  )
+  values (
+    v_user_id,
+    v_task_id,
+    v_completed_at,
+    v_completed_date,
+    v_points,
+    v_completed_date,
+    true
+  )
+  on conflict (user_id, task_id, completed_date) do nothing;
+
+  v_inserted := found;
+
+  if v_inserted then
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'completed_at'
+    ) then
+      execute 'update public.tasks set completed_at = $1 where id = $2 and user_id = $3'
+        using v_completed_at, v_task_id, v_user_id;
+    end if;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'status'
+    ) then
+      execute 'update public.tasks set status = ''completed'' where id = $1 and user_id = $2 and status is distinct from ''completed'''
+        using v_task_id, v_user_id;
+    end if;
+
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'tasks'
+        and column_name = 'done'
+    ) then
+      execute 'update public.tasks set done = true where id = $1 and user_id = $2'
+        using v_task_id, v_user_id;
+    end if;
+  end if;
+
+  select coalesce(sum(tc.points), 0)::integer
+  into earned_points_today
+  from public.task_completions tc
+  where tc.user_id = v_user_id
+    and tc.completed_date = v_completed_date;
+
+  inserted := v_inserted;
+  points_awarded := case when v_inserted then v_points else 0 end;
+  return next;
+end;
+$$;
+
+revoke all on function public.complete_task(text, timestamptz) from public;
+grant execute on function public.complete_task(text, timestamptz) to authenticated;
+grant execute on function public.complete_task(text, timestamptz) to service_role;

@@ -1,0 +1,22 @@
+# dependencies and local caches (each app folder also has its own .gitignore)
+node_modules/
+.expo/
+.expo-export-check/
+dist/
+web-build/
+
+# local secrets and machine-local state (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+supabase/.temp/
+supabase/.branches/
+**/local-backend/.demo-session.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

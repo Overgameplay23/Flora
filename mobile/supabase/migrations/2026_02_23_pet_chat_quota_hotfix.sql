@@ -1,0 +1,87 @@
+-- Pet chat quota infrastructure hotfix.
+-- Ensures the quota table and consume RPC exist for the pet-chat function.
+
+create table if not exists public.pet_chat_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  usage_date date not null,
+  count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, usage_date),
+  constraint pet_chat_usage_count_nonnegative check (count >= 0)
+);
+
+create index if not exists pet_chat_usage_user_id_idx
+  on public.pet_chat_usage (user_id);
+
+alter table public.pet_chat_usage enable row level security;
+
+drop policy if exists pet_chat_usage_select_own on public.pet_chat_usage;
+
+create policy pet_chat_usage_select_own
+  on public.pet_chat_usage
+  for select
+  using (auth.uid() = user_id);
+
+drop function if exists public.consume_pet_chat_quota(uuid, date, integer);
+
+create or replace function public.consume_pet_chat_quota(
+  p_user_id uuid,
+  p_usage_date date default ((now() at time zone 'UTC')::date),
+  p_max integer default 20
+)
+returns table (
+  allowed boolean,
+  remaining integer,
+  reset_at timestamptz,
+  current_count integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_usage_date date := coalesce(p_usage_date, (now() at time zone 'UTC')::date);
+  v_max integer := greatest(coalesce(p_max, 20), 1);
+  v_count integer := 0;
+begin
+  if p_user_id is null then
+    raise exception 'User id is required'
+      using errcode = '22023';
+  end if;
+
+  insert into public.pet_chat_usage (user_id, usage_date, count)
+  values (p_user_id, v_usage_date, 0)
+  on conflict (user_id, usage_date) do nothing;
+
+  update public.pet_chat_usage
+  set
+    count = count + 1,
+    updated_at = now()
+  where user_id = p_user_id
+    and usage_date = v_usage_date
+    and count < v_max
+  returning count
+  into v_count;
+
+  allowed := found;
+
+  if not allowed then
+    select pcu.count
+    into v_count
+    from public.pet_chat_usage pcu
+    where pcu.user_id = p_user_id
+      and pcu.usage_date = v_usage_date;
+  end if;
+
+  current_count := coalesce(v_count, 0);
+  remaining := greatest(v_max - current_count, 0);
+  reset_at := ((v_usage_date + 1)::timestamp at time zone 'UTC');
+
+  return next;
+end;
+$$;
+
+revoke all on function public.consume_pet_chat_quota(uuid, date, integer) from public;
+revoke all on function public.consume_pet_chat_quota(uuid, date, integer) from authenticated;
+grant execute on function public.consume_pet_chat_quota(uuid, date, integer) to service_role;
