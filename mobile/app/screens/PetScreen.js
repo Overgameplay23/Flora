@@ -348,7 +348,7 @@ export default function PetScreen() {
           {inMemorial ? (
             <ActionTile icon="wind" label="Quiet minute" hint="One minute of breathing" onPress={() => navigation.navigate("Breathing")} />
           ) : (
-            <ActionTile icon="message-circle" label="Talk" hint={`Chat with ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
+            <ActionTile icon="book-open" label="Journal" hint={`${displayName} asks a question`} onPress={() => navigation.navigate("Journal")} />
           )}
           <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
           <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />

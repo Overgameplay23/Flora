@@ -24,7 +24,6 @@ import BreathingScreen from '../../src/screens/BreathingScreen';
 import GardenScreen from '../screens/GardenScreen';
 import NetworkDebugScreen from '../../src/screens/NetworkDebugScreen';
 import DiagnosticsScreen from '../../src/screens/DiagnosticsScreen';
-import PetChatScreen from '../../src/screens/PetChatScreen';
 import { finchTabBarItemStyle, finchTabBarLabelStyle, finchTabBarStyle, renderFinchTabIcon } from '../../src/components/finchHome/FinchTabBarStyles';
 import PetTabIcon from '../../src/components/pet/PetTabIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -84,7 +83,6 @@ export default function AppNavigator() {
       <Stack.Screen name="PetSetup" component={PetSetupScreen} options={{ title: "Pet Setup", headerShown: true }} />
       <Stack.Screen name="PetStylizeLoading" component={PetStylizeLoadingScreen} options={{ headerShown: false }} />
       <Stack.Screen name="PetStylizeResult" component={PetStylizeResultScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="PetChat" component={PetChatScreen} options={{ title: "Talk to your pet", headerShown: true }} />
       <Stack.Screen name="Play" component={PlayScreen} options={{ title: "Play", headerShown: true }} />
       <Stack.Screen name="Cycle" component={CycleScreen} options={{ title: "Cycle", headerShown: true }} />
       <Stack.Screen name="Memorial" component={MemorialScreen} options={{ title: "Remembering", headerShown: true }} />

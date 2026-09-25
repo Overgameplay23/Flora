@@ -578,6 +578,10 @@ Screens: `docs/screenshots/2026-09-25-journal/`.
 
 **Habits Today** showed a second, different streak ("2/5 completed - Streak 7" from the profile's habit streak, next to Home's 24 days). It now says "2 of 5 done today"; the one number lives on Home and Profile (R-27).
 
+### 6.23 Sixteenth change set — 2026-09-25: chat retired from the UI
+
+Owner decision (2026-09-25): "retire the chat screen for now … we can add an API; designed prompts are not good enough." The `PetChat` route is unregistered and its two entry points removed (Profile row; Pet tab tile, which now opens the Journal). Nothing is deleted: `src/screens/PetChatScreen.tsx`, `src/services/petChat.ts` and `supabase/functions/pet-chat` stay as they were, ready for a rebuild once a provider API exists.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent
@@ -701,7 +705,7 @@ Duplicates: pet render candidate ladder x3 (`Pet.js`, `GardenScene.js`, `FinchGa
 
 Superseded on 2026-09-24 (kept on disk, still registered as routes so nothing breaks; delete in a later reviewable change once the owner agrees): `src/screens/PetSetupScreen.tsx`, `app/screens/PetStylizeLoadingScreen.js`, `app/screens/PetStylizeResultScreen.js` (replaced by `src/screens/onboarding/OnboardingScreen.tsx`), `src/components/Pet.js` and `src/components/pet/PetExpressionOverlay.tsx` (replaced by `PetPortrait`), `src/services/taskCompletion.ts#utcDateKey` (kept as a deprecated export), the `assets/garden/flower_*.png`, `assets/garden.png` (source of the generated scene; keep), `assets/meadow.png` and `assets/pets/*` sample art (only `assets/pet.png` is used, by the local demo seed).
 
-Superseded on 2026-09-25: the original `src/screens/JournalScreen.tsx` (voice recording + external `aiPrompt` follow-up; never worked against any migrated backend) is preserved at `docs/baseline/originals/src/screens/JournalScreen.tsx`; the live screen was rewritten (6.22).
+Superseded on 2026-09-25: the original `src/screens/JournalScreen.tsx` (voice recording + external `aiPrompt` follow-up; never worked against any migrated backend) is preserved at `docs/baseline/originals/src/screens/JournalScreen.tsx`; the live screen was rewritten (6.22). `src/screens/PetChatScreen.tsx` (unrouted since 6.23; the owner wants an API-backed conversation later).
 
 ## 11. Unknowns, grouped by what resolves them
 

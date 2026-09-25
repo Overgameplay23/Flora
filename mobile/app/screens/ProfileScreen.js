@@ -135,7 +135,6 @@ export default function ProfileScreen({ navigation }) {
       <Text style={styles.sectionTitle}>Your pet</Text>
       <View style={styles.group}>
         <Row icon="camera" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
-        <Row icon="message-circle" label={`Talk to ${displayName}`} onPress={() => navigation.navigate("PetChat")} />
         <Row
           icon="moon"
           label={memorial ? `Remembering ${displayName}` : `If ${displayName} has passed away`}

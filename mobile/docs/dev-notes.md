@@ -49,9 +49,12 @@ call for the owner.
   2026-09-25 note. The slug, bundle identifier and Android package are unchanged (owner decision; see
   RESTORATION_PLAN Phase 6). The report flags trademark checks before launch ("Flora - Green Focus");
   "Luna" is also a common app name, so the same check applies.
-- **Open-ended AI chat.** The report says no open-ended chatbot in v1 (use designed dialogue trees). The
-  `pet-chat` Edge Function and the Talk screen still exist and are reachable from the Pet tab; they only
-  work with provider keys. Options: keep behind a flag, replace with the daily reflection prompt, or remove.
+- **Open-ended AI chat.** The report says no open-ended chatbot in v1 (use designed dialogue trees).
+  **Donovan, 2026-09-25: retire the chat screen for now; designed prompts are not good enough; an API will
+  be added later.** So: the Talk screen is unrouted and its entry points are gone (Pet tab shows Journal
+  instead); `src/screens/PetChatScreen.tsx`, `src/services/petChat.ts` and the `pet-chat` Edge Function
+  stay on disk untouched. When the API exists, the conversation should be rebuilt around the pet's
+  character and the person's real week (energy, wins, heavier days) rather than the old coach/chat toggle.
 - **Fertility predictions.** The report says no fertility predictions and "never clinical". The cycle
   tracker's fertile-window estimate was **removed from the UI on 2026-09-25** to match (the phase engine
   keeps period / follicular / luteal / expected). The remaining copy stays non-clinical with the disclaimer.
