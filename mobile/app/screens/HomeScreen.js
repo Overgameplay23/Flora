@@ -31,6 +31,7 @@ import { phaseLabel } from "../../src/domain/cycle";
 import { shortDate } from "../../src/domain/calendar";
 import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
 import { nextLastSeen, returnGreeting, returnStatus } from "../../src/domain/hibernation";
+import { unifiedStreak } from "../../src/domain/streaks";
 import { isPlayTask } from "../../src/games/playStatsLogic";
 import { supabase } from "../../src/lib/supabase";
 import { isProtectedMood } from "../../src/domain/protectedMode";
@@ -482,7 +483,7 @@ export default function HomeScreen() {
 
   const completedCount = useMemo(() => tasks.filter((task) => task.done).length, [tasks]);
 
-  const profileStreak = profile?.current_streak ?? profile?.streak_count;
+  const profileStreak = unifiedStreak(petRetentionState?.streak_days, profile?.current_streak ?? profile?.streak_count);
   const streakText = profileStreak > 0 ? `${profileStreak} ${profileStreak === 1 ? "day" : "days"} of care in a row` : "a fresh start";
   const moodText = moodState === "happy" ? "feeling happy" : moodState === "sad" ? "having a quiet day" : moodState === "neutral" ? "doing okay" : "settling in";
   const returnCopy = returnNote ? returnGreeting(returnNote, normalizePetName(petName) || "Your pet") : null;

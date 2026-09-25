@@ -22,6 +22,8 @@ import { stylizePet } from "../../src/services/petStylize";
 import { sanitizeLegacyPetUrl } from "../../src/utils/petImages";
 import GardenStage from "../../src/components/garden/GardenStage";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
+import { unifiedStreak } from "../../src/domain/streaks";
+import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
 
 const PET_NAME_MAX_CHARS = 24;
@@ -78,6 +80,7 @@ export default function PetScreen() {
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [serverStreak, setServerStreak] = useState(null);
   const petTimer = useRef(null);
 
   const loadPlants = useCallback(async () => {
@@ -106,6 +109,9 @@ export default function PetScreen() {
     useCallback(() => {
       void refresh();
       void loadPlants();
+      recomputePetState()
+        .then((state) => setServerStreak(state?.streak_days ?? null))
+        .catch(() => {});
     }, [refresh, loadPlants])
   );
 
@@ -113,7 +119,7 @@ export default function PetScreen() {
 
   const mood = petMoodFromStores({ liveState: petEmotionState, dailyMood: userStats?.pet_mood_state, hour: new Date().getHours() });
   const together = daysTogether(profile);
-  const streak = profile?.current_streak ?? profile?.streak_count ?? userStats?.streak ?? 0;
+  const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? userStats?.streak ?? 0);
   const isProcessing = processingStatus === "processing";
   const isError = processingStatus === "error";
   const sceneHeight = Math.round(Math.min(360, Math.max(260, width * 0.78)));

@@ -31,6 +31,8 @@ import { LOOK_ONLY_SENTINEL } from "../../utils/petImages";
 import { completeTaskWithResilience } from "../../services/taskCompletion";
 import { celebrationLine } from "../../domain/petMood";
 import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
+import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
+import { suggestLookFromPhoto } from "../../services/photoLook";
 import {
   NAME_SUGGESTIONS,
   OnboardingMode,
@@ -83,6 +85,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  const [suggestion, setSuggestion] = useState<LookSuggestion | null>(null);
   const [picking, setPicking] = useState(false);
   const [nameDraft, setNameDraft] = useState(existingName || "");
   const [nameError, setNameError] = useState("");
@@ -127,7 +130,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
   // ---- species / look --------------------------------------------------------------------------------
   const chooseSpecies = (next: Species) => {
     setSpecies(next);
-    setDraftLook((prev) => (prev.species === next ? prev : existingLook && existingLook.species === next ? existingLook : withSpecies(prev, next)));
+    setDraftLook((prev) => {
+      const base = prev.species === next ? prev : existingLook && existingLook.species === next ? existingLook : withSpecies(prev, next);
+      return suggestion ? applySuggestion(base, suggestion) : base;
+    });
   };
 
   const commitLook = async () => {
@@ -183,6 +189,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
         base64: asset.base64,
         mimeType: asset.mimeType || (asset.uri.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"),
       });
+      // read the photo's colours into the illustrated pet (the editor is the adjustment step)
+      const next = suggestLookFromPhoto(asset.base64, species);
+      setSuggestion(next);
+      if (next) setDraftLook((prev) => applySuggestion(prev, next));
     } catch (error) {
       console.error("ONBOARDING_PICK_ERROR", { message: (error as any)?.message });
       Alert.alert("Couldn't open the picker", "Please try again.");
@@ -433,9 +443,28 @@ export default function OnboardingScreen({ route, navigation }: any) {
         {step === "look" ? (
           <View>
             <Text style={styles.title}>Make it look like yours</Text>
-            <Text style={styles.body}>Start from a preset, then adjust the coat, eyes, ears and markings.</Text>
+            <Text style={styles.body}>
+              {suggestion
+                ? "We picked colours from the photo. Adjust anything until it feels right."
+                : "Start from a preset, then adjust the coat, eyes, ears and markings."}
+            </Text>
             <View style={styles.editorCard}>
-              <PetLookEditor look={draftLook} onChange={setDraftLook} />
+              <PetLookEditor
+                look={draftLook}
+                onChange={setDraftLook}
+                aside={
+                  photo ? (
+                    <View style={styles.photoAside}>
+                      <Image source={{ uri: photo.uri }} style={styles.photoAsideImage} resizeMode="cover" accessibilityLabel="Your photo" />
+                      {suggestion ? (
+                        <Pressable style={styles.asideButton} onPress={() => setDraftLook((prev) => applySuggestion(prev, suggestion))} accessibilityRole="button">
+                          <Text style={styles.asideButtonText}>Use photo colours</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null
+                }
+              />
             </View>
             <Pressable style={[styles.primaryButton, savingLook && styles.buttonDisabled]} onPress={commitLook} disabled={savingLook} accessibilityRole="button">
               {savingLook ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{mode === "look" ? "Save look" : "That's them"}</Text>}
@@ -449,7 +478,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             <Text style={styles.body}>
               {mode === "replace"
                 ? "A clear photo makes the best painted portrait."
-                : "Optional. Their photo stays on your profile and can be painted into a portrait later."}
+                : "Optional. We'll pick colours from it for the illustrated pet, keep it on your profile, and it can be painted into a portrait later."}
             </Text>
             <View style={styles.photoStage}>
               {photo ? (
@@ -694,6 +723,10 @@ const styles = StyleSheet.create({
   speciesLabel: { marginTop: 6, color: "#e2e8f0", fontSize: 17, fontWeight: "800" },
   speciesLabelActive: { color: "#a7f3d0" },
   photoStage: { alignItems: "center", marginTop: 20, marginBottom: 6 },
+  photoAside: { alignItems: "center" },
+  photoAsideImage: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: "rgba(255,255,255,0.8)" },
+  asideButton: { marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: "rgba(53,208,127,0.6)", backgroundColor: "rgba(16,185,129,0.15)" },
+  asideButtonText: { color: "#a7f3d0", fontSize: 11, fontWeight: "700" },
   photoFrame: {
     width: 196,
     height: 196,

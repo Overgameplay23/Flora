@@ -515,6 +515,18 @@ Three things the strategy report asks for that cost little and change the tone:
 
 Evidence: `npm run check` green (17 suites / 104 tests); production web build: Home (normal), Check-in with the prompt and energy words, Home after a simulated 12-day absence showing "You're back!" (`docs/screenshots/2026-09-25-gentle-loop/`).
 
+### 6.18 Eleventh change set — 2026-09-25: the photo drives the look (R-76), one streak number (R-27)
+
+**Photo → look, on the device.** The report's pipeline is "photo → parameters → adjust". Luna now does the first step without a server: `jpeg-js` (pure JavaScript, added as a dependency) decodes the picked JPEG (the picker returns JPEG on every platform at quality < 1), `src/domain/photoLook.ts` (pure, 4 tests) downsamples it, estimates the background from the border ring, drops centre pixels that match it, clusters the rest (k-means with farthest-point seeding) and maps the clusters to the rig's slots: the largest non-glare cluster is the coat, a clearly lighter one the belly/muzzle, a clearly darker one the ears; nose and eye colours follow the coat's brightness. `src/services/photoLook.ts` (3 tests, including a synthetic JPEG round trip) wraps the decode. Anything that is not a JPEG yields no suggestion and the presets stay.
+
+**Onboarding order** changed to species → **photo (optional)** → look → name (`domain/onboarding.ts`, tests updated): when a photo was chosen the look step opens already coloured like the pet, shows the photo beside the preview and offers "Use photo colours" after the person has played with swatches. Choosing the other species re-applies the photo colours.
+
+**One "days in a row" number (R-27).** `src/domain/streaks.ts`: the server's activity streak (`recompute_pet_state`, consecutive local days with a task or a check-in) is the product's number; the profile's check-in streak is only the fallback before the server answers. Home, the Pet tab and Profile all use it (the two latter now call `recompute_pet_state` on focus). The three underlying stores still exist; only what the person sees is unified.
+
+**Evidence**: `npm run check` green (19 suites / 111 tests). Production web build, new account with `assets/pet.png` as the photo: the look step opened with the puppy's cream/tan colours applied and the photo beside the preview (`docs/screenshots/2026-09-25-photo-look/`).
+
+**Open**: R-79 (L) the analysis cannot tell ear shape or markings from the photo; R-80 (L) PNG photos (some web pickers) skip the suggestion.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent
@@ -574,7 +586,7 @@ Ordered by restoration priority: launch -> enter safely -> pet -> daily loop/gar
 ### Daily loop / garden
 - **R-25 (H, fixed 2026-09-24, section 6.12) Streak resets to 1 on any same-day re-sync after the day is complete** (`src/services/dailyLoop.ts:515-518,540-546`).
 - **R-26 (H, fixed 2026-09-17, section 6.11) ~22 MB of 2500 px PNGs decoded full-size for 24-68 px sprites in two simultaneously mounted tabs** (`FinchGardenHeader.tsx:27-29`, `GardenScene.js:5-8`, `FinchProgressCard.tsx:11`). Inference: OOM/jank on low-end Android. Now: the bundled garden art is one 532 kB JPEG background plus four 35-107 kB sprite PNGs (0.77 MB in total); the old PNGs remain on disk but are no longer referenced.
-- **R-27 (H) Three independent streak/mood systems shown at once** (`user_stats` client-computed; `profiles.current_streak` client-computed on check-in; `pet_state` server-computed UTC) with different day bases and vocabularies (`HomeScreen.js:493,594`, `HabitsTodayScreen.tsx:168`).
+- **R-27 (H, display unified 2026-09-25, section 6.18; stores still separate) Three independent streak/mood systems shown at once** (`user_stats` client-computed; `profiles.current_streak` client-computed on check-in; `pet_state` server-computed UTC) with different day bases and vocabularies (`HomeScreen.js:493,594`, `HabitsTodayScreen.tsx:168`).
 - **R-28 (H, fixed 2026-09-24, section 6.13) Local-date vs UTC-date split**: check-ins/habits/profiles use local date keys; tasks/queue/retention/server RPCs use UTC (`src/services/taskCompletion.ts:53`, `dateKeys.ts:5-7`, `2026_02_17:112`, `2026_02_22:170`). West of UTC the task list resets in the afternoon.
 - **R-29 (H) Offline completion queue never drops items and is not user-scoped** (`taskCompletion.ts:48,322-334`).
 - **R-30 (H, fixed 2026-09-24, section 6.12) `fetchTodayCheckIn` fallback drops the date filter and returns any latest check-in as "today"** (`dailyLoop.ts:189-201`; consumers `CheckInScreen.tsx:102-108`, `HabitsTodayScreen.tsx:68-71`).

@@ -12,8 +12,8 @@ function walk(mode: any, context: any) {
 
 describe("onboarding steps", () => {
   it("walks a new user through species and look, skipping painting without a photo", () => {
-    expect(walk("first", { hasName: false, hasPhoto: false })).toEqual(["welcome", "species", "look", "photo", "name", "meet", "firstStep"]);
-    expect(walk("first", { hasName: false, hasPhoto: true })).toEqual(["welcome", "species", "look", "photo", "name", "painting", "meet", "firstStep"]);
+    expect(walk("first", { hasName: false, hasPhoto: false })).toEqual(["welcome", "species", "photo", "look", "name", "meet", "firstStep"]);
+    expect(walk("first", { hasName: false, hasPhoto: true })).toEqual(["welcome", "species", "photo", "look", "name", "painting", "meet", "firstStep"]);
     expect(visibleSteps("first")).not.toContain("painting");
   });
 
@@ -26,10 +26,11 @@ describe("onboarding steps", () => {
   it("only allows going back before anything is committed", () => {
     expect(previousStep("species", "first")).toBe("welcome");
     expect(previousStep("species", "look")).toBeNull();
-    expect(previousStep("look", "first")).toBe("species");
-    expect(previousStep("photo", "first")).toBe("look");
+    expect(previousStep("look", "first")).toBe("photo");
+    expect(previousStep("look", "look")).toBe("species");
+    expect(previousStep("photo", "first")).toBe("species");
     expect(previousStep("photo", "replace")).toBeNull();
-    expect(previousStep("name", "first")).toBe("photo");
+    expect(previousStep("name", "first")).toBe("look");
     expect(previousStep("painting", "first")).toBeNull();
     expect(previousStep("meet", "first")).toBeNull();
   });

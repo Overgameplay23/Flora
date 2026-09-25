@@ -14,21 +14,21 @@ export function firstStepFor(mode: OnboardingMode): OnboardingStep {
 }
 
 /**
- * The step after `step`. First run: welcome -> species -> look -> photo (optional) -> name ->
- * painting (only with a photo) -> meet -> one small thing. "replace" is photo -> painting -> meet.
- * "look" is species -> look and ends there.
+ * The step after `step`. First run: welcome -> species -> photo (optional) -> look (seeded from the
+ * photo) -> name -> painting (only with a photo) -> meet -> one small thing. "replace" is
+ * photo -> painting -> meet. "look" is species -> look and ends there.
  */
 export function nextStep(step: OnboardingStep, mode: OnboardingMode, context: StepContext): OnboardingStep | null {
   switch (step) {
     case "welcome":
       return "species";
     case "species":
-      return "look";
+      return mode === "look" ? "look" : "photo";
     case "look":
-      return mode === "look" ? null : "photo";
+      return mode === "look" ? null : "name";
     case "photo":
       if (mode === "replace") return context.hasPhoto ? "painting" : null;
-      return "name";
+      return "look";
     case "name":
       return context.hasPhoto ? "painting" : "meet";
     case "painting":
@@ -45,11 +45,11 @@ export function previousStep(step: OnboardingStep, mode: OnboardingMode): Onboar
     case "species":
       return mode === "first" ? "welcome" : null;
     case "look":
-      return "species";
+      return mode === "look" ? "species" : "photo";
     case "photo":
-      return mode === "first" ? "look" : null;
+      return mode === "first" ? "species" : null;
     case "name":
-      return "photo";
+      return "look";
     default:
       // painting, meet and firstStep cannot go back: the photo is already saved
       return null;
@@ -60,7 +60,7 @@ export function previousStep(step: OnboardingStep, mode: OnboardingMode): Onboar
 export function visibleSteps(mode: OnboardingMode): OnboardingStep[] {
   if (mode === "look") return ["species", "look"];
   if (mode === "replace") return ["photo", "painting", "meet"];
-  return ["welcome", "species", "look", "photo", "name", "meet", "firstStep"];
+  return ["welcome", "species", "photo", "look", "name", "meet", "firstStep"];
 }
 
 export function validatePetName(raw: unknown): { ok: true; name: string } | { ok: false; error: string } {

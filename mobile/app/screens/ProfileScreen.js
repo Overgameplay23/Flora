@@ -9,6 +9,8 @@ import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import PetPortrait from "../../src/components/pet/PetPortrait";
 import { getISOWeekKey } from "../../src/utils/dateKeys";
+import { unifiedStreak } from "../../src/domain/streaks";
+import { recomputePetState } from "../../src/services/retention";
 
 function Row({ icon, label, hint, onPress, badge, tone = "default" }) {
   return (
@@ -37,6 +39,7 @@ export default function ProfileScreen({ navigation }) {
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [versionTapCount, setVersionTapCount] = useState(0);
+  const [serverStreak, setServerStreak] = useState(null);
   const versionTapResetRef = useRef(null);
   const appVersion = Constants?.expoConfig?.version || "dev";
 
@@ -62,6 +65,9 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
+      recomputePetState()
+        .then((state) => setServerStreak(state?.streak_days ?? null))
+        .catch(() => {});
     }, [fetchProfile])
   );
 
@@ -83,8 +89,8 @@ export default function ProfileScreen({ navigation }) {
     versionTapResetRef.current = setTimeout(() => setVersionTapCount(0), 1500);
   }, [navigation, versionTapCount]);
 
-  const streak = profile?.current_streak ?? profile?.streak_count ?? 0;
-  const bestStreak = profile?.best_streak ?? streak;
+  const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? 0);
+  const bestStreak = Math.max(Number(profile?.best_streak) || 0, streak);
   const currentWeekKey = getISOWeekKey(new Date());
   const showReflectionBadge = (profile?.last_reflection_viewed_week ?? null) !== currentWeekKey;
 
