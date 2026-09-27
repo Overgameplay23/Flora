@@ -2,14 +2,17 @@ import React, { useEffect, useState } from "react";
 import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { supabase } from "../../src/lib/supabase";
+import { useSignedPetPhotoUrl } from "../../src/services/petPhotoUrls";
 
 export default function PetStylizeResultScreen({ route, navigation }) {
   const { user, setProfile } = useAuth();
   const stylizedUrl = route?.params?.stylizedUrl;
   const cutoutUrl = route?.params?.cutoutUrl;
   const savedStylized = route?.params?.savedStylized !== false;
-  const renderUrl = route?.params?.renderUrl || stylizedUrl || cutoutUrl || null;
-  const renderSource = route?.params?.renderSource || (renderUrl ? "url" : "missing");
+  const storedRenderUrl = route?.params?.renderUrl || stylizedUrl || cutoutUrl || null;
+  // the pets bucket is private: show a short-lived signed URL for the stored locator
+  const renderUrl = useSignedPetPhotoUrl(storedRenderUrl);
+  const renderSource = route?.params?.renderSource || (storedRenderUrl ? "url" : "missing");
   const maskOriginal = renderSource === "originalMasked";
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -60,10 +63,10 @@ export default function PetStylizeResultScreen({ route, navigation }) {
     if (__DEV__) {
       console.log("PET_RESULT_RENDER_SOURCE", {
         renderSource,
-        url: renderUrl || "local",
+        url: storedRenderUrl || "local",
       });
     }
-  }, [renderSource, renderUrl]);
+  }, [renderSource, storedRenderUrl]);
 
   const handleDone = async () => {
     if (saving) return;

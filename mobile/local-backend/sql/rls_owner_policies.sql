@@ -1,0 +1,84 @@
+-- Forward migration (2026-09-27): row-level security rebuilt as deny-by-default, owner-scoped policies.
+-- Source: docs/backend/STAGING_PLAN.md sections 3 and 5 (R-37, R-38, R-41, P1 #7, #8, #11).
+--
+-- Rules
+--   * RLS is enabled on every table in public. A table with no policy for an action denies it.
+--   * Every policy is for the `authenticated` role only and compares the row's user_id with auth.uid().
+--     `anon` has no policy and, below, no table privilege at all.
+--   * Tables the app writes directly get owner select/insert/update/delete.
+--   * Tables written only by SECURITY DEFINER RPCs (complete_task, upgrade_plant, log_event_and_rollup,
+--     recompute_pet_state) or by Edge Functions with the service role get owner SELECT only, so a
+--     signed-in user can no longer forge points, plant levels, streaks, events, memories or rate limits.
+--     Those writers run as the table owner (postgres, BYPASSRLS) or as service_role (BYPASSRLS).
+--   * The two catalogs are readable by signed-in users and writable by nobody through the API.
+-- Idempotent: drops every existing policy on these tables and recreates the set.
+
+do $$
+declare
+  owner_crud text[] := array[
+    'profiles', 'pet', 'checkins', 'tasks', 'habits', 'habit_completions',
+    'journal_entries', 'user_stats',
+    'garden_unlocks', 'garden_plants' -- legacy garden economy; the client still upserts unlocks
+  ];
+  owner_read text[] := array[
+    'task_completions', 'user_plants', 'user_plant_upgrades',   -- written by complete_task / upgrade_plant
+    'user_events', 'daily_user_metrics', 'pet_state',            -- written by the retention RPCs
+    'pet_chat_usage', 'pet_stylize_requests', 'user_memories', 'weekly_summaries' -- service role only
+  ];
+  catalogs text[] := array['plant_catalog', 'garden_items'];
+  t text;
+  p record;
+begin
+  -- every table in public has RLS on, including any this list does not know about
+  for t in select c.relname from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') loop
+    execute format('alter table public.%I enable row level security', t);
+  end loop;
+
+  -- start from zero on the tables this migration governs
+  for p in
+    select pol.tablename, pol.policyname from pg_policies pol
+    where pol.schemaname = 'public' and pol.tablename = any (owner_crud || owner_read || catalogs)
+  loop
+    execute format('drop policy if exists %I on public.%I', p.policyname, p.tablename);
+  end loop;
+
+  foreach t in array owner_crud || owner_read loop
+    execute format(
+      'create policy %I on public.%I for select to authenticated using ((select auth.uid()) = user_id)',
+      t || '_select_own', t);
+  end loop;
+
+  foreach t in array owner_crud loop
+    execute format(
+      'create policy %I on public.%I for insert to authenticated with check ((select auth.uid()) = user_id)',
+      t || '_insert_own', t);
+    execute format(
+      'create policy %I on public.%I for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id)',
+      t || '_update_own', t);
+    execute format(
+      'create policy %I on public.%I for delete to authenticated using ((select auth.uid()) = user_id)',
+      t || '_delete_own', t);
+  end loop;
+
+  foreach t in array catalogs loop
+    execute format('create policy %I on public.%I for select to authenticated using (true)', t || '_select_all', t);
+  end loop;
+
+  -- privileges match the policies (defence in depth: a missing policy and a missing grant both deny)
+  foreach t in array owner_read || catalogs loop
+    execute format('revoke insert, update, delete on public.%I from authenticated', t);
+  end loop;
+end
+$$;
+
+-- anon (no session) touches nothing in public
+revoke all on all tables in schema public from anon;
+revoke all on all sequences in schema public from anon;
+
+-- TRUNCATE ignores RLS; REFERENCES and TRIGGER are never needed by the app
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+
+-- the same for tables and sequences created later by migrations (which run as postgres)
+alter default privileges for role postgres in schema public revoke all on tables from anon;
+alter default privileges for role postgres in schema public revoke all on sequences from anon;
+alter default privileges for role postgres in schema public revoke truncate, references, trigger on tables from authenticated;

@@ -6,6 +6,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetchPet, toPetImageSources, upsertPet } from "./petService";
 import { subscribePetImageCache } from "../utils/petImageCache";
+import { clearSignedPetPhotoUrls } from "./petPhotoUrls";
 import type { PetImageSources } from "../components/garden/usePetCandidates";
 import { PetLook, Species, isSpecies, normalizeLook } from "../domain/petLook";
 import { MemorialState, normalizeMemorial } from "../domain/memorial";
@@ -245,6 +246,7 @@ export async function clearPetMemorial(userId: string) {
 }
 
 export function clearPetStore() {
+  clearSignedPetPhotoUrls(); // signed photo URLs are bearer links; drop them with the session
   if (snapshot === EMPTY && snapshot.version === 0) return;
   emit({ ...EMPTY });
 }

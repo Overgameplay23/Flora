@@ -29,6 +29,8 @@ const BACKGROUND_REMOVAL_SYSTEM_PROMPT =
   "Do not add a new background, do not change pose, do not crop tightly, keep natural edges.";
 
 const MAX_BASE64_LENGTH = 7_000_000;
+// Private bucket, one folder per user (<uid>/processed/...). getPublicUrl() below only builds each object's
+// locator URL for the pet row; the app signs it before showing it (src/services/petPhotoUrls.ts).
 const CACHE_BUCKET = "pets";
 const RATE_LIMIT_SECONDS = 45;
 const ALPHA_FEATHER_RADIUS = 1;
@@ -926,10 +928,10 @@ async function applyAlphaPolish(
 async function getCachedStylized(admin: any, userId: string, sourceHash: string | null, requestId: string) {
   if (!sourceHash) return null;
   const processedKey = pickProcessedKey(userId, sourceHash, requestId);
-  const processedPath = `processed/${processedKey}/stylized.png`;
-  const processedCutoutPath = `processed/${processedKey}/cutout.png`;
-  const processedMaskPath = `processed/${processedKey}/mask.png`;
-  const processedMaskWebpPath = `processed/${processedKey}/mask.webp`;
+  const processedPath = `${processedKey}/processed/stylized.png`;
+  const processedCutoutPath = `${processedKey}/processed/cutout.png`;
+  const processedMaskPath = `${processedKey}/processed/mask.png`;
+  const processedMaskWebpPath = `${processedKey}/processed/mask.webp`;
 
   const cachedStylized = await downloadIfExists(admin, processedPath);
   const cachedCutout = await downloadIfExists(admin, processedCutoutPath);
@@ -1262,8 +1264,8 @@ serve(async (req) => {
           alphaStylized: cachedPayload.processed.alpha_stylized,
           maskReapplied: cachedPayload.processed.mask_reapplied,
           savedPaths: {
-            cutout: `processed/${userId}/cutout.png`,
-            stylized: `processed/${userId}/stylized.png`,
+            cutout: `${userId}/processed/cutout.png`,
+            stylized: `${userId}/processed/stylized.png`,
           },
         });
         return jsonResponse(200, cachedPayload);
@@ -1301,7 +1303,7 @@ serve(async (req) => {
 
     const sourceBytes = decodeBase64(cleanBase64);
     const processedKey = pickProcessedKey(userId, sourceHash || null, requestId);
-    const processedPrefix = `processed/${processedKey}`;
+    const processedPrefix = `${processedKey}/processed`;
     const cutoutPath = `${processedPrefix}/cutout.png`;
     const stylizedPath = `${processedPrefix}/stylized.png`;
     const maskPathPng = `${processedPrefix}/mask.png`;

@@ -103,3 +103,63 @@ call for the owner.
   the garden already rewards points daily. Decide later whether the recap should unlock anything.
 - **Memorial mode** (2026-09-25) is built as described in the report; the "pause alerts" part waits for
   notifications to exist. Multi-pet remains out of scope: a new companion archives the memorial on the device.
+
+## 2026-09-27 — backend hardening (branch `backend/hardening`): judgment calls and conflicts
+
+Source: `docs/backend/STAGING_PLAN.md`. Three new migrations (`local-backend/sql/rls_owner_policies.sql`,
+`function_grants.sql`, `pets_bucket_private.sql`); no existing migration was edited. Evidence in
+`RESTORATION_BASELINE.md` 6.29.
+
+- **"Owner policies for select, insert, update and delete" vs. "deny by default".** Read as: owner-scoped
+  select/insert/update/delete on the tables the app writes itself (`profiles`, `pet`, `checkins`, `tasks`,
+  `habits`, `habit_completions`, `journal_entries`, `user_stats`, legacy `garden_unlocks`/`garden_plants`), and
+  **owner select only** on tables that only SECURITY DEFINER RPCs or Edge Functions write (`task_completions`,
+  `user_plants`, `user_plant_upgrades`, `user_events`, `daily_user_metrics`, `pet_state`, `pet_chat_usage`,
+  `pet_stylize_requests`, `user_memories`, `weekly_summaries`). Owner writes there would reopen R-37/R-38/R-41
+  (forged points, plant levels, streak state) and let anyone reset their own chat quota by deleting their
+  `pet_chat_usage` row. The client never wrote those tables directly, so nothing in the app changed.
+- **Still owner-writable on purpose:** `user_stats` and the `profiles` streak/xp columns (client-computed by design,
+  R-27) and `garden_unlocks` (the legacy unlock economy is client-trusted; its screen is unreachable). An owner can
+  still inflate their *own* streak number. Closing that needs one server-side streak (R-27).
+- **Photo layout changed to one folder per user.** The ask was "objects under their own user-id prefix", so
+  objects moved from `original/<uid>.<ext>` + `processed/<uid>/…` to `<uid>/original.<ext>` + `<uid>/processed/…`,
+  checked with `storage.foldername(name)[1] = auth.uid()`. This touched the client (`petStylize.js`), the
+  `pet-stylize` Edge Function paths and `seed-demo.js`. No hosted data exists; locally, `backend:reset` +
+  `backend:seed`. Any environment that still has old-layout objects would need them moved (none does).
+- **What the database stores for an image.** Still a URL (the bucket's canonical object URL, token-free), not a
+  bare path, so the row keeps the shape every schema fallback and "has a photo?" check expects. Once the bucket
+  is private that URL does not load on its own; `src/services/petPhotoUrls.ts` signs it for one hour when it is
+  shown (in-memory cache, re-sign 5 minutes before expiry, one request per object shared across screens,
+  cleared on sign-out). Old public URLs and the old 1-year signed URLs are recognised and re-signed from their
+  path; the year-long signed URL is no longer created. Screens that show pet images: `PetPortrait` (through
+  `usePetCandidates`), `PetTabIcon`, `PetStylizeResultScreen`. `Pet.js` and `PetAvatar.tsx` are dead code and
+  would need the same hook if revived.
+- **`pet-stylize` downloads `imageUrl` itself.** The client now sends a freshly signed URL on the retry path.
+  Separately (not changed): the function fetches *any* URL the client sends. Before deploying it, restrict that to
+  the project's storage host or download by path with the service role.
+- **Default privileges are global for PUBLIC.** Postgres cannot revoke PUBLIC's EXECUTE per schema, so
+  `function_grants.sql` revokes it for every function postgres creates later. **Every new RPC must
+  `grant execute … to authenticated` explicitly**, or the app gets "permission denied".
+- **Catalogs need a session now.** `anon` has no privilege on any table, including `plant_catalog` and
+  `garden_items`. The app only reads them signed in; grant `select` to `anon` on those two if a pre-login screen
+  ever needs them.
+- **Cycle data (for Donovan to decide).** Verified it never reaches the database (no table/column/bucket; pgTAP
+  `04_cycle_stays_on_device.test.sql`) and the client never sends it anywhere, **except** the `cycleAware`
+  true/false flag in the pet-talk context, which the Edge Function puts into the OpenAI system prompt. Not removed.
+  Keep it (the pet can be gentler) or drop it to honour "stays on the device" literally. Guards:
+  `src/__tests__/cycleOnDevice.test.ts` fails if a new module reads the cycle store or the payload carries more.
+- **Correction to STAGING_PLAN:** `tasks` has no `points` column in this schema (the client's `habitOverrides`
+  write fails soft and `complete_task` awards the default 2), so "tasks.points is editable" was wrong.
+- **Not done here (still open from STAGING_PLAN P1):** R-40 (`complete_task` accepts any `completed_at`, so one
+  backdated completion per task per day is possible; `log_event_and_rollup` trusts `p_points` for
+  `daily_user_metrics`); pet-talk's quota check fails open on a permission error (P1 #9); emails in `AUTH_INPUT`
+  logs (P1 #10); deleting a user leaves their photos in storage; `scripts/pet-mask-to-alpha.js` still assumes the
+  old layout and public URLs (maintenance script, not the app).
+- **Tooling:** `.claude/launch.json` `floura-expo` starts Expo from the repo root, which is the R-55 failure mode.
+  Verification used a temporary static server over the production export instead (entry removed afterwards).
+- **Stale build flag (found during verification, pre-existing).** Today's `npm run export:web` bundle had
+  `EXPO_PUBLIC_PET_TALK_PREVIEW` inlined as `"1"` although no env file or environment variable sets it: Metro's
+  transform cache (`%TEMP%\metro-cache`) kept the value from the 2026-09-26 preview build, so the "Talk" tile
+  appeared and would have given stand-in replies. Rebuilt with `npx expo export … --clear`. Any build that ships
+  (staging, TestFlight, store) must be exported with `--clear` or from a clean cache; consider adding `--clear`
+  to `scripts/check-export-web.js` (slower check, owner's call).

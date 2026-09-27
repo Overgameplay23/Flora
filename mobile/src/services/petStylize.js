@@ -4,11 +4,11 @@ import { getValidatedPublicEnv } from "../utils/env";
 import { netFetch } from "../utils/net";
 import { appendCacheBuster, setPetImageCache } from "../utils/petImageCache";
 import { upsertPet } from "./petService";
+import { originalPhotoPath, petPhotoLocator, processedPhotoPath, signPetPhotoUrl } from "./petPhotoUrls";
 import { isRecord, safeJsonParse } from "../utils/guards";
 
 const EDGE_FUNCTION = "pet-stylize";
 const MAX_BASE64_LENGTH = 7_000_000;
-const ORIGINAL_SIGNED_URL_TTL = 60 * 60 * 24 * 365;
 
 function logDebug(message, payload) {
   if (__DEV__) {
@@ -86,25 +86,15 @@ function pickExtensionFromMime(mime) {
   return "png";
 }
 
-async function getSignedUrl(path) {
-  const { data, error } = await supabase.storage.from("pets").createSignedUrl(path, ORIGINAL_SIGNED_URL_TTL);
-  if (error) {
-    throw error;
-  }
-  if (!data?.signedUrl) {
-    throw new Error("Failed to retrieve signed URL.");
-  }
-  return data.signedUrl;
-}
-
-
+// The pets bucket is private. Uploads return the object's token-free locator, which is what the pet row
+// stores; screens sign it when they show it (src/services/petPhotoUrls.ts).
 async function uploadOriginalForFallback({ userId, base64, mime }) {
   const cleanBase64 = stripBase64Prefix(base64);
   if (!cleanBase64) {
     throw new Error("Empty base64 image for fallback.");
   }
   const ext = pickExtensionFromMime(mime);
-  const filePath = `original/${userId}.${ext}`;
+  const filePath = originalPhotoPath(userId, ext);
   const bytes = Uint8Array.from(atob(cleanBase64), (c) => c.charCodeAt(0));
   const { error: uploadError } = await supabase.storage.from("pets").upload(filePath, bytes, {
     upsert: true,
@@ -113,7 +103,7 @@ async function uploadOriginalForFallback({ userId, base64, mime }) {
   if (uploadError) {
     throw uploadError;
   }
-  return getSignedUrl(filePath);
+  return petPhotoLocator(filePath);
 }
 
 export async function saveOriginalPetPhoto({ userId, imageBase64, mimeType }) { 
@@ -174,14 +164,7 @@ async function uploadBase64Image({ base64, path }) {
   if (uploadError) {
     throw new Error(`Supabase storage upload failed (${path}): ${uploadError.message}`);
   }
-  const { data: publicData, error: publicError } = supabase.storage.from("pets").getPublicUrl(path);
-  if (publicError) {
-    throw new Error(`Supabase storage public URL failed (${path}): ${publicError.message}`);
-  }
-  if (!publicData?.publicUrl) {
-    throw new Error(`Supabase storage public URL missing (${path}).`);
-  }
-  return publicData.publicUrl;
+  return petPhotoLocator(path);
 }
 
 async function computeSourceHash(value) {
@@ -370,9 +353,17 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
     originalUrl = imageUrl || null;
   }
 
+  // The function downloads imageUrl itself; a stored locator only opens with a fresh signature.
+  const fetchableImageUrl = cleanBase64 ? undefined : await signPetPhotoUrl(imageUrl);
+  if (!cleanBase64 && !fetchableImageUrl) {
+    const unsigned = new Error("Could not sign the saved pet photo.");
+    unsigned.userMessage = "We couldn't open your saved photo just now. Please try again.";
+    throw unsigned;
+  }
+
   const { data, error, status } = await invokeEdgeFunction({
     imageBase64: cleanBase64 || undefined,
-    imageUrl: cleanBase64 ? undefined : imageUrl,
+    imageUrl: fetchableImageUrl,
     mimeType: cleanBase64 ? mimeType || "image/jpeg" : undefined,
     stylePreset: style || "cute_max",
     outputFormat: "png",
@@ -464,19 +455,19 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
     });
     const uploads = [];
     if (rawStylizedBase64) {
-      const path = `processed/${userId}/stylized.png`;
+      const path = processedPhotoPath(userId, "stylized");
       const publicUrl = await uploadBase64Image({ base64: rawStylizedBase64, path });
       stylizedUrl = appendCacheBuster(publicUrl, cacheBust);
       uploads.push(path);
     }
     if (rawCutoutBase64) {
-      const path = `processed/${userId}/cutout.png`;
+      const path = processedPhotoPath(userId, "cutout");
       const publicUrl = await uploadBase64Image({ base64: rawCutoutBase64, path });
       cutoutUrl = appendCacheBuster(publicUrl, cacheBust);
       uploads.push(path);
     }
     if (rawMaskBase64) {
-      const path = `processed/${userId}/mask.png`;
+      const path = processedPhotoPath(userId, "mask");
       const publicUrl = await uploadBase64Image({ base64: rawMaskBase64, path });
       maskUrl = appendCacheBuster(publicUrl, cacheBust);
       uploads.push(path);

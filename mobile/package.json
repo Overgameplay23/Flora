@@ -19,6 +19,7 @@
     "backend:reset": "node local-backend/build-migrations.js && supabase db reset --workdir local-backend",
     "backend:stop": "supabase stop --workdir local-backend",
     "backend:status": "supabase status --workdir local-backend",
+    "backend:test": "supabase test db --workdir local-backend",
     "backend:env": "node local-backend/write-env-local.js",
     "backend:seed": "node local-backend/seed-demo.js",
     "supabase:deploy:pet": "supabase functions deploy pet-stylize --project-ref gghesvpmskjlrlpoosgf",

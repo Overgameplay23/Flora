@@ -79,20 +79,22 @@ async function main() {
   );
   await must("user_stats upsert", supabase.from("user_stats").upsert({ user_id: user.id }, { onConflict: "user_id" }));
 
-  // 3) Pet images through the user's own storage policies.
+  // 3) Pet images through the user's own storage policies. The bucket is private with one folder per user;
+  //    the pet row stores token-free locators and the app signs them when it shows them.
   const source = path.join(mobileRoot, "assets", "pet.png");
   const original = await sharp(source).resize({ width: 1024 }).png().toBuffer();
   const cutout = await buildDemoPet({ height: 640 });
   const bucket = supabase.storage.from("pets");
-  const originalPath = `original/${user.id}.png`;
+  const originalPath = `${user.id}/original.png`;
   await must("upload original", bucket.upload(originalPath, original, { contentType: "image/png", upsert: true }));
   for (const name of ["stylized.png", "cutout.png"]) {
-    await must(`upload ${name}`, bucket.upload(`processed/${user.id}/${name}`, cutout, { contentType: "image/png", upsert: true }));
+    await must(`upload ${name}`, bucket.upload(`${user.id}/processed/${name}`, cutout, { contentType: "image/png", upsert: true }));
   }
-  const signed = await must("sign original", bucket.createSignedUrl(originalPath, 60 * 60 * 24 * 365));
+  await must("sign original (owner policy)", bucket.createSignedUrl(originalPath, 60));
   const stamp = Date.now();
-  const stylizedUrl = `${bucket.getPublicUrl(`processed/${user.id}/stylized.png`).data.publicUrl}?t=${stamp}`;
-  const cutoutUrl = `${bucket.getPublicUrl(`processed/${user.id}/cutout.png`).data.publicUrl}?t=${stamp}`;
+  const originalUrl = bucket.getPublicUrl(originalPath).data.publicUrl;
+  const stylizedUrl = `${bucket.getPublicUrl(`${user.id}/processed/stylized.png`).data.publicUrl}?t=${stamp}`;
+  const cutoutUrl = `${bucket.getPublicUrl(`${user.id}/processed/cutout.png`).data.publicUrl}?t=${stamp}`;
 
   await must(
     "pet upsert",
@@ -101,7 +103,7 @@ async function main() {
         user_id: user.id,
         state: "idle",
         photo_url: stylizedUrl,
-        original_photo_url: signed.signedUrl,
+        original_photo_url: originalUrl,
         stylized_url: stylizedUrl,
         cutout_url: cutoutUrl,
         processing_status: "ready",
@@ -214,7 +216,7 @@ async function main() {
     "profiles streak + pet photo",
     supabase
       .from("profiles")
-      .update({ pet_photo_url: signed.signedUrl, current_streak: 7, best_streak: 7, streak_count: 7, last_checkin_date: today })
+      .update({ pet_photo_url: originalUrl, current_streak: 7, best_streak: 7, streak_count: 7, last_checkin_date: today })
       .eq("user_id", user.id)
   );
   await must("recompute_pet_state", supabase.rpc("recompute_pet_state"));

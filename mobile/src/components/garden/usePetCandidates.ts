@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ImageSourcePropType } from "react-native";
+import { useSignedPetSources } from "../../services/petPhotoUrls";
 
 export type PetImageSources = {
   stylized?: string | null;
@@ -35,7 +36,9 @@ export function buildPetCandidates(sources?: PetImageSources | null, allowOrigin
   return list;
 }
 
-export function usePetCandidates(sources?: PetImageSources | null, allowOriginalOverride = false) {
+export function usePetCandidates(storedSources?: PetImageSources | null, allowOriginalOverride = false) {
+  // photos are in a private bucket: render short-lived signed URLs, keep the stored locators for decisions
+  const sources = useSignedPetSources(storedSources);
   const candidates = useMemo(
     () => buildPetCandidates(sources, allowOriginalOverride),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,7 +66,7 @@ export function usePetCandidates(sources?: PetImageSources | null, allowOriginal
   // Only stylized/cutout images have transparency. A plain photo (photo_url is set to the original when
   // no portrait exists yet) or the original itself is shown in a round frame, never as a free-standing
   // rectangle on the grass.
-  const hasCutout = Boolean(sources?.stylized || sources?.cutout);
+  const hasCutout = Boolean(storedSources?.stylized || storedSources?.cutout);
   const framed = (choice.type === "original" || choice.type === "photo") && !hasCutout;
   const renderSource = framed ? "originalMasked" : choice.type;
   return { choice, onError, framed, renderSource };

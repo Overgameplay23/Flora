@@ -644,6 +644,37 @@ Screens (preview build): `docs/screenshots/2026-09-26-pet-talk-preview/` (the Ta
 
 **What it still needs from the owner**: a hosted Supabase project (the function cannot run on the local stack, whose edge runtime is off), the key and model set as secrets, and `functions deploy pet-talk`. Both are owner actions under rule 5. Not exercised end to end here for that reason.
 
+### 6.29 Twenty-second change set — 2026-09-27: backend hardening (branch `backend/hardening`, not pushed)
+
+Owner: "harden the backend locally" using `docs/backend/STAGING_PLAN.md`. New migrations only: the 24 existing generated files are byte-identical (sha256 checked). Judgment calls are in `docs/dev-notes.md` (2026-09-27).
+
+**Database** (`local-backend/sql/`, migrations 25–27):
+- `rls_owner_policies.sql` rebuilds every policy in `public` deny-by-default for `authenticated` with `auth.uid() = user_id`. Owner select/insert/update/delete applies where the app writes the table; owner select only where only DEFINER RPCs or the service role write (`task_completions`, `user_plants`, `user_plant_upgrades`, `user_events`, `daily_user_metrics`, `pet_state`, `pet_chat_usage`, `pet_stylize_requests`, `user_memories`, `weekly_summaries`). `anon` has no table privilege; nobody but the owner role can TRUNCATE. Future tables get the same defaults.
+- `function_grants.sql`: no function in `public` is executable without a session. `consume_pet_chat_quota` is service-role only.
+- `pets_bucket_private.sql`: `pets` becomes private (10 MiB, images only), one folder per user (`<uid>/original.<ext>`, `<uid>/processed/*.png`), owner-only storage policies.
+
+**Risks fixed:** R-13, R-14, R-37 (points forgery), R-38 (plant levels), R-39 (quota burn by anon; the grant was verified open on 27 Sep before the fix), and R-41 (pet_state/events/memories). Also the stylize rate-limit rewind. R-40 remains open.
+
+**Client:** `src/services/petPhotoUrls.ts` (new) signs stored image locators for one hour when they are shown. It keeps an in-memory cache, re-signs 5 minutes before expiry, shares one request per object, clears on sign-out, and re-signs old public or year-long URLs from their path. It is used by `usePetCandidates` (so every `PetPortrait`), `PetTabIcon` and `PetStylizeResultScreen`. `petStylize.js` uploads into the user folder, stores locators instead of 1-year signed URLs, and sends pet-stylize a freshly signed `imageUrl`. The `pet-stylize` function and `seed-demo.js` use the new layout. The cycle tracker was re-verified as device-only; the one thing that leaves the device is the `cycleAware` flag in pet-talk (flagged for the owner, not removed).
+
+**Evidence (all on 27 Sep, local stack):**
+- `supabase db reset --workdir local-backend`: exit 0, 27 migrations.
+- `npm run backend:test` (`supabase test db`): 4 files, **284 assertions, PASS**. Coverage:
+  - `01_rls_isolation`: for every table with `user_id`, A sees exactly its rows, B sees and changes none of them, B cannot plant or re-parent rows, owners cannot write server tables, anon is denied.
+  - `02_storage_isolation`: private bucket; A cannot read, write, move or delete B's photos; the old layout is refused.
+  - `03_grants`: function and table privileges, including for objects created later.
+  - `04_cycle_stays_on_device`: no table, column or bucket for cycle data.
+- **Mutation check:** injecting a leaky journal policy, an update policy on `user_plants`, a public bucket, a cross-user storage policy, an anon quota grant and a TRUNCATE grant made the suites fail 6, 3 and 3 assertions respectively. All rolled back.
+- **HTTP checks against the real Storage API and PostgREST** (15/15; throwaway script, probe user deleted afterwards):
+  - the public URL of a photo returns 400; the owner's signed URL returns 200 (also with the app's `&t=` cache-buster);
+  - another user gets "Object not found" on sign and download, an empty folder listing, and a refused upload and delete;
+  - `text/html` uploads are refused; no session means no signing;
+  - `consume_pet_chat_quota` returns 401 without a session and 403 for another signed-in user; a direct points insert returns 42501.
+- `npm run backend:seed` passes end to end (sign-up, RLS writes, the RPCs, uploads into the user folder, owner signing).
+- **Browser, production web export:** Home header, Pet tab and tab icon all load `/object/sign/pets/<uid>/…` URLs, one signing request per object and **zero** `/object/public/` requests. This check found `PetTabIcon` still rendering raw URLs; fixed and re-verified.
+- **Stale preview flag:** the export had `EXPO_PUBLIC_PET_TALK_PREVIEW` baked in as `"1"` from Metro's cache of the 26 Sep preview build. Rebuilt with `--clear`; it is now off (dev-notes).
+- `npm run check`: typecheck 0 errors, Deno check 0 errors, **30 suites / 168 tests** (was 28 / 152; new: `petPhotoUrls` 13, `cycleOnDevice` 3), web export built. The bundle contains no `service_role`, `sb_secret_` or dead project ref.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

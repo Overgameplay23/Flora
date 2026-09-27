@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { usePet } from "../../hooks/usePet";
+import { useSignedPetPhotoUrl } from "../../services/petPhotoUrls";
 import PetRig from "./vector/PetRig";
 
 /**
@@ -10,7 +11,8 @@ import PetRig from "./vector/PetRig";
  */
 export default function PetTabIcon({ focused }: { focused: boolean }) {
   const { sources, look, hasProcessedImage } = usePet();
-  const uri = sources.stylized || sources.cutout || sources.photo || sources.original || null;
+  // the pets bucket is private: show a short-lived signed URL for the stored locator
+  const uri = useSignedPetPhotoUrl(sources.stylized || sources.cutout || sources.photo || sources.original || null);
   return (
     <View style={styles.iconWrap}>
       <View style={[styles.ring, focused && styles.ringActive]}>

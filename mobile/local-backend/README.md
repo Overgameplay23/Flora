@@ -16,7 +16,11 @@ demonstrated again. Nothing here touches any hosted project.
 | `sql/pet_look.sql` | Forward migration (2026-09-25): `pet.species` and `pet.look` for the illustrated dog/cat rig. |
 | `sql/pet_memorial.sql` | Forward migration (2026-09-25): `pet.memorial_at` / `pet.memorial_note` for Rainbow Bridge memorial mode. |
 | `sql/journal_entries.sql` | Forward migration (2026-09-25): creates `journal_entries` (never existed in any migration) with owner-only RLS; keeps the old columns for compatibility. |
-| `supabase/migrations/` | Generated output of `build-migrations.js` (24 files). Regenerate, never edit. |
+| `sql/rls_owner_policies.sql` | Forward migration (2026-09-27): deny-by-default RLS. Owner-scoped policies (`authenticated`, `auth.uid() = user_id`); tables only the server writes (points, plant levels, events, streak state, chat quota, memories) are owner read-only; `anon` has no table privilege. |
+| `sql/function_grants.sql` | Forward migration (2026-09-27): no function in `public` is executable without a session; `consume_pet_chat_quota` is service-role only (R-39). |
+| `sql/pets_bucket_private.sql` | Forward migration (2026-09-27): `pets` becomes private (10 MiB, images only) with one folder per user, `<uid>/…`; owner-only storage policies. |
+| `supabase/migrations/` | Generated output of `build-migrations.js` (27 files). Regenerate, never edit. |
+| `supabase/tests/` | pgTAP database tests (`npm run backend:test`): cross-user isolation for every user table and for pet photos, grants, and a guard that the database has nowhere to store cycle data. |
 | `write-env-local.js` | Writes `mobile/.env.local` (gitignored, overrides `.env`) with the local API URL and the CLI's development anon key. `.env` is never read or changed. |
 | `seed-demo.js` | Creates one demo account and a week of gentle activity **through the app's own tables, RPCs and storage policies**, so it doubles as a backend smoke test. |
 
@@ -25,12 +29,13 @@ demonstrated again. Nothing here touches any hosted project.
 Requires Docker Desktop running and the Supabase CLI (`supabase --version`).
 
 ```bash
-npm run backend:start     # build migrations, start the stack, apply all 24 migrations
+npm run backend:start     # build migrations, start the stack, apply all 27 migrations
 npm run backend:env       # write .env.local using this machine's LAN IP (add -- --localhost for web-only)
 npm run backend:seed      # optional: demo account + sample pet + a week of activity
 npx expo start            # then press w for web, or scan the QR code
 npm run backend:stop      # stop the containers (data is kept)
 npm run backend:reset     # wipe the local database and re-apply every migration
+npm run backend:test      # pgTAP database tests (RLS isolation, photo isolation, grants); all rolled back
 npx supabase migration up --workdir local-backend   # apply only NEW migrations to a running stack (keeps data)
 ```
 
@@ -51,9 +56,10 @@ inbound TCP 56321. If the machine's IP changes, run `backend:env` again and then
   Uploading a new pet photo stores the original and then shows the app's stylize error state.
   The seeded demo pet is repo sample art with its background keyed out by `seed-demo.js`; it stands in
   for stylized output.
-- The `pets` bucket is **public** because the current client reads processed images with
-  `getPublicUrl()`. That mirrors today's code, not the target design (see `docs/RESTORATION_BASELINE.md`,
-  risks R-13 and R-14).
+- Since 2026-09-27 the `pets` bucket is **private** (R-13/R-14 fixed). Objects live under the owner's user id
+  (`<uid>/original.<ext>`, `<uid>/processed/*.png`); the pet row stores token-free locator URLs and the app
+  swaps them for one-hour signed URLs when it shows an image (`src/services/petPhotoUrls.ts`). Seeded images
+  from before that date used the old `original/<uid>` layout: run `backend:reset` then `backend:seed`.
 
 ## Going from local to hosted
 
