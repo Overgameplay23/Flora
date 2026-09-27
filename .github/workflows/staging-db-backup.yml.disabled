@@ -1,0 +1,75 @@
+# DRAFT, DISABLED. GitHub only runs workflow files that end in .yml or .yaml, so this file cannot run until it
+# is renamed to staging-db-backup.yml. Enable it only after the staging project exists and both secrets are set.
+# Then run it once by hand (Actions > Staging DB backup > Run workflow) and test-decrypt the artifact.
+#
+# What it does: every day it dumps the STAGING database (roles, schema, data, as in Supabase's restore guide)
+# with the Supabase CLI, encrypts the dump with a passphrase, and keeps it as a workflow artifact for 30 days.
+# It never writes to the database. Pet photos (Storage) are not included; see mobile/docs/backend/DEPLOY.md.
+#
+# Repository secrets it needs (Settings > Secrets and variables > Actions > New repository secret):
+#   STAGING_DB_URL     Postgres connection string for staging, including the database password, percent-encoded.
+#                      Use the "Session pooler" string from the dashboard's Connect panel (port 5432): GitHub's
+#                      runners have no IPv6, and the direct db.<ref>.supabase.co address is IPv6-only.
+#   BACKUP_PASSPHRASE  A long random passphrase used to encrypt each dump. Keep a copy outside GitHub: without it
+#                      the artifacts cannot be opened.
+#
+# Why encrypt: artifacts can be downloaded by anyone with read access to the repository's Actions (everyone, if
+# the repository is public), and data.sql holds real user data.
+# To open one:  gpg --decrypt staging-db-<stamp>.tar.gz.gpg | tar -xz
+name: Staging DB backup
+
+on:
+  schedule:
+    - cron: "23 4 * * *" # daily at 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-db-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install the Supabase CLI (same version as local)
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.67.1
+
+      - name: Dump roles, schema and data
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$STAGING_DB_URL" || { echo "::error::The STAGING_DB_URL secret is not set"; exit 1; }
+          mkdir -p backup
+          supabase db dump --db-url "$STAGING_DB_URL" --role-only -f backup/roles.sql
+          supabase db dump --db-url "$STAGING_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$STAGING_DB_URL" --data-only --use-copy -f backup/data.sql
+          (cd backup && sha256sum *.sql > SHA256SUMS)
+          ls -l backup
+
+      - name: Encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$BACKUP_PASSPHRASE" || { echo "::error::The BACKUP_PASSPHRASE secret is not set"; exit 1; }
+          name="staging-db-$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "BACKUP_NAME=$name" >> "$GITHUB_ENV"
+          # the passphrase goes in on file descriptor 3, never on the command line
+          tar -czf - backup | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+            --symmetric --cipher-algo AES256 -o "$name.tar.gz.gpg" 3<<<"$BACKUP_PASSPHRASE"
+          rm -rf backup
+
+      - name: Keep as a private artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_NAME }}
+          path: ${{ env.BACKUP_NAME }}.tar.gz.gpg
+          retention-days: 30
+          if-no-files-found: error

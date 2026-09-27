@@ -2,9 +2,11 @@
 // function once per session whether it is set up; until it is, the app shows no "Talk" entry.
 import { supabase } from "../lib/supabase";
 import { TalkContext, TalkMessage, talkContextPayload, trimHistory } from "../domain/petTalk";
+import { getRawPublicEnv } from "../utils/env";
 
 const FUNCTION = "pet-talk";
-const PREVIEW = String(process.env.EXPO_PUBLIC_PET_TALK_PREVIEW || "").trim() === "1";
+// from app config (app.config.js), which refuses it for the staging profile
+const PREVIEW = String(getRawPublicEnv("EXPO_PUBLIC_PET_TALK_PREVIEW") || "").trim() === "1";
 
 let availability: { checkedAt: number; available: boolean } | null = null;
 

@@ -26,11 +26,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "EXPO_PUBLIC_SUPABASE_URL": "https://<your-project>.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "<your-anon-key>",
-      "EXPO_PUBLIC_API_URL": "https://<your-api-url>"
-    },
     "plugins": [
       "expo-router",
       "expo-secure-store",

@@ -675,6 +675,31 @@ Owner: "harden the backend locally" using `docs/backend/STAGING_PLAN.md`. New mi
 - **Stale preview flag:** the export had `EXPO_PUBLIC_PET_TALK_PREVIEW` baked in as `"1"` from Metro's cache of the 26 Sep preview build. Rebuilt with `--clear`; it is now off (dev-notes).
 - `npm run check`: typecheck 0 errors, Deno check 0 errors, **30 suites / 168 tests** (was 28 / 152; new: `petPhotoUrls` 13, `cycleOnDevice` 3), web export built. The bundle contains no `service_role`, `sb_secret_` or dead project ref.
 
+### 6.30 Twenty-third change set — 2026-09-27: environment separation, deploy scripts, backups, seed split (branch `backend/hardening`, not pushed)
+
+Owner: "point at local or staging without code changes". Runbook: `docs/backend/DEPLOY.md`. Judgment calls: `docs/dev-notes.md` (2026-09-27, environment separation).
+
+**Profiles.** `app.config.js` (new) picks `APP_ENV=local|staging`, reads `.env.local` / `.env.staging` (the file wins over the environment) and passes the public values as `extra.backend`. `src/utils/env.ts` reads them via expo-constants, so the app code no longer holds static `process.env.EXPO_PUBLIC_*` references. Guards: unknown profile; staging without its file (outside CI/EAS); staging not on https or on a local host; missing URL/key; the preview flag on staging; a local profile pointing at a hosted URL; and any service-role or secret key.
+
+**Other changes:**
+- `start:local` / `start:staging` go through `scripts/expo-profile.js`, which always adds `--clear`.
+- `scripts/check-export-web.js` now always passes `--clear`.
+- `.env.example` rewritten (original preserved); `supabase/functions/.env.example` added. Every `.env*` except the examples is gitignored, as is `backups/`.
+- `app.json` placeholder `extra` removed.
+
+**Scripts** (pure Supabase CLI wrappers on `--workdir local-backend`): `backend:link`, `backend:push`, `functions:deploy` (`config.toml` declares only `pet-talk`, with an entrypoint into `supabase/functions/`) and `functions:secrets`. **Backups:** `backend:dump` (`scripts/backend-dump.js`: roles, schema and data plus a SHA-256 manifest; `--with-photos` copies the bucket) and a disabled scheduled workflow, `.github/workflows/staging-db-backup.yml.disabled`, which needs the secrets `STAGING_DB_URL` and `BACKUP_PASSPHRASE`. **Seeds:** the demo seed is local-only (it now also requires plain http); there is no staging seed because reference data is in the migrations.
+
+**Evidence (27 Sep):**
+- Web exports decoded from the bundle: local → `appEnv=local`, private URL. Staging (dummy `.env.staging`, deleted afterwards) → `appEnv=staging`, dummy URL.
+- **Cache hazard reproduced:** a plain local export right after the staging one embedded the staging URL, and the first export after adding `app.config.js` still embedded `app.json`'s placeholders. Both were fixed by `--clear`, which is now built in.
+- `supabase functions serve pet-talk --workdir local-backend` resolved the out-of-tree entrypoint and answered `{"name":"pet-talk","configured":false}`. This was pet-talk's first real run; the container was removed afterwards.
+- `npm run backend:dump -- --local --with-photos` wrote roles, schema (22 tables, 52 policies, 9 functions, 95 grant/revoke) and data (`auth`, `public` and storage metadata), plus 3 photos (≈4 MB). The dump does not contain storage policies or the migration history; DEPLOY.md restores both from the repo.
+- **Scheduled backup:** the workflow YAML parses (triggers `schedule` and `workflow_dispatch`, 2 secrets), and the gpg encrypt/decrypt steps round-tripped locally.
+- **Gitignore:** `git check-ignore` passes `.env`, `.env.local`, `.env.staging`, `.env.production`, the functions' `.env` and `.env.staging`, and `backups/…`, and not the two examples.
+- **Browser, production export:** the demo sign-in works through app config, and every auth/REST/storage request went to the local API (port 56321).
+- `npm run check`: **32 suites / 187 tests** (new: `appConfig` 12, `seedSeparation` 5, `env` +2), typecheck and Deno clean, export built with `--clear`.
+- **Not verified against a hosted project** (none exists): `backend:link`, `backend:push`, `functions:deploy`, `functions:secrets`, `backend:dump -- --linked`, and the restore drill.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

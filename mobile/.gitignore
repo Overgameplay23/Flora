@@ -35,6 +35,13 @@ yarn-error.*
 
 # Environment variables
 .env
+# every env file (profiles .env.local / .env.staging, function secrets in supabase/functions/) except the
+# documented examples
+.env.*
+!.env.example
+
+# database dumps from `npm run backend:dump` (contain user data)
+backups/
 
 # typescript
 *.tsbuildinfo

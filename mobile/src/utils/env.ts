@@ -1,3 +1,5 @@
+import Constants from "expo-constants";
+
 const PLACEHOLDER_PATTERN = /<your-[^>]+>/i;
 
 export function isPlaceholderValue(value?: string | null): boolean {
@@ -5,24 +7,44 @@ export function isPlaceholderValue(value?: string | null): boolean {
   return PLACEHOLDER_PATTERN.test(value);
 }
 
-// Expo only inlines STATIC references (process.env.EXPO_PUBLIC_X) into production bundles.
-// A dynamic lookup such as process.env[name] works under `expo start` but is undefined in any
-// exported or store build, which silently left production unconfigured. Every public variable the
-// app reads must therefore be listed here by name.
+// The backend profile (APP_ENV=local | staging) is chosen in app.config.js, which reads the profile's
+// EXPO_PUBLIC_* values and hands them to the app as `extra.backend`. Reading them from app config, not from
+// process.env, means one build-time source of truth: no value from a developer's .env.local can be inlined
+// into a staging bundle, and switching profiles needs no code change.
+type BackendConfig = {
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+  supabaseFunctionsUrl?: string;
+  apiUrl?: string;
+  petTalkPreview?: string;
+};
+
+const FROM_APP_CONFIG: Record<string, keyof BackendConfig> = {
+  EXPO_PUBLIC_SUPABASE_URL: "supabaseUrl",
+  EXPO_PUBLIC_SUPABASE_ANON_KEY: "supabaseAnonKey",
+  EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL: "supabaseFunctionsUrl",
+  EXPO_PUBLIC_API_URL: "apiUrl",
+  EXPO_PUBLIC_PET_TALK_PREVIEW: "petTalkPreview",
+};
+
+function appExtra(): Record<string, any> {
+  return (Constants.expoConfig?.extra as Record<string, any> | undefined) ?? {};
+}
+
 function readPublicEnv(name: string): string | undefined {
-  switch (name) {
-    case "EXPO_PUBLIC_SUPABASE_URL":
-      return process.env.EXPO_PUBLIC_SUPABASE_URL;
-    case "EXPO_PUBLIC_SUPABASE_ANON_KEY":
-      return process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    case "EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL":
-      return process.env.EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL;
-    case "EXPO_PUBLIC_API_URL":
-      return process.env.EXPO_PUBLIC_API_URL;
-    default:
-      // Development and tests only; not available in production bundles.
-      return process.env[name];
+  const field = FROM_APP_CONFIG[name];
+  if (field) {
+    const value = appExtra().backend?.[field];
+    return typeof value === "string" ? value : undefined;
   }
+  // Anything else: development and tests only; not available in exported or store bundles.
+  return process.env[name];
+}
+
+/** The backend profile this build was made for: "local" or "staging". */
+export function getAppEnv(): string {
+  const value = appExtra().appEnv;
+  return typeof value === "string" && value ? value : "local";
 }
 
 export function getRawPublicEnv(name: string): string | null {

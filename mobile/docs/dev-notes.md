@@ -163,3 +163,50 @@ Source: `docs/backend/STAGING_PLAN.md`. Three new migrations (`local-backend/sql
   appeared and would have given stand-in replies. Rebuilt with `npx expo export … --clear`. Any build that ships
   (staging, TestFlight, store) must be exported with `--clear` or from a clean cache; consider adding `--clear`
   to `scripts/check-export-web.js` (slower check, owner's call).
+
+## 2026-09-27 — environment separation (branch `backend/hardening`): judgment calls
+
+Runbook: `docs/backend/DEPLOY.md`. Evidence: `RESTORATION_BASELINE.md` 6.30.
+
+- **Backend values now come from app config, not `process.env`.** `app.config.js` (new; `app.json` stays the
+  static base) picks the profile with `APP_ENV` (`local` default, `staging`) and passes the `EXPO_PUBLIC_*`
+  values as `extra.backend`; `src/utils/env.ts` reads them through expo-constants. The static
+  `process.env.EXPO_PUBLIC_*` references are gone from app code, so a developer's `.env.local` can no longer be
+  inlined into a staging bundle. The same goes for `EXPO_PUBLIC_PET_TALK_PREVIEW` (via `getRawPublicEnv`). If app config is
+  missing the app reports "not configured" rather than guessing.
+- **Profile files:** `local` = `.env.local` (what `backend:env` already writes), `staging` = `.env.staging`. Expo's
+  own env loading has no "staging" mode, so `app.config.js` reads the profile file itself and lets it win over the
+  environment. Staging outside CI/EAS **requires** `.env.staging`, and the local profile **refuses** a hosted URL,
+  because Expo also loads the plain `.env`, which on this machine still names the deleted project.
+- **One key variable.** `EXPO_PUBLIC_SUPABASE_ANON_KEY` holds either the new publishable key (`sb_publishable_…`)
+  or the legacy anon key; no second name. `app.config.js` refuses service-role JWTs and `sb_secret_` keys.
+- **Metro cache, now a hard rule.** The web bundle's app config is inlined at transform time and cached. Reproduced:
+  a plain local export right after a staging export carried the staging URL, and the first export after
+  creating `app.config.js` still carried `app.json`'s placeholders. `scripts/check-export-web.js` now always passes
+  `--clear` (about 15 s extra; this was the owner's call on 27 Sep, made here because profiles make switching
+  routine), and `start:local` / `start:staging` go through `scripts/expo-profile.js`, which always adds `--clear`.
+  Plain `npx expo start` still works but can serve a stale profile on web right after a switch.
+  Native Expo Go reads the manifest from the dev server and is not affected.
+- **`.env.example` rewritten** (original kept in `docs/baseline/originals/.env.example`). It now lists only what the
+  app reads. Removed: the six `EXPO_PUBLIC_FIREBASE_*` (read nowhere), and the server-side
+  `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_*` and `BACKGROUND_REMOVAL_*`, which moved to
+  `supabase/functions/.env.example`. `scripts/pet-mask-to-alpha.js` (a maintenance tool) still reads
+  `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`/`SUPABASE_BUCKET` from its own environment; not documented as app env.
+- **`app.json` `extra` placeholders removed** (`<your-project>` etc.). They were read nowhere and looked like config.
+- **Functions deploy from `local-backend/`.** The code stays in `supabase/functions/`; `config.toml` declares only
+  `pet-talk` with an out-of-tree `entrypoint`, so every CLI command shares one workdir and one link, and
+  `pet-chat` / `weekly-summary` cannot be deployed by accident. Verified with a local `functions serve`; not yet
+  against a hosted project.
+- **Relative paths under `--workdir` are inconsistent in CLI 2.67** (`db dump -f` from the workdir, `storage cp`
+  from the current directory). The docs therefore use absolute `--env-file` paths, and `backend:dump` passes absolute
+  paths or runs from the backup folder.
+- **Backups go beyond "schema".** `backend:dump` takes roles, schema and data (Supabase's restore set), writes a
+  checksum manifest, and with `--with-photos` copies the bucket. A dump does not contain storage policies or the
+  migration history; the restore steps in DEPLOY.md re-create both from the repo. **No restore drill has been run yet.**
+- **Scheduled backup is a draft:** `.github/workflows/staging-db-backup.yml.disabled` (GitHub ignores the
+  extension). It needs `STAGING_DB_URL` (session pooler) and `BACKUP_PASSPHRASE`, and the artifacts are encrypted,
+  because anyone who can read the repo's Actions can download them.
+- **Seeds: no staging seed.** Reference data (plants, legacy garden items, default-task trigger) is in the migrations;
+  the demo seed stays local-only and now also requires plain `http`. `seedSeparation.test.ts` guards both.
+- **Left alone:** the six `supabase:*` npm scripts that name the deleted project. They're superseded by the new
+  wrappers and would fail harmlessly; remove them when you like.

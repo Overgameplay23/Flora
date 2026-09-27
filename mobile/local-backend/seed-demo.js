@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Seeds ONE demo account into the LOCAL Supabase stack so the app has something to show.
+// DEMO SEED, LOCAL ONLY. Seeds ONE demo account into the LOCAL Supabase stack so the app has something to show.
+// There is deliberately no staging seed: the only data staging needs (plant catalog, legacy garden items, the
+// three default tasks per new user) ships inside the migrations. See docs/backend/DEPLOY.md, "Seed data".
 // Everything is done as the signed-in demo user through the same tables, RPCs and storage
 // policies the app uses, so this doubles as a smoke test of the rebuilt schema.
 // It never talks to a hosted project: it refuses to run unless .env.local points at a private address.
@@ -29,15 +31,17 @@ function readEnvLocal() {
   return env;
 }
 
+// The demo seed is local-only (docs/backend/DEPLOY.md, "Seed data"): staging and production get no seed at all.
+// A hosted project is always https, so plain http to a private address is required.
 function assertLocal(url) {
-  const host = new URL(url).hostname;
+  const { hostname: host, protocol } = new URL(url);
   const isPrivate =
     host === "localhost" ||
     host === "127.0.0.1" ||
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host);
-  if (!isPrivate) throw new Error(`Refusing to seed a non-local Supabase URL (${host}).`);
+  if (!isPrivate || protocol !== "http:") throw new Error(`Refusing to seed a non-local Supabase URL (${protocol}//${host}).`);
 }
 
 const pad = (n) => String(n).padStart(2, "0");

@@ -11,6 +11,10 @@ Every step in section 6 needs Donovan's approval at the time it runs (HANDOFF §
 > `local-backend/supabase/tests/`. Evidence: `docs/RESTORATION_BASELINE.md` 6.29. Judgment calls:
 > `docs/dev-notes.md`, 2026-09-27. Correction: `tasks` has no `points` column, so the "tasks.points" items
 > below were wrong.
+>
+> **Deploy runbook:** [`DEPLOY.md`](DEPLOY.md) replaces section 6 below. It covers the local/staging profiles, the
+> `backend:link` / `backend:push` / `functions:deploy` / `functions:secrets` scripts, the exact order for a fresh
+> project, seeds and backups.
 
 "Verified" below means it was run against the freshly reset local database today. "Inferred" means it was
 read from code and not executed.

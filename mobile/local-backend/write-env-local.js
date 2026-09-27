@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Writes mobile/.env.local so the Expo client talks to the LOCAL Supabase stack.
-// .env.local overrides .env in Expo's env loading and is gitignored (.env*.local); .env is never touched.
+// Writes mobile/.env.local, the app's LOCAL profile: app.config.js reads it when APP_ENV=local (the default),
+// so the Expo client talks to the local Supabase stack. Gitignored; .env is never touched.
 // The local anon key is the Supabase CLI's well-known development key, not a production secret,
 // but it is still never printed here.
 //

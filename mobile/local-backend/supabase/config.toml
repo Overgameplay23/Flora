@@ -58,5 +58,14 @@ enable_confirmations = false
 # pet-stylize / pet-chat need provider keys (Gemini, OpenRouter, Groq) that do not exist locally.
 enabled = false
 
+# Edge Functions that `npm run functions:deploy -- <name>` may deploy. The code lives in mobile/supabase/functions;
+# entrypoint paths are relative to this file. Only pet-talk is declared on purpose: pet-chat and weekly-summary
+# are retired and must not be deployed, and pet-stylize waits on the owner's decision about the painted portrait.
+[functions.pet-talk]
+enabled = true
+# the function checks the user's session itself as well
+verify_jwt = true
+entrypoint = "../../supabase/functions/pet-talk/index.ts"
+
 [analytics]
 enabled = false
