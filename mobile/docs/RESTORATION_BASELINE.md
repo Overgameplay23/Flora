@@ -640,6 +640,8 @@ Owner: "I'll get the key" (OpenAI). Built so that setting the key is the only st
 
 **Client**: `src/domain/petTalk.ts` (context payload, history trimming, crisis intercept that answers with support instead of the model, the pet's opening line by time and place), `src/services/petTalk.ts` (`petTalkAvailable()` pings the function once per session; `sendPetTalk`), `src/screens/PetTalkScreen.tsx` (portrait, bubbles, composer, "not a therapist" line, nothing stored). "Talk" appears on the Pet tab and in Profile only when the function reports a configured key. `EXPO_PUBLIC_PET_TALK_PREVIEW=1` at build time shows the screen with a stand-in reply for design work; never for a real build.
 
+Screens (preview build): `docs/screenshots/2026-09-26-pet-talk-preview/` (the Talk tile, the opening line, a stand-in reply).
+
 **What it still needs from the owner**: a hosted Supabase project (the function cannot run on the local stack, whose edge runtime is off), the key and model set as secrets, and `functions deploy pet-talk`. Both are owner actions under rule 5. Not exercised end to end here for that reason.
 
 ### 6.7 Remote Supabase (read-only)
