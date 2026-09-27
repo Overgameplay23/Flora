@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 type FinchProgressCardProps = {
+  /** card heading; defaults to the garden wording */
+  title?: string;
   current: number;
   total: number;
   remaining?: number;
@@ -11,13 +13,13 @@ type FinchProgressCardProps = {
 // Painted sprout lifted from the garden background (genuinely transparent; see scripts/build-garden-scene.js).
 const SPROUT_ICON = require("../../../assets/garden/scene/patch_sprout.png");
 
-function FinchProgressCard({ current, total, remaining }: FinchProgressCardProps) {
+function FinchProgressCard({ current, total, remaining, title }: FinchProgressCardProps) {
   const progress = total > 0 ? Math.min(current / total, 1) : 0;
   const remainingValue = Number.isFinite(Number(remaining)) ? Math.max(0, Number(remaining)) : Math.max(total - current, 0);
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Next Garden Item: {current}/{total}</Text>
+      <Text style={styles.title}>{title ?? "Next garden item"}: {current}/{total}</Text>
       <Text style={styles.subtitle}>{remainingValue > 0 ? `${remainingValue} pts left` : "Ready to unlock"}</Text>
       <View style={styles.barTrack}>
         <LinearGradient colors={["#35d07f", "#a3e635"]} style={[styles.barFill, { width: `${progress * 100}%` }]} />

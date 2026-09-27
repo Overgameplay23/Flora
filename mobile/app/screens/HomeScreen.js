@@ -741,6 +741,7 @@ export default function HomeScreen() {
         <View>
         <View style={styles.sectionSpacing} />
         <FinchProgressCard
+          title={homePlace === "window nook" ? "Next for the nook" : "Next garden item"}
           current={pointsSnapshot.earnedPointsToday}
           total={pointsSnapshot.requiredPoints}
           remaining={pointsSnapshot.remaining}

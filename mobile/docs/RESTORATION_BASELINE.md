@@ -604,7 +604,7 @@ Owner: "do the cat pass and the garden cards … keep in mind the report, since 
 
 **Garden cards.** "Lvl 4/5 · common · Next cost: 27 pts · Upgrade (27)" became a small plant drawing at its stage, a stage word (Just planted / Sprouting / Growing / In bloom, or Not planted yet), level dots, a rarity pill only when it is not common, and one button: "Grow · 27 pts" / "Plant · 11 pts" / "Fully grown". A card you cannot afford is muted with "5 more to go" instead of failing on tap. The points card reads "84 points to spend · 172 earned · 3 plants growing"; the legacy unlock link only appears when there are any.
 
-**Found on the way (R-83, L, open)**: a brand-new account logs two 406s from PostgREST on first load (a `.single()` profile read before the profile row exists). Harmless (the first-run gate handles the missing row) but noisy; worth switching to `.maybeSingle()` in the auth context.
+**Found on the way (R-83, L, fixed in 6.27)**: a brand-new account logs two 406s from PostgREST on first load (a `.single()` profile read before the profile row exists). Harmless (the first-run gate handles the missing row) but noisy; worth switching to `.maybeSingle()` in the auth context.
 
 ### 6.26 Nineteenth change set — 2026-09-25: "Adopt a companion", and the nook after dark
 
@@ -627,6 +627,8 @@ Owner: "notifications, using the pet, just implementing the pet". Screens: `docs
 **Three kinds, all in the pet's voice** (`src/domain/reminders.ts`, 5 tests): a **morning hello** at a chosen time (seven lines that rotate by weekday, with garden and window-nook variants: "Biscuit is already out in the garden. Whenever you're up." / "Mochi is on the sill watching the street."); an **evening check-in nudge** that is only scheduled on days without a check-in ("One slider, ten seconds. Biscuit keeps you company either way."); a **Sunday recap** ("Biscuit put together your week. Nothing to fix, just a look back."). The sender is the pet's name. No streaks, no counts, no "you missed".
 
 **How it stays gentle.** The plan is only ever the next seven days, rebuilt whenever Home comes to the front (rate-limited to once per ten minutes) and immediately when settings or the memorial state change. If the person stops opening the app the reminders simply run out (Graceful Hibernation: no backlog, no nagging). A memorial cancels everything at once. Tapping an evening nudge opens the check-in; the Sunday one opens "Our week".
+
+**Also in this change set**: R-83 is fixed (the auth context reads the profile with `maybeSingle()`, so a brand-new account no longer logs 406s), and cat owners' Home progress card says "Next for the nook" instead of "Next Garden Item".
 
 **Where it does not work.** Web has no scheduled notifications: the screen says "Reminders arrive on your phone" and everything is a no-op there. Remote push (a server waking the phone) is a separate thing and needs a development build; local reminders should work in the App Store Expo Go on iPhone, but I could not deliver one here, so that is the first thing to try on the phone. Denied permission shows an "Open phone settings" link.
 

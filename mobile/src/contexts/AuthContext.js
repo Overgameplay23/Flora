@@ -113,7 +113,7 @@ export function AuthProvider({ children }) {
           .from("profiles")
           .select("*")
           .eq("user_id", nextUser.id)
-          .single();
+          .maybeSingle();
 
         if (error && !isNoRowsError(error)) {
           console.error("AUTH_PROFILE_FETCH_ERROR", error);
@@ -141,7 +141,7 @@ export function AuthProvider({ children }) {
               .from("profiles")
               .select("*")
               .eq("user_id", nextUser.id)
-              .single();
+              .maybeSingle();
             if (refreshedError && !isNoRowsError(refreshedError)) {
               console.error("AUTH_PROFILE_REFETCH_ERROR", refreshedError);
             }
