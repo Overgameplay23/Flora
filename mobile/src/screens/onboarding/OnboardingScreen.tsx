@@ -32,6 +32,8 @@ import { completeTaskWithResilience } from "../../services/taskCompletion";
 import { celebrationLine } from "../../domain/petMood";
 import type { OnboardingTrack } from "../../domain/onboarding";
 import { Companion, adoptedLook, shelterFor } from "../../domain/shelter";
+import { DEFAULT_REMINDERS } from "../../domain/reminders";
+import { remindersSupported, requestReminderPermission, saveReminderSettings, syncReminders } from "../../services/reminders";
 import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
 import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
@@ -90,6 +92,25 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const [track, setTrack] = useState<OnboardingTrack>("own");
   const [companion, setCompanion] = useState<Companion | null>(null);
   const [adopting, setAdopting] = useState(false);
+  // report screen 6: "Would you like [Pet] to greet you tomorrow morning?"
+  const [reminderChoice, setReminderChoice] = useState<"idle" | "on" | "declined" | "denied">("idle");
+  const [settingReminder, setSettingReminder] = useState(false);
+  const enableMorningReminder = async () => {
+    if (!user?.id || settingReminder) return;
+    setSettingReminder(true);
+    try {
+      const permission = await requestReminderPermission();
+      if (permission !== "granted") {
+        setReminderChoice(permission === "denied" ? "denied" : "declined");
+        return;
+      }
+      await saveReminderSettings(user.id, { ...DEFAULT_REMINDERS, enabled: true, evening: { ...DEFAULT_REMINDERS.evening, enabled: false } });
+      await syncReminders(user.id, { petName, species }, { force: true });
+      setReminderChoice("on");
+    } finally {
+      setSettingReminder(false);
+    }
+  };
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
@@ -717,6 +738,33 @@ export default function OnboardingScreen({ route, navigation }: any) {
           <View>
             <Text style={styles.title}>One small thing for today</Text>
             <Text style={styles.body}>Pick something you can do in the next few minutes. {petName} will notice.</Text>
+            {remindersSupported && reminderChoice !== "declined" ? (
+              <View style={styles.reminderCard}>
+                <Feather name="sunrise" size={18} color="#86efac" />
+                <View style={styles.reminderBody}>
+                  <Text style={styles.reminderTitle}>
+                    {reminderChoice === "on" ? `${petName} will say good morning at 08:30` : reminderChoice === "denied" ? "Notifications are off for Luna" : `Want ${petName} to greet you tomorrow morning?`}
+                  </Text>
+                  <Text style={styles.reminderHint}>
+                    {reminderChoice === "on"
+                      ? "Change the time or turn it off under Profile › Reminders."
+                      : reminderChoice === "denied"
+                        ? "You can allow them later in your phone's settings."
+                        : "One gentle hello a day, in their voice. Never a streak, never a nag."}
+                  </Text>
+                  {reminderChoice === "idle" ? (
+                    <View style={styles.reminderActions}>
+                      <Pressable style={styles.reminderYes} onPress={enableMorningReminder} disabled={settingReminder} accessibilityRole="button" accessibilityLabel="Yes please">
+                        {settingReminder ? <ActivityIndicator color="#0f172a" size="small" /> : <Text style={styles.reminderYesText}>Yes please</Text>}
+                      </Pressable>
+                      <Pressable style={styles.reminderNo} onPress={() => setReminderChoice("declined")} accessibilityRole="button" accessibilityLabel="Not now">
+                        <Text style={styles.reminderNoText}>Not now</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
             {loadingTasks ? (
               <ActivityIndicator color="#35d07f" style={styles.spinner} />
             ) : tasks.length === 0 ? (
@@ -803,6 +851,25 @@ const styles = StyleSheet.create({
   speciesCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
   speciesLabel: { marginTop: 6, color: "#e2e8f0", fontSize: 17, fontWeight: "800" },
   speciesLabelActive: { color: "#a7f3d0" },
+  reminderCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 14,
+    backgroundColor: "rgba(53,208,127,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(53,208,127,0.28)",
+  },
+  reminderBody: { flex: 1 },
+  reminderTitle: { color: "#f8fafc", fontSize: 14, fontWeight: "700", lineHeight: 19 },
+  reminderHint: { marginTop: 3, color: "rgba(226,232,240,0.85)", fontSize: 12, lineHeight: 17 },
+  reminderActions: { flexDirection: "row", gap: 10, marginTop: 10 },
+  reminderYes: { backgroundColor: "#35d07f", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, minWidth: 96, alignItems: "center" },
+  reminderYesText: { color: "#0f172a", fontWeight: "800", fontSize: 13 },
+  reminderNo: { paddingHorizontal: 12, paddingVertical: 8 },
+  reminderNoText: { color: "rgba(226,232,240,0.85)", fontWeight: "600", fontSize: 13 },
   shelterList: { marginBottom: 6 },
   shelterCard: {
     flexDirection: "row",

@@ -78,8 +78,14 @@ call for the owner.
 - **Pet generation.** The report recommends a parametric vector rig over diffusion output. Luna now has a
   dog/cat vector rig with a customisation step (2026-09-25); the Gemini `pet-stylize` portrait path is kept
   as an optional "painted portrait" and still needs provider keys to test.
-- **Health/steps, widgets, notifications, SSO.** All require a native strategy and an app identity
-  (not possible in Expo Go on the App Store build without the owner's decisions); logged as roadmap items.
+- **Health/steps, widgets, SSO.** Still need a native strategy and an app identity (not possible in Expo Go on
+  the App Store build without the owner's decisions); logged as roadmap items.
+- **Notifications** (2026-09-26): built as **local reminders in the pet's voice** (`src/domain/reminders.ts`,
+  `src/services/reminders.ts`, Profile › Reminders, onboarding "greet you tomorrow morning?"). Local scheduling
+  needs no server and should work in Expo Go on iPhone; **remote push** (a server waking the phone, e.g. for the
+  weekly scrapbook when the app has not been opened) needs a development build and an app identity. Not verified
+  on a phone from this machine; first thing to try on the iPhone. The memorial cancels every reminder.
+- **Memorial "pause alerts"** is now real: reminders are cancelled the moment memorial mode turns on.
 
 - **Alert.alert is a no-op on web** (found 2026-09-25 while testing the memorial). `src/utils/confirm.ts` is the
   replacement (`confirmAsync` / `notify`). Swept the same day: every live screen uses it now; only the superseded

@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { notify } from "../../src/utils/confirm";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
+import { syncReminders } from "../../src/services/reminders";
+import { useReminderTaps } from "../../src/hooks/useReminderTaps";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -410,6 +412,21 @@ export default function HomeScreen() {
       loadRetentionData();
     }, [loadGardenData, refreshPet, loadTasks, loadRetentionData])
   );
+
+  // Reminders in the pet's voice: roll the next week forward whenever Home is in front (rate-limited
+  // inside), and immediately when the memorial state flips so nothing cheerful fires after a loss.
+  useReminderTaps();
+  const lastMemorialRef = useRef(!!memorial);
+  useEffect(() => {
+    if (!user?.id) return;
+    const force = lastMemorialRef.current !== !!memorial;
+    lastMemorialRef.current = !!memorial;
+    void syncReminders(
+      user.id,
+      { petName: normalizePetName(petName) || "Your pet", species: petLook?.species ?? null, memorial: !!memorial, checkedInToday: hasExistingCheckin },
+      { force }
+    );
+  }, [hasExistingCheckin, memorial, petName, petLook?.species, user?.id]);
 
   const syncQueuedCompletions = useCallback(
     async (source) => {

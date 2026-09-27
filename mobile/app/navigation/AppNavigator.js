@@ -20,6 +20,7 @@ import MemorialScreen from '../../src/screens/MemorialScreen';
 import FetchGameScreen from '../../src/games/fetch/FetchGameScreen';
 import BubblesGameScreen from '../../src/games/bubbles/BubblesGameScreen';
 import WeeklyReflectionScreen from '../../src/screens/WeeklyReflectionScreen';
+import RemindersScreen from '../../src/screens/RemindersScreen';
 import BreathingScreen from '../../src/screens/BreathingScreen';
 import GardenScreen from '../screens/GardenScreen';
 import NetworkDebugScreen from '../../src/screens/NetworkDebugScreen';
@@ -85,6 +86,7 @@ export default function AppNavigator() {
       <Stack.Screen name="PetStylizeResult" component={PetStylizeResultScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Play" component={PlayScreen} options={{ title: "Play", headerShown: true }} />
       <Stack.Screen name="Cycle" component={CycleScreen} options={{ title: "Cycle", headerShown: true }} />
+      <Stack.Screen name="Reminders" component={RemindersScreen} options={{ title: "Reminders", headerShown: true }} />
       <Stack.Screen name="Memorial" component={MemorialScreen} options={{ title: "Remembering", headerShown: true }} />
       <Stack.Screen name="PlayFetch" component={FetchGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
       <Stack.Screen name="PlayBubbles" component={BubblesGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />

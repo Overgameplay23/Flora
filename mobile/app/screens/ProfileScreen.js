@@ -10,6 +10,8 @@ import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import PetPortrait from "../../src/components/pet/PetPortrait";
 import { isAdopted } from "../../src/domain/shelter";
+import { remindersSummary } from "../../src/domain/reminders";
+import { loadReminderSettings, remindersSupported } from "../../src/services/reminders";
 import { getISOWeekKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
@@ -38,6 +40,19 @@ export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
   const { sources: petSources, look: petLook, displayName, memorial } = usePet();
   const adopted = isAdopted(petLook);
+  const [reminderHint, setReminderHint] = useState(remindersSupported ? "Off" : "On your phone");
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!remindersSupported) return undefined;
+      loadReminderSettings(user?.id).then((settings) => {
+        if (alive) setReminderHint(`${remindersSummary(settings)} · in ${displayName}'s voice`);
+      });
+      return () => {
+        alive = false;
+      };
+    }, [displayName, user?.id])
+  );
   const { enabled: cycleEnabled } = useCycle();
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -132,6 +147,7 @@ export default function ProfileScreen({ navigation }) {
         <Row icon="sun" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />
         <Row icon="edit-3" label="Journal" hint="A few lines for yourself" onPress={() => navigation.navigate("Journal")} />
         <Row icon="calendar" label="Cycle tracking" hint={cycleEnabled ? "On · stays on this device" : "Off · optional, on-device only"} onPress={() => navigation.navigate("Cycle")} />
+        <Row icon="bell" label="Reminders" hint={reminderHint} onPress={() => navigation.navigate("Reminders")} />
       </View>
 
       <Text style={styles.sectionTitle}>Your pet</Text>
