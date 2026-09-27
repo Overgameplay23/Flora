@@ -24,6 +24,7 @@ import GardenStage from "../../src/components/garden/GardenStage";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isAdopted } from "../../src/domain/shelter";
+import { petTalkAvailable } from "../../src/services/petTalk";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
@@ -80,6 +81,15 @@ export default function PetScreen() {
   const [reaction, setReaction] = useState(null);
   const [petCount, setPetCount] = useState(0);
   const [renameOpen, setRenameOpen] = useState(false);
+  // "Talk" only appears once the pet-talk function reports a configured key
+  const [talkOn, setTalkOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    petTalkAvailable().then((value) => alive && setTalkOn(value));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [nameDraft, setNameDraft] = useState("");
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -354,6 +364,9 @@ export default function PetScreen() {
           ) : (
             <ActionTile icon="book-open" label="Journal" hint={`${displayName} asks a question`} onPress={() => navigation.navigate("Journal")} />
           )}
+          {talkOn && !inMemorial ? (
+            <ActionTile icon="message-circle" label="Talk" hint={`A few words with ${displayName}`} onPress={() => navigation.navigate("PetTalk")} />
+          ) : null}
           <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
           <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
           {isAdopted(look) ? null : (

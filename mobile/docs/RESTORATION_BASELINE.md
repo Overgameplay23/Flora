@@ -632,6 +632,16 @@ Owner: "notifications, using the pet, just implementing the pet". Screens: `docs
 
 **Where it does not work.** Web has no scheduled notifications: the screen says "Reminders arrive on your phone" and everything is a no-op there. Remote push (a server waking the phone) is a separate thing and needs a development build; local reminders should work in the App Store Expo Go on iPhone, but I could not deliver one here, so that is the first thing to try on the phone. Denied permission shows an "Open phone settings" link.
 
+### 6.28 Twenty-first change set — 2026-09-26: the pet's conversation, ready for the key
+
+Owner: "I'll get the key" (OpenAI). Built so that setting the key is the only step left; until then nothing in the app changes.
+
+**Server** (`supabase/functions/pet-talk/`, new; `pet-chat` untouched): verifies the user's session, builds the pet's voice from `prompt.ts` (character by species, adopted or real, garden or window nook, the week as the app tells it, memorial and cycle guardrails, a crisis line instruction), caps each user per day with the existing `consume_pet_chat_quota`, calls OpenAI chat completions, returns one short reply. Secrets: `OPENAI_API_KEY`, `OPENAI_MODEL` (defaults to `gpt-4o-mini` until the owner names the model), `PET_TALK_MAX_PER_DAY`, `PET_TALK_TIMEOUT_MS`. `prompt.ts` has no imports so jest tests it too (7 tests: character, place, guardrails, week facts "never as a score", bounding of client-sent context). Deno-checked in `npm run check`.
+
+**Client**: `src/domain/petTalk.ts` (context payload, history trimming, crisis intercept that answers with support instead of the model, the pet's opening line by time and place), `src/services/petTalk.ts` (`petTalkAvailable()` pings the function once per session; `sendPetTalk`), `src/screens/PetTalkScreen.tsx` (portrait, bubbles, composer, "not a therapist" line, nothing stored). "Talk" appears on the Pet tab and in Profile only when the function reports a configured key. `EXPO_PUBLIC_PET_TALK_PREVIEW=1` at build time shows the screen with a stand-in reply for design work; never for a real build.
+
+**What it still needs from the owner**: a hosted Supabase project (the function cannot run on the local stack, whose edge runtime is off), the key and model set as secrets, and `functions deploy pet-talk`. Both are owner actions under rule 5. Not exercised end to end here for that reason.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent

@@ -10,7 +10,7 @@
     "start:phone": "node scripts/start-expo-phone.js",
     "start:tunnel": "node scripts/start-expo-phone.js --tunnel",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "typecheck:functions": "npx --yes deno@2.9.6 check --config supabase/functions/deno.json supabase/functions/pet-stylize/index.ts supabase/functions/pet-chat/index.ts supabase/functions/weekly-summary/index.ts",
+    "typecheck:functions": "npx --yes deno@2.9.6 check --config supabase/functions/deno.json supabase/functions/pet-stylize/index.ts supabase/functions/pet-chat/index.ts supabase/functions/weekly-summary/index.ts supabase/functions/pet-talk/index.ts",
     "test": "jest",
     "export:web": "node scripts/check-export-web.js",
     "check": "npm run typecheck && npm run typecheck:functions && npm test && npm run export:web",

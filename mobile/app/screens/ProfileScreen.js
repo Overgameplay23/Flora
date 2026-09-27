@@ -12,6 +12,7 @@ import PetPortrait from "../../src/components/pet/PetPortrait";
 import { isAdopted } from "../../src/domain/shelter";
 import { remindersSummary } from "../../src/domain/reminders";
 import { loadReminderSettings, remindersSupported } from "../../src/services/reminders";
+import { petTalkAvailable } from "../../src/services/petTalk";
 import { getISOWeekKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
@@ -41,6 +42,14 @@ export default function ProfileScreen({ navigation }) {
   const { sources: petSources, look: petLook, displayName, memorial } = usePet();
   const adopted = isAdopted(petLook);
   const [reminderHint, setReminderHint] = useState(remindersSupported ? "Off" : "On your phone");
+  const [talkOn, setTalkOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    petTalkAvailable().then((value) => alive && setTalkOn(value));
+    return () => {
+      alive = false;
+    };
+  }, []);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -152,6 +161,7 @@ export default function ProfileScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Your pet</Text>
       <View style={styles.group}>
+        {talkOn ? <Row icon="message-circle" label={`Talk to ${displayName}`} hint="A few words, in their voice" onPress={() => navigation.navigate("PetTalk")} /> : null}
         {adopted ? (
           <Row icon="heart" label={`${displayName} is an adopted companion`} hint="Change their look or name from the Pet tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
         ) : (

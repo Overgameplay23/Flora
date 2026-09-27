@@ -59,6 +59,10 @@ call for the owner.
   Nothing is wired yet (no key, no endpoint chosen). When it is: keep the key server-side (an Edge Function
   or the future backend, never the app bundle), give the model the pet's character and the week story, and
   keep the memorial and cycle rules in front of it (no cheering, no clinical claims).
+  **Built 2026-09-26 (6.28)**: `supabase/functions/pet-talk` + `PetTalkScreen`, hidden until the function reports a
+  key. To turn it on: a hosted Supabase project, `supabase secrets set OPENAI_API_KEY=... OPENAI_MODEL=...`, and
+  `supabase functions deploy pet-talk` (see the function's README). The model name Donovan mentioned ("gpt 6luna")
+  goes in `OPENAI_MODEL` as OpenAI spells it.
 - **Fertility predictions.** The report says no fertility predictions and "never clinical". The cycle
   tracker's fertile-window estimate was **removed from the UI on 2026-09-25** to match (the phase engine
   keeps period / follicular / luteal / expected). The remaining copy stays non-clinical with the disclaimer.
