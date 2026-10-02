@@ -27,7 +27,9 @@ create or replace function pg_temp.check(ok boolean, label text) returns void la
 begin
   if ok then raise notice 'PASS  %', label; else raise exception 'FAIL  %', label; end if;
 end $$;
-grant execute on all functions in schema pg_temp to anon, authenticated;
+-- service_role too: 20260927000100_function_grants (live on Bloom) takes PUBLIC EXECUTE off every function
+-- postgres creates afterwards, these pg_temp helpers included, so each role that calls them needs a grant.
+grant execute on all functions in schema pg_temp to anon, authenticated, service_role;
 
 -- ===== The app's own writes still work =====================================================
 select pg_temp.as_user('11111111-1111-1111-1111-111111111111');
@@ -158,7 +160,14 @@ end $$;
 
 -- ===== Signed out ==========================================================================
 select pg_temp.as_anon();
-select pg_temp.check((select count(*) from public.pet) = 0 and (select count(*) from public.checkins) = 0, 'signed-out caller sees no user rows');
+-- 20260927000000_rls_owner_policies (live on Bloom) leaves anon no table privilege at all, so the read is
+-- refused; a schema that only filters with RLS returns no rows instead. Either passes; any visible row fails.
+do $$ declare n bigint; begin
+  select (select count(*) from public.pet) + (select count(*) from public.checkins) into n;
+  if n > 0 then raise exception 'FAIL  signed-out caller sees % user rows', n; end if;
+  raise notice 'PASS  signed-out caller sees no user rows (RLS returns none)';
+exception when insufficient_privilege then raise notice 'PASS  signed-out caller sees no user rows (no table privilege)';
+end $$;
 do $$ begin
   perform public.consume_pet_chat_quota('11111111-1111-1111-1111-111111111111', current_date, 5);
   raise exception 'FAIL  anon called consume_pet_chat_quota';
