@@ -1,5 +1,5 @@
-// Client for the pet-talk Edge Function. Nothing here holds a key. `petTalkAvailable` asks the
-// function once per session whether it is set up; until it is, the app shows no "Talk" entry.
+// Client for the pet-talk Edge Function. Nothing here holds a key. The "Talk" entry appears only when the
+// feature flag is on AND the function reports it is set up (`petTalkAvailable` asks once per session).
 import { supabase } from "../lib/supabase";
 import { TalkContext, TalkMessage, talkContextPayload, trimHistory } from "../domain/petTalk";
 import { getRawPublicEnv } from "../utils/env";
@@ -7,6 +7,13 @@ import { getRawPublicEnv } from "../utils/env";
 const FUNCTION = "pet-talk";
 // from app config (app.config.js), which refuses it for the staging profile
 const PREVIEW = String(getRawPublicEnv("EXPO_PUBLIC_PET_TALK_PREVIEW") || "").trim() === "1";
+// Feature flag, off by default: the function can be deployed (even with its key set) while the app keeps the
+// conversation hidden and never calls it. EXPO_PUBLIC_PET_TALK_ENABLED=1 turns it on; the local preview implies it.
+const ENABLED = PREVIEW || String(getRawPublicEnv("EXPO_PUBLIC_PET_TALK_ENABLED") || "").trim() === "1";
+
+export function petTalkEnabled(): boolean {
+  return ENABLED;
+}
 
 let availability: { checkedAt: number; available: boolean } | null = null;
 
@@ -19,8 +26,9 @@ export class PetTalkError extends Error {
   }
 }
 
-/** True when the function exists and has a key. Cached for the session; `force` re-asks. */
+/** True when the flag is on and the function exists and has a key. Cached for the session; `force` re-asks. */
 export async function petTalkAvailable(force = false): Promise<boolean> {
+  if (!ENABLED) return false;
   if (PREVIEW) return true;
   if (!force && availability && Date.now() - availability.checkedAt < 30 * 60 * 1000) return availability.available;
   let available = false;
@@ -37,6 +45,7 @@ export async function petTalkAvailable(force = false): Promise<boolean> {
 export type PetTalkReply = { reply: string; remaining: number | null };
 
 export async function sendPetTalk(messages: TalkMessage[], context: TalkContext): Promise<PetTalkReply> {
+  if (!ENABLED) throw new PetTalkError("Talking with your pet isn't turned on in this build.", "disabled");
   if (PREVIEW) {
     // a stand-in so the screen can be exercised before the key exists
     await new Promise((resolve) => setTimeout(resolve, 600));

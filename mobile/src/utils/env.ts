@@ -17,6 +17,7 @@ type BackendConfig = {
   supabaseFunctionsUrl?: string;
   apiUrl?: string;
   petTalkPreview?: string;
+  petTalkEnabled?: string;
 };
 
 const FROM_APP_CONFIG: Record<string, keyof BackendConfig> = {
@@ -25,6 +26,7 @@ const FROM_APP_CONFIG: Record<string, keyof BackendConfig> = {
   EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL: "supabaseFunctionsUrl",
   EXPO_PUBLIC_API_URL: "apiUrl",
   EXPO_PUBLIC_PET_TALK_PREVIEW: "petTalkPreview",
+  EXPO_PUBLIC_PET_TALK_ENABLED: "petTalkEnabled",
 };
 
 function appExtra(): Record<string, any> {

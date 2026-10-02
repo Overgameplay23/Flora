@@ -20,6 +20,7 @@ const PUBLIC_VARS = {
   supabaseFunctionsUrl: "EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL",
   apiUrl: "EXPO_PUBLIC_API_URL",
   petTalkPreview: "EXPO_PUBLIC_PET_TALK_PREVIEW",
+  petTalkEnabled: "EXPO_PUBLIC_PET_TALK_ENABLED",
 };
 
 function readEnvFile(file) {

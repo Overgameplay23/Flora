@@ -92,6 +92,6 @@ describe("backend profiles", () => {
     expect(out.name).toBe("Luna");
     expect(out.extra.other).toBe(1);
     expect(out.extra.appEnv).toBe("local");
-    expect(Object.keys(out.extra.backend).sort()).toEqual(["apiUrl", "petTalkPreview", "supabaseAnonKey", "supabaseFunctionsUrl", "supabaseUrl"]);
+    expect(Object.keys(out.extra.backend).sort()).toEqual(["apiUrl", "petTalkEnabled", "petTalkPreview", "supabaseAnonKey", "supabaseFunctionsUrl", "supabaseUrl"]);
   });
 });
