@@ -39,7 +39,8 @@ const PLAN = [
   ["local-backend/sql/pet_look.sql", "20260925000000_pet_look.sql"],
   ["local-backend/sql/pet_memorial.sql", "20260925000100_pet_memorial.sql"],
   ["local-backend/sql/journal_entries.sql", "20260925000200_journal_entries.sql"],
-  ["local-backend/sql/security_hardening.sql", "20261001000000_security_hardening.sql"],
+  ["local-backend/sql/bounded_times_and_points.sql", "20261002014412_bounded_times_and_points.sql"],
+  ["local-backend/sql/pin_function_search_path.sql", "20261002014442_pin_function_search_path.sql"],
 ];
 
 fs.mkdirSync(outDir, { recursive: true });

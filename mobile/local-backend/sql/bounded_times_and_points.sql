@@ -1,72 +1,8 @@
--- Security hardening before the first hosted backend (2026-10-01).
--- Closes baseline risks R-13/R-14 (public pet photos), R-37 (forgeable points), R-38 (writable plant
--- levels), R-39 (pet chat quota callable by anyone for any user), R-40 (unbounded dates and points in
--- RPCs) and R-41 (client-writable server state and AI memories).
---
--- Principle: the client keeps every READ it has today. Anything that decides points, plant levels or
--- server-side state is written only by the SECURITY DEFINER functions (complete_task, upgrade_plant,
--- log_event_and_rollup, recompute_pet_state) or by Edge Functions using the service role.
--- Verified against the client code: it never inserts/updates/deletes the tables made read-only here.
--- Idempotent and forward-only.
-
--- ---------------------------------------------------------------------------------------------------
--- 1) Read-only tables for clients (R-37, R-38, R-41)
--- ---------------------------------------------------------------------------------------------------
-drop policy if exists task_completions_insert_own on public.task_completions;
-drop policy if exists task_completions_update_own on public.task_completions;
-drop policy if exists task_completions_delete_own on public.task_completions;
-
-drop policy if exists user_plants_insert_own on public.user_plants;
-drop policy if exists user_plants_update_own on public.user_plants;
-drop policy if exists user_plants_delete_own on public.user_plants;
-
-drop policy if exists pet_state_insert_own on public.pet_state;
-drop policy if exists pet_state_update_own on public.pet_state;
-
-drop policy if exists user_events_insert_own on public.user_events;
-drop policy if exists user_memories_insert_own on public.user_memories;
-
--- Belt and braces: remove the table privileges too, so a future permissive policy can't reopen them.
-do $$
-declare
-  t text;
-begin
-  foreach t in array array[
-    'task_completions', 'user_plants', 'user_plant_upgrades', 'pet_state', 'user_events',
-    'user_memories', 'daily_user_metrics', 'weekly_summaries', 'pet_chat_usage'
-  ] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('revoke insert, update, delete, truncate on public.%I from anon, authenticated', t);
-    end if;
-  end loop;
-
-  -- Shared catalogues: readable by everyone, writable by no client.
-  foreach t in array array['plant_catalog', 'garden_items'] loop
-    if to_regclass('public.' || t) is not null then
-      execute format('revoke insert, update, delete, truncate on public.%I from anon, authenticated', t);
-    end if;
-  end loop;
-end $$;
-
--- ---------------------------------------------------------------------------------------------------
--- 2) Function privileges (R-39)
--- Supabase grants EXECUTE on new public functions to anon directly, so "revoke from public" alone
--- never removed it. Signed-out callers get nothing; the chat quota is server-only.
--- ---------------------------------------------------------------------------------------------------
-revoke execute on function public.consume_pet_chat_quota(uuid, date, integer) from public, anon, authenticated;
-grant execute on function public.consume_pet_chat_quota(uuid, date, integer) to service_role;
-
-revoke execute on function public.complete_task(text, timestamptz, date) from public, anon;
-revoke execute on function public.get_garden_points() from public, anon;
-revoke execute on function public.upgrade_plant(text) from public, anon;
-revoke execute on function public.log_event_and_rollup(text, timestamptz, uuid, text, integer, integer, jsonb, date) from public, anon;
-revoke execute on function public.recompute_pet_state(date) from public, anon;
-revoke execute on function public.clamp_local_day(date, timestamptz) from public, anon;
-revoke execute on function public.seed_default_tasks() from public, anon, authenticated;
-
--- ---------------------------------------------------------------------------------------------------
--- 3) Bounded times and points (R-40)
--- ---------------------------------------------------------------------------------------------------
+-- R-40: bounded times and points. Applied to Bloom (jhrsfogxxexmzauhtjif) on 2026-10-02 as migration
+-- 20261002014412_bounded_times_and_points. Sits on top of the 2026-09-27 migrations (rls_owner_policies,
+-- function_grants, pets_bucket_private), which cover R-13/14, R-37, R-38, R-39 and R-41.
+-- complete_task: client times older than 48h (or in the future) count as now; 20 paid completions per local day.
+-- log_event_and_rollup: same time rule, client points capped at 10, event type and meta size bounded.
 
 -- A client-supplied instant is trusted only if it is recent: the offline queue replays completions
 -- with their original time, so allow up to 48 hours back (and a little clock skew forward).
@@ -329,14 +265,3 @@ $$;
 
 revoke execute on function public.log_event_and_rollup(text, timestamptz, uuid, text, integer, integer, jsonb, date) from public, anon;
 grant execute on function public.log_event_and_rollup(text, timestamptz, uuid, text, integer, integer, jsonb, date) to authenticated, service_role;
-
--- ---------------------------------------------------------------------------------------------------
--- 4) Private pet photos (R-13, R-14)
--- Originals are already served through 1-year signed URLs by the client. The bucket becomes private,
--- limited to images up to 10 MB. Own-path policies from restoration_local_compat.sql stay as they are.
--- ---------------------------------------------------------------------------------------------------
-update storage.buckets
-set public = false,
-    file_size_limit = 10485760,
-    allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'image/heic']
-where id = 'pets';
