@@ -42,6 +42,8 @@ const PLAN = [
   ["local-backend/sql/rls_owner_policies.sql", "20260927000000_rls_owner_policies.sql"],
   ["local-backend/sql/function_grants.sql", "20260927000100_function_grants.sql"],
   ["local-backend/sql/pets_bucket_private.sql", "20260927000200_pets_bucket_private.sql"],
+  ["local-backend/sql/bounded_times_and_points.sql", "20261002014412_bounded_times_and_points.sql"],
+  ["local-backend/sql/pin_function_search_path.sql", "20261002014442_pin_function_search_path.sql"],
 ];
 
 fs.mkdirSync(outDir, { recursive: true });
