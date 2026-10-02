@@ -700,6 +700,34 @@ Owner: "point at local or staging without code changes". Runbook: `docs/backend/
 - `npm run check`: **32 suites / 187 tests** (new: `appConfig` 12, `seedSeparation` 5, `env` +2), typecheck and Deno clean, export built with `--clear`.
 - **Not verified against a hosted project** (none exists): `backend:link`, `backend:push`, `functions:deploy`, `functions:secrets`, `backend:dump -- --linked`, and the restore drill.
 
+### 6.31 Twenty-fourth change set — 2026-10-01: repo, GitHub and Bloom in sync (6.29 and 6.30 merged and pushed)
+
+Owner: "sync this repo with GitHub and with the hosted Supabase project Bloom", in phases, with nothing that changes the hosted database. Bloom is the hosted project `jhrsfogxxexmzauhtjif` and already ran all 29 migrations below. (6.7 and section 7 describe the removed project `gghesvpm…`, which is still gone.)
+
+**Starting point.** This PC: `backend/hardening` (6.29 and 6.30, unpushed) plus an uncommitted pet-talk feature flag. GitHub `main` had two commits from another session: `bc8ca0e` (a `20261001000000_security_hardening` migration that never reached Bloom, the `test/` harness, signed URLs in `petStylize.js`, `babel-preset-expo` declared) and `b4d2be9` (replaced that migration with the two Bloom recorded: `20261002014412_bounded_times_and_points`, which closes R-40, and `20261002014442_pin_function_search_path`, Supabase lint 0011).
+
+**Commits** (pushed as `b4d2be9..a6d010d`, then this entry):
+- `ac6386f`, `eeffa2b`, `a91052d`: 6.29 and 6.30 as they were (merged, not rebased, so the hashes stand).
+- `56bb445` pet-talk feature flag `EXPO_PUBLIC_PET_TALK_ENABLED` (app config `extra.backend.petTalkEnabled`), off by default. Off: no Talk entry and no call to the function, even when it is deployed with its key. On: the entry still waits for `configured: true`. Only an exact `1` enables it; the preview flag implies it. New jest file `petTalkFlag` (3 tests).
+- `dfe4f1b` merge of `origin/main`. Conflicts: `build-migrations.js` (every entry kept, by version: the three 20260927, then the two 20261002; `security_hardening` stays deleted) and `src/services/petStylize.js` (kept this branch's `petPhotoLocator(path)`, the locator for the `<uid>/…` layout of `20260927000200_pets_bucket_private`; GitHub's side called the removed `getSignedUrl`). `package.json` merged cleanly.
+- `a6d010d` `test/security_tests.sql` aligned with the 2026-09-27 privileges (owner-approved; no migration changed). The signed-out check passes when the read is refused (on Bloom anon has no table privilege) or returns no rows, and fails on any visible row. The `pg_temp` helpers are also granted to `service_role`, because `function_grants` removes PUBLIC EXECUTE from every function postgres creates later, these included.
+
+**Evidence (1 Oct):**
+- `supabase migration list --workdir local-backend` (linked to Bloom, read-only; the CLI connected through its temporary login role): **29 local = 29 remote**, none pending, none remote-only.
+- `local-backend/supabase/migrations` holds exactly those 29 files on `main`; GitHub equals local `main` after the push.
+- `npm run backend:reset` on the local stack: 29 migrations applied from zero, exit 0.
+- `security_tests.sql` with psql as `postgres` in `supabase_db_floura-local`: as written on GitHub it stopped after 25 PASS (`permission denied for table pet` as anon). After `a6d010d`: **30/30 PASS, "ALL TESTS PASSED"**, psql exit 0, covering R-37, R-38, R-39, R-40 (backdated completions, 20 paid completions a day, event points capped at 10) and R-41. The new anon check alone, in rolled-back transactions: passes as on Bloom, passes on an RLS-only schema, fails on a planted leak ("sees 1 user rows").
+- `npm run check`: typecheck and Deno clean, **33 suites / 190 tests** (was 32 / 187; new: `petTalkFlag` 3), web export built. Run before the flag commit, on the merged tree, and before `a6d010d`.
+- Secret scan of every added line in the push: 0 hits. The only env-named files are the three `.env.example` files (empty values).
+
+**Notes for the next person:**
+- **sha256 stamps on Windows.** `core.autocrlf=true` and no `.gitattributes`: files git writes on this PC get CRLF, so `build-migrations.js` (also run by `backend:reset`) re-stamps the two 20261002 files with a different `-- sha256:` line while the SQL is identical. Keep the committed versions (`git restore` those two files). A permanent fix (a `.gitattributes` rule, or LF copies of those two sources) is an owner decision.
+- `babel-preset-expo ~54.0.12` is now declared, but this PC's `node_modules` has it only nested under `expo/` until an `npm install`. `npm run check` does not need it.
+- Docker Desktop hit the `dockerInference` start-up error again. Fixed with the rename-aside routine (`run.aside-20261001-221607`, `docker-secrets-engine.aside-20261001-221607`), no factory reset.
+- The local database was reset twice and now holds the security suite's two test users instead of the demo; `npm run backend:seed` restores the demo account.
+- R-40, left open in 6.29, is closed.
+- The local branch `backend/hardening` (at `dfe4f1b`) was not pushed; `main` contains it.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent
