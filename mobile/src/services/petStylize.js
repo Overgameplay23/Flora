@@ -174,14 +174,9 @@ async function uploadBase64Image({ base64, path }) {
   if (uploadError) {
     throw new Error(`Supabase storage upload failed (${path}): ${uploadError.message}`);
   }
-  const { data: publicData, error: publicError } = supabase.storage.from("pets").getPublicUrl(path);
-  if (publicError) {
-    throw new Error(`Supabase storage public URL failed (${path}): ${publicError.message}`);
-  }
-  if (!publicData?.publicUrl) {
-    throw new Error(`Supabase storage public URL missing (${path}).`);
-  }
-  return publicData.publicUrl;
+  // The pets bucket is private (security_hardening.sql, R-13/R-14): hand out a long-lived signed URL,
+  // the same way original photos already are, instead of a permanent public one.
+  return getSignedUrl(path);
 }
 
 async function computeSourceHash(value) {
