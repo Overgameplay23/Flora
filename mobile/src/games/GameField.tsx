@@ -108,7 +108,7 @@ export default function GameField({ title, stat, secondary, onClose, children, h
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#1d2a1c", overflow: "hidden" },
   field: { flex: 1, overflow: "hidden" },
-  wash: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(23,42,30,0.12)" },
+  wash: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(23,42,30,0.12)" },
   hud: {
     position: "absolute",
     left: 12,

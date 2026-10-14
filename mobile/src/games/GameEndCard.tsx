@@ -107,7 +107,7 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(2,6,23,0.45)",

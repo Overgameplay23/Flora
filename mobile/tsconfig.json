@@ -1,7 +1,11 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // TypeScript 6 (SDK 56+) turned `strict` on and stopped loading every @types package by default.
+    // The code was written against the old defaults, so they are stated here explicitly.
+    "strict": false,
+    "types": ["jest", "node"]
   },
   "include": [
     "App.js",

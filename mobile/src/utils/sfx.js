@@ -1,4 +1,4 @@
-﻿import { Audio } from "expo-av";
+﻿import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 
 const dingAsset = require("../../assets/sfx/ding.wav");
 let dingSound = null;
@@ -10,9 +10,8 @@ async function ensureDingLoaded() {
   if (dingSound) return dingSound;
   if (!loadPromise) {
     loadPromise = (async () => {
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync(dingAsset, { shouldPlay: false });
-      dingSound = sound;
+      await setAudioModeAsync({ playsInSilentMode: true });
+      dingSound = createAudioPlayer(dingAsset);
       return dingSound;
     })();
   }
@@ -26,7 +25,9 @@ export async function playDing() {
   try {
     const sound = await ensureDingLoaded();
     if (!sound) return;
-    await sound.replayAsync();
+    // expo-audio players stay at the end after playing; rewind so every ding plays from the start
+    await sound.seekTo(0);
+    sound.play();
   } catch (error) {
     if (__DEV__) {
       console.log("SFX_DING_ERROR", error);

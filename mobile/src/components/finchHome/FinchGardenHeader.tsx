@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     height: "48%",
   },
   sparkleLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   sparkle: {
     position: "absolute",
