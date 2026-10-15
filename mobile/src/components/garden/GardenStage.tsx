@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1d2a1c",
   },
   stars: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5001,
   },
   star: {
@@ -381,12 +381,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   wash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 5000,
     backgroundColor: "rgba(23,42,30,0.16)",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 6000,
   },
   debugPill: {

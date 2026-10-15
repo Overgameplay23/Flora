@@ -13,6 +13,12 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 14 October 2026** (details in `RESTORATION_BASELINE.md` 6.31 and 6.32): there is now a hosted
+> Supabase project, **Bloom** (`jhrsfogxxexmzauhtjif`, all 29 migrations). The app is on **Expo SDK 57**
+> (React Native 0.86, React 19.2; branch `upgrade/sdk-57`) because App Store Expo Go no longer opens SDK 54.
+> It has **run on a real iPhone** in Expo Go against Bloom: sign-up, email confirmation, sign-in and Home all
+> worked. Run it against Bloom with the `staging` profile (`mobile/.env.staging`); see section 7.
+
 ---
 
 ## 1. The short version
@@ -116,7 +122,7 @@ lost. The logged-in Supabase account only holds unrelated *AuraMind* projects. D
 | Gap | Why it matters | What unblocks it |
 |---|---|---|
 | Hosted backend | Real users can't sign up; AI talk can't run. | Owner creates a Supabase project; apply the 24 migrations in `local-backend/supabase/migrations`; deploy Edge Functions; set secrets. |
-| Phone verification | Reminders, haptics, gestures and performance are only proven on web. | Mark the Wi-Fi as Private or allow `node.exe` through the firewall. Tunnel mode is broken because antivirus removed `ngrok.exe`. |
+| Phone verification | First run on an iPhone done 14 Oct (sign-in and Home). Reminders, haptics, gestures, sound and performance are still unproven on a device. | On networks that block device-to-device traffic (eduroam), use tunnel mode: from `mobile/`, `$env:APP_ENV = 'staging'; node scripts/start-expo-phone.js --tunnel --port 8082`. |
 | App identity | `app.json` still has slug `mobile`, package `com.anonymous.mobile`, no iOS bundle ID, no EAS project. "Luna" needs a trademark check. | Owner picks name, bundle ID and scheme; then regenerate the (stale) native folders. |
 | Native features | Health steps/sleep, widgets, remote push, Apple/Google sign-in need a custom development build. Expo Go can't do them. | App identity + Apple Developer account + EAS. Moving off Expo Go also frees the SDK upgrade. |
 | Database security | Several tables let a signed-in user write their own points and plant levels directly (R-37 to R-41). Fine for a demo, not for launch. | RLS hardening pass before any public backend. |
@@ -181,7 +187,7 @@ Proven on Windows 11. macOS should work the same way but hasn't been tried.
 - Node 22 (tested on 22.17.0) and npm
 - Docker Desktop, running
 - Supabase CLI (on Windows, install with Scoop; the npm global install is unsupported). Tested with 2.67.1.
-- For the phone: the **Expo Go** app from the App Store, which is the SDK 54 build
+- For the phone: the **Expo Go** app from the App Store, which must match the project's SDK (57 since 14 Oct)
 
 > Always use `npx expo …` and always run from inside `mobile/`. A global legacy `expo` binary exists on the
 > original machine and fails, and starting Metro from another folder gives a misleading "ESM URL scheme" error.
@@ -236,7 +242,7 @@ Proven on Windows 11. macOS should work the same way but hasn't been tried.
 
 ## 8. Codebase map
 
-**Stack:** Expo SDK 54 · React Native 0.81 (new architecture) · React 19.1 · TypeScript and some legacy JS · React
+**Stack:** Expo SDK 57 · React Native 0.86 (new architecture, Hermes v1) · React 19.2 · TypeScript 6 (non-strict) and some legacy JS · React
 Navigation (tabs + stacks) · NativeWind · react-native-svg for the pet and nook · Supabase (Postgres, Auth,
 Storage, Edge Functions in Deno) · AsyncStorage and SecureStore on the device · expo-notifications · Jest with jest-expo.
 
@@ -293,7 +299,8 @@ The owner's standing rules from the restoration. Keep them unless Donovan change
 - **Ask before anything remote or destructive:** deploying, migrating a hosted database, creating projects,
   rotating keys, publishing, force-pushing, `git reset/clean`.
 - **Never print or commit secrets.** `.env*` is git-ignored. Report keys as present or missing only.
-- **Don't upgrade the Expo SDK** while the test device is App Store Expo Go. It only opens SDK 54.
+- **Keep the Expo SDK on the version App Store Expo Go opens** while the test device uses Expo Go. That was SDK 54
+  until 14 Oct 2026; Expo Go moved on, so the project is now on SDK 57 (owner's decision).
 - **Keep the schema fallbacks** in the client (it tolerates several old database shapes) until a hosted schema is
   live and verified.
 - **Green before commit:** run `npm run check`, commit and push each verified change set, and record it in
