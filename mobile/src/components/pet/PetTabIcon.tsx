@@ -5,6 +5,7 @@ import { usePet } from "../../hooks/usePet";
 import { useSignedPetPhotoUrl } from "../../services/petPhotoUrls";
 import { hasPortrait } from "../garden/usePetCandidates";
 import PetRig from "./vector/PetRig";
+import { brand, ink, surfaces } from "../../theme/tokens";
 
 /**
  * The Pet tab shows the user's own pet instead of a generic icon: the painted portrait when it exists,
@@ -26,13 +27,14 @@ export default function PetTabIcon({ focused }: { focused: boolean }) {
         ) : uri ? (
           <Image
             source={{ uri }}
-            style={styles.image}
+            // a painted portrait is the whole sitting pet: draw it larger and from the top so the ring shows its face
+            style={hasProcessedImage ? styles.faceCrop : styles.image}
             resizeMode={hasProcessedImage ? "contain" : "cover"}
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
         ) : (
-          <Feather name="heart" size={16} color={focused ? "#35d07f" : "rgba(148,163,184,0.8)"} />
+          <Feather name="heart" size={16} color={focused ? ink.primary : ink.tertiary} />
         )}
       </View>
       <View style={[styles.indicator, focused && styles.indicatorActive]} />
@@ -46,24 +48,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ring: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    backgroundColor: "rgba(53,208,127,0.14)",
+    backgroundColor: brand.goldTint,
     borderWidth: 1.5,
-    borderColor: "rgba(148,163,184,0.45)",
+    borderColor: surfaces.light.track,
   },
   ringActive: {
-    borderColor: "#35d07f",
-    backgroundColor: "rgba(53,208,127,0.24)",
+    borderColor: ink.primary,
   },
   image: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  faceCrop: {
+    position: "absolute",
+    top: 0,
+    width: 46,
+    height: 46,
   },
   indicator: {
     width: 6,
@@ -73,6 +80,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   indicatorActive: {
-    backgroundColor: "#35d07f",
+    backgroundColor: brand.bloom,
   },
 });

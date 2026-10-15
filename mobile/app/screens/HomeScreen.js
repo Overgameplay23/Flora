@@ -1,94 +1,58 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  useWindowDimensions,
-  AppState,
-  Modal,
-  TextInput,
-  Platform,
-  ToastAndroid,
-} from "react-native";
-import { notify } from "../../src/utils/confirm";
-import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
-import { syncReminders } from "../../src/services/reminders";
-import { useReminderTaps } from "../../src/hooks/useReminderTaps";
-import { LinearGradient } from "expo-linear-gradient";
-import { Feather } from "@expo/vector-icons";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, ToastAndroid, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { setStatusBarStyle } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import HomeView from "../../src/components/home/HomeView";
+import FocusPickerSheet from "../../src/components/home/FocusPickerSheet";
+import PressableScale from "../../src/components/common/PressableScale";
+import BreathingModal from "../../src/components/checkin/BreathingModal";
 import { useAuth } from "../../src/contexts/AuthContext";
-import { fetchGardenItems, getGardenProgress, todayKey } from "../../src/services/dailyLoop";
-import { fetchCatalog, fetchUserPlants } from "../../src/services/garden";
-// Do not query pet columns directly; use fetchPet for schema compatibility.
-import { savePetName } from "../../src/services/petService";
-import { setPetNameLocally } from "../../src/services/petStore";
 import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
-import { phaseLabel } from "../../src/domain/cycle";
-import { shortDate } from "../../src/domain/calendar";
-import { actForTask, celebrationLine, petMoodFromStores } from "../../src/domain/petMood";
+import { useReminderTaps } from "../../src/hooks/useReminderTaps";
+import { useTodayPlan } from "../../src/hooks/useTodayPlan";
+import { todayKey } from "../../src/services/dailyLoop";
+import { fetchCatalog, fetchGardenPoints, fetchUserPlants } from "../../src/services/garden";
+import { fetchDaysTogether } from "../../src/services/homeStats";
+import { fetchLast7DaysMetrics } from "../../src/services/retention";
+import { completeTaskWithResilience, syncPendingCompletions } from "../../src/services/taskCompletion";
+import { loadTodayEnergy, saveTodayEnergy } from "../../src/services/planStore";
+import { syncReminders } from "../../src/services/reminders";
+import { savePetName } from "../../src/services/petService";
+import { setPetNameLocally } from "../../src/services/petStore";
+import { FOCUS_AREAS } from "../../src/domain/plan/focusAreas";
+import { energyOption, isGentleEnergy } from "../../src/domain/energy";
+import { careDoneLine, homePetLine } from "../../src/domain/homeDialogue";
+import { actForTask, petMoodFromStores } from "../../src/domain/petMood";
 import { nextLastSeen, returnGreeting, returnStatus } from "../../src/domain/hibernation";
-import { unifiedStreak } from "../../src/domain/streaks";
 import { dayPhase, phaseGreeting } from "../../src/domain/timeOfDay";
 import { memorialGreeting, memorialReflection } from "../../src/domain/memorial";
-import { isPlayTask } from "../../src/games/playStatsLogic";
-import { supabase } from "../../src/lib/supabase";
+import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isProtectedMood } from "../../src/domain/protectedMode";
-import FinchGardenHeader from "../../src/components/finchHome/FinchGardenHeader";
-import FinchProgressCard from "../../src/components/finchHome/FinchProgressCard";
-import FinchQuickActions from "../../src/components/finchHome/FinchQuickActions";
-import FinchSectionTitle from "../../src/components/finchHome/FinchSectionTitle";
-import FinchTaskCard from "../../src/components/finchHome/FinchTaskCard";
-import BreathingModal from "../../src/components/checkin/BreathingModal";
-import EditHabitsModal from "../../src/components/habits/EditHabitsModal";
-import PointsDebugPanel from "../../src/components/dev/PointsDebugPanel";
+import { phaseLabel } from "../../src/domain/cycle";
 import { playDing } from "../../src/utils/sfx";
-import { getTaskPoints } from "../../src/domain/taskPoints";
-import { getPointsDebugSnapshot } from "../../src/domain/progressDebug";
-import { applyHabitOverrides, getHabitOverrides, setHabitOverrides } from "../../src/services/habitOverrides";
-import { completeTaskWithResilience, syncPendingCompletions, completionDateKey } from "../../src/services/taskCompletion";
-import { fetchLast7DaysMetrics, recomputePetState } from "../../src/services/retention";
-import { diagLog } from "../../src/utils/diagLog";
+import { notify } from "../../src/utils/confirm";
+import * as haptics from "../../src/utils/haptics";
+import { brand, fonts, ink, radius, skyFor, surfaces, type } from "../../src/theme/tokens";
 
-const TASK_STORAGE_PREFIX = "finch_tasks";
+// Home: the pet's sanctuary and today's care. Layout and look live in src/components/home/HomeView.tsx
+// (pure, also rendered by the design preview); this screen owns the data, the plan, completions and the
+// pet's reactions. Tasks come from the plan engine (src/domain/plan) via useTodayPlan.
+
 const PET_NAME_MAX_CHARS = 24;
-const DEFAULT_TASKS = [
-  { id: "local-1", title: "Drink water", icon: "droplet", difficulty: "normal" },
-  { id: "local-2", title: "Read 10 pages", icon: "book", difficulty: "hard" },
-  { id: "local-3", title: "Tend the garden", icon: "feather", difficulty: "normal" },
-];
-const TASK_ICON_SET = ["droplet", "book", "feather"];
-
-function toTaskRewardLabel(task) {
-  return `${getTaskPoints(task)} pts`;
-}
+// a task that opens its own screen (breathing, journal, a game) is ticked when the person comes back,
+// as long as they stayed at least this long
+const OPENED_TASK_MIN_MS = 8000;
+const NO_FOCUS = [];
 
 function toHomeMoodScore(moodState) {
   if (moodState === "sad") return 2;
   if (moodState === "neutral") return 3;
   if (moodState === "happy") return 4;
   return null;
-}
-
-function toWeekdayFromDateKey(dateKey) {
-  const date = new Date(`${dateKey}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return dateKey;
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    weekday: "short",
-  }).format(date);
-}
-
-function toMoodLabel(mood) {
-  const raw = String(mood || "").trim();
-  if (!raw) return "Neutral";
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 function normalizePetName(value) {
@@ -113,109 +77,121 @@ function showSavePetNameError(message) {
   notify("Could not save pet name", text);
 }
 
-function taskStorageKey(userId, dateKey) {
-  return `${TASK_STORAGE_PREFIX}:${userId || "guest"}:${dateKey}`;
-}
-
-function hydrateTasks(rawTasks) {
-  if (!Array.isArray(rawTasks) || rawTasks.length === 0) {
-    return DEFAULT_TASKS.map((task) => ({ ...task, reward: toTaskRewardLabel(task), done: false }));
-  }
-  return rawTasks.map((task, index) => {
-    const fallback = DEFAULT_TASKS[index % DEFAULT_TASKS.length];
-    const icon = TASK_ICON_SET.includes(task.icon) || task.icon === "play" ? task.icon : fallback.icon;
-    const normalizedTask = {
-      id: task.id || fallback.id,
-      title: task.title || fallback.title,
-      icon,
-      difficulty: task.difficulty || fallback.difficulty || "normal",
-      points: Number.isFinite(Number(task.points)) ? Number(task.points) : undefined,
-      done: !!task.done,
-      remoteId: task.remoteId,
-    };
-    return {
-      ...normalizedTask,
-      reward: toTaskRewardLabel(normalizedTask),
-    };
-  });
-}
-
-async function loadLocalTasks(userId, dateKey) {
-  const key = taskStorageKey(userId, dateKey);
+function longDate(date) {
   try {
-    const stored = await AsyncStorage.getItem(key);
-    if (stored) {
-      try {
-        return hydrateTasks(JSON.parse(stored));
-      } catch (_e) {
-        return hydrateTasks(null);
-      }
-    }
-    const fallback = hydrateTasks(null);
-    await AsyncStorage.setItem(key, JSON.stringify(fallback));
-    return fallback;
-  } catch (_e) {
-    return hydrateTasks(null);
+    return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(date);
+  } catch (_error) {
+    return "";
   }
-}
-
-async function persistLocalTasks(userId, dateKey, tasks) {
-  const key = taskStorageKey(userId, dateKey);
-  try {
-    await AsyncStorage.setItem(key, JSON.stringify(tasks));
-  } catch (_e) {
-    console.warn("TASK_STORAGE_WRITE_FAILED");
-  }
-}
-
-function completionRowsFromTasks(tasks) {
-  return tasks.filter((task) => task.done).map((task) => ({ task_id: task.remoteId ?? task.id, done: true }));
 }
 
 export default function HomeScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user, profile, userStats, petEmotionState } = useAuth();
-  // Re-read on every focus so the key cannot go stale across midnight (R-33).
+  // Re-read on every focus so the key (and the light) cannot go stale across midnight (R-33).
   const [homeDateKey, setHomeDateKey] = useState(() => todayKey());
-  const { pet, sources: petSources, name: petName, look: petLook, memorial, refresh: refreshPet } = usePet();
-  const homePlace = sanctuaryCopy(sanctuaryFor(petLook?.species)).place;
+  const [hour, setHour] = useState(() => new Date().getHours());
+  const { pet, sources: petSources, name: petName, look: petLook, memorial, status: petStatus, refresh: refreshPet } = usePet();
+  const theme = sanctuaryFor(petLook?.species);
+  const place = sanctuaryCopy(theme).place;
   const inMemorial = !!memorial;
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
-  const todayMood = toHomeMoodScore(moodState);
-  const protectedMode = isProtectedMood(todayMood);
+  const protectedMode = isProtectedMood(toHomeMoodScore(moodState));
   const hasExistingCheckin = profile?.last_checkin_date === homeDateKey;
+  const petDisplayName = normalizePetName(petName) || "Your pet";
+  const phase = dayPhase(hour);
+  const sky = skyFor(phase);
 
-  const [tasks, setTasks] = useState([]);
-  const [taskCompletionsToday, setTaskCompletionsToday] = useState([]);
-  const [earnedPointsTodayServer, setEarnedPointsTodayServer] = useState(null);
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [gardenItems, setGardenItems] = useState([]);
-  const [gardenUnlockRows, setGardenUnlockRows] = useState([]);
-  // Plants the user owns; the header scene roots them in the garden's soil patch.
+  const [energy, setEnergy] = useState(null);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [savingFocus, setSavingFocus] = useState(false);
+  const [completing, setCompleting] = useState({});
+  const [noticeByTask, setNoticeByTask] = useState({});
+  const [toast, setToast] = useState(null);
+  const [petReaction, setPetReaction] = useState(null);
+  const [petAct, setPetAct] = useState(null);
+  const [sprouts, setSprouts] = useState(null);
+  const [daysTogether, setDaysTogether] = useState(null);
   const [scenePlants, setScenePlants] = useState([]);
-  const [completingTaskIds, setCompletingTaskIds] = useState({});
-  const [taskMutationNoticeById, setTaskMutationNoticeById] = useState({});
+  const [weekMetrics, setWeekMetrics] = useState([]);
+  const [loadingWeek, setLoadingWeek] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [breathingOpen, setBreathingOpen] = useState(false);
-  const [editHabitsOpen, setEditHabitsOpen] = useState(false);
-  const [savingHabitEdits, setSavingHabitEdits] = useState(false);
-  const [petRetentionState, setPetRetentionState] = useState(null);
-  const [retentionMetrics, setRetentionMetrics] = useState([]);
-  const [loadingRetention, setLoadingRetention] = useState(false);
+  const [returnNote, setReturnNote] = useState(null);
+  const lastSeenChecked = useRef(null);
+  const openedTask = useRef(null);
+  const celebratedAllDone = useRef(null);
+  // true once something was ticked in this session, so the all-done moment never fires just for opening the app
+  const completedThisSession = useRef(false);
+  const firstFocus = useRef(true);
+
   const [petNameInput, setPetNameInput] = useState("");
   const [petNameModalVisible, setPetNameModalVisible] = useState(false);
   const [petNameError, setPetNameError] = useState("");
   const [savingPetName, setSavingPetName] = useState(false);
-  // The pet reacts to what happens on this screen: hearts when tapped, a cheer + toast when a task is done.
-  const [petReaction, setPetReaction] = useState(null);
-  const [petAct, setPetAct] = useState(null);
-  const [celebration, setCelebration] = useState(null);
-  // Graceful Hibernation: after days away the header welcomes the person back, once per visit, without guilt.
-  const [returnNote, setReturnNote] = useState(null);
-  const lastSeenChecked = useRef(null);
-  const { height } = useWindowDimensions();
 
-  // Ask for a name once the pet is painted and still unnamed.
+  const gentle = protectedMode || isGentleEnergy(energy);
+  const returning = !!returnNote;
+  const cyclePhase = cycle.enabled ? cycle.status?.phase ?? null : null;
+
+  // The plan waits until its inputs are known (the day's battery answer, the pet, the cycle store and the
+  // welcome-back check), so no half-informed plan is built, logged as shown or turned into task rows. A slow
+  // network cannot hold it back for more than a moment.
+  const [energyLoadedFor, setEnergyLoadedFor] = useState(null);
+  const [returnChecked, setReturnChecked] = useState(false);
+  const [readyFallback, setReadyFallback] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setReadyFallback(true), 2500);
+    return () => clearTimeout(id);
+  }, []);
+  const planReady =
+    !user?.id ||
+    readyFallback ||
+    (energyLoadedFor === `${user.id}:${homeDateKey}` && returnChecked && !cycle.loading && petStatus !== "loading" && petStatus !== "idle");
+
+  const plan = useTodayPlan({
+    userId: user?.id ?? null,
+    petName: petDisplayName,
+    dateKey: homeDateKey,
+    energy,
+    returning,
+    memorial: inMemorial,
+    cyclePhase,
+    ready: planReady,
+  });
+
+  // ---- the battery check, kept per day on the device --------------------------------------------------
+  useEffect(() => {
+    let alive = true;
+    if (!user?.id) {
+      setEnergy(null);
+      return undefined;
+    }
+    loadTodayEnergy(user.id, homeDateKey)
+      .then((value) => {
+        if (alive) setEnergy(value ?? null);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setEnergyLoadedFor(`${user.id}:${homeDateKey}`);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [homeDateKey, user?.id]);
+
+  const handleEnergy = useCallback(
+    (next) => {
+      setEnergy(next);
+      setPetReaction(next === "energized" ? "cheer" : "love");
+      if (user?.id) void saveTodayEnergy(user.id, homeDateKey, next);
+    },
+    [homeDateKey, user?.id]
+  );
+
+  // ---- ask for a name once the pet is painted and still unnamed ---------------------------------------
   useEffect(() => {
     if (!user?.id) {
       setPetNameModalVisible(false);
@@ -225,167 +201,167 @@ export default function HomeScreen() {
     setPetNameModalVisible(hasStylizedPetReady(pet) && !normalizePetName(petName));
   }, [pet, petName, user?.id]);
 
-  useEffect(() => {
-    if (!protectedMode && breathingOpen) setBreathingOpen(false);
-  }, [protectedMode, breathingOpen]);
-
-  useEffect(() => {
-    if (__DEV__) {
-      console.info("HOME_PROTECTED_MODE", { protectedMode, hasExistingCheckin });
-    }
-  }, [protectedMode, hasExistingCheckin]);
-
-  const loadRetentionData = useCallback(async () => {
-    if (!user?.id) {
-      setPetRetentionState(null);
-      setRetentionMetrics([]);
-      return;
-    }
-
-    setLoadingRetention(true);
-    try {
-      const [petState, metrics] = await Promise.all([recomputePetState(), fetchLast7DaysMetrics()]);
-      setPetRetentionState(petState || null);
-      setRetentionMetrics(Array.isArray(metrics) ? metrics : []);
-    } catch (error) {
-      console.warn("HOME_RETENTION_LOAD_ERROR", error?.message || String(error));
-      setPetRetentionState(null);
-      setRetentionMetrics([]);
-    } finally {
-      setLoadingRetention(false);
-    }
+  // ---- side data: Sprouts, days together, the week, the plants in the scene ---------------------------
+  const loadSideData = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingWeek(true);
+    await Promise.all([
+      fetchGardenPoints()
+        .then((summary) => setSprouts(summary.remainingPoints))
+        .catch((error) => console.warn("HOME_SPROUTS_LOAD_ERROR", error?.message || String(error))),
+      fetchDaysTogether(user.id).then((count) => setDaysTogether(count)),
+      fetchLast7DaysMetrics()
+        .then((metrics) => setWeekMetrics(Array.isArray(metrics) ? metrics : []))
+        .catch((error) => console.warn("HOME_WEEK_LOAD_ERROR", error?.message || String(error))),
+      Promise.all([fetchUserPlants(), fetchCatalog()])
+        .then(([owned, catalog]) => {
+          const maxLevelById = new Map((catalog || []).map((plant) => [String(plant.id), plant.max_level]));
+          setScenePlants(
+            (owned || []).map((row) => ({
+              id: String(row.plant_id),
+              level: Number(row.level) || 0,
+              maxLevel: Number(maxLevelById.get(String(row.plant_id))) || 5,
+              purchasedAt: row.purchased_at || null,
+            }))
+          );
+        })
+        .catch((error) => console.warn("HOME_SCENE_PLANTS_LOAD_ERROR", error?.message || String(error))),
+    ]);
+    setLoadingWeek(false);
   }, [user?.id]);
 
-  const loadGardenData = useCallback(async () => {
-    if (!user?.id) {
-      setGardenUnlockRows([]);
-      setGardenItems([]);
-      setScenePlants([]);
-      return;
-    }
+  // ---- completing a care task ---------------------------------------------------------------------------
+  const celebrate = useCallback(
+    (item, points) => {
+      playDing();
+      haptics.tapSoft();
+      setPetReaction("cheer");
+      setPetAct(item.planned.task.act || actForTask(item.title));
+      setSprouts((prev) => (typeof prev === "number" ? prev + Math.max(0, points) : prev));
+      setToast({ id: Date.now(), text: careDoneLine(petDisplayName, points, item.title.length + Date.now() / 1000) });
+    },
+    [petDisplayName]
+  );
 
-    // Owned plants for the header scene. Kept separate so a missing garden-upgrade schema only leaves
-    // the patch empty instead of breaking the legacy progress card below.
-    Promise.all([fetchUserPlants(), fetchCatalog()])
-      .then(([owned, catalog]) => {
-        const maxLevelById = new Map((catalog || []).map((plant) => [String(plant.id), plant.max_level]));
-        setScenePlants(
-          (owned || []).map((row) => ({
-            id: String(row.plant_id),
-            level: Number(row.level) || 0,
-            maxLevel: Number(maxLevelById.get(String(row.plant_id))) || 5,
-            purchasedAt: row.purchased_at || null,
-          }))
-        );
-      })
-      .catch((error) => {
-        console.warn("HOME_SCENE_PLANTS_LOAD_ERROR", error?.message || String(error));
-        setScenePlants([]);
-      });
-
-    try {
-      const [progress, itemsResult] = await Promise.all([getGardenProgress(user.id), fetchGardenItems()]);
-      setGardenUnlockRows(progress.rows || []);
-      setGardenItems(itemsResult.rows || []);
-    } catch (error) {
-      console.warn("HOME_GARDEN_DATA_LOAD_ERROR", error?.message || String(error));
-      setGardenUnlockRows([]);
-      setGardenItems([]);
-    }
-  }, [user?.id]);
-
-  const loadTasks = useCallback(async () => {
-    setLoadingTasks(true);
-    const dateKey = todayKey();
-    const todayCompletionKey = completionDateKey();
-    const userKey = user?.id || "guest";
-    let nextTasks = [];
-    let nextCompletions = [];
-
-    if (user?.id) {
-      try {
-        const [{ data: rows, error }, { data: completionRows, error: completionError }] = await Promise.all([
-          supabase
-            .from("tasks")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("active", true)
-            .order("sort_order")
-            .order("created_at"),
-          supabase
-            .from("task_completions")
-            .select("task_id, points")
-            .eq("user_id", user.id)
-            .eq("completed_date", todayCompletionKey),
-        ]);
-
-        if (error || !rows || rows.length === 0) {
-          throw error || new Error("No tasks found");
-        }
-        if (completionError) {
-          console.warn("TASK_COMPLETIONS_LOAD_ERROR", completionError?.message);
-        }
-
-        const completedIds = new Set((completionRows || []).map((row) => String(row.task_id)));
-        const mapped = rows.map((task, index) => ({
-          id: `remote-${task.id}`,
-          remoteId: task.id,
-          title: task.title,
-          done: completedIds.has(String(task.id)),
-          icon: isPlayTask(task.title) ? "play" : TASK_ICON_SET[index % TASK_ICON_SET.length],
-          type: task.type,
-          difficulty: task.difficulty,
-          points: Number.isFinite(Number(task.points)) ? Number(task.points) : undefined,
-        }));
-
-        const overrides = await getHabitOverrides(userKey);
-        nextTasks = applyHabitOverrides(mapped, overrides).map((task) => ({
-          ...task,
-          reward: toTaskRewardLabel(task),
-        }));
-        nextCompletions = (completionRows || []).map((row) => ({ task_id: row.task_id, completed: true }));
-        setEarnedPointsTodayServer(
-          (completionRows || []).reduce((sum, row) => {
-            const numericPoints = Number(row?.points);
-            if (!Number.isFinite(numericPoints)) return sum;
-            return sum + Math.max(0, Math.floor(numericPoints));
-          }, 0)
-        );
-      } catch (_e) {
-        const fallbackTasks = await loadLocalTasks(user.id, dateKey);
-        const overrides = await getHabitOverrides(userKey);
-        nextTasks = applyHabitOverrides(fallbackTasks, overrides).map((task) => ({
-          ...task,
-          reward: toTaskRewardLabel(task),
-        }));
-        nextCompletions = completionRowsFromTasks(nextTasks);
-        setEarnedPointsTodayServer(null);
+  const completeItem = useCallback(
+    async (item, options = {}) => {
+      const key = item.planned.task.id;
+      if (item.done || completing[key]) return;
+      if (!user?.id) {
+        // signed out (nothing to sync against): tick it here so the moment still lands
+        completedThisSession.current = true;
+        plan.markDone(key);
+        celebrate(item, 0);
+        return;
       }
-    } else {
-      const guestTasks = await loadLocalTasks("guest", dateKey);
-      const overrides = await getHabitOverrides(userKey);
-      nextTasks = applyHabitOverrides(guestTasks, overrides).map((task) => ({
-        ...task,
-        reward: toTaskRewardLabel(task),
-      }));
-      nextCompletions = completionRowsFromTasks(nextTasks);
-      setEarnedPointsTodayServer(null);
-    }
-
-    setTasks(nextTasks);
-    setTaskCompletionsToday(nextCompletions);
-    setTaskMutationNoticeById((prev) => {
-      const next = { ...prev };
-      nextTasks.forEach((task) => {
-        if (task?.done) {
-          delete next[task.id];
-        }
+      setCompleting((prev) => ({ ...prev, [key]: true }));
+      setNoticeByTask((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
       });
-      return next;
-    });
-    setLoadingTasks(false);
-  }, [user?.id]);
+      try {
+        // the batch row lookup can miss a task on a flaky network; never fake a tick that was not saved
+        const taskId = item.taskId ?? (await plan.ensureRow(item.planned.task));
+        if (taskId == null) throw new Error("No task row for this care task yet");
+        const category = item.planned.task.category;
+        const mutation = await completeTaskWithResilience({
+          taskId,
+          retry: !!options.retry,
+          // the cycle stays on the device: a cycle-care tick is logged without its category
+          eventMeta: { category: category === "cycle" ? null : category, difficulty: item.planned.task.effort, points: null },
+        });
+        completedThisSession.current = true;
+        if (mutation.state === "queued") {
+          plan.markDone(key);
+          setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
+          celebrate(item, 0);
+          return;
+        }
+        plan.markDone(key);
+        if (mutation.result.inserted) {
+          celebrate(item, mutation.result.points_awarded);
+        } else if (!options.silent) {
+          setToast({ id: Date.now(), text: `${petDisplayName} already counted that one today.` });
+        }
+        void loadSideData();
+      } catch (error) {
+        haptics.warning();
+        setNoticeByTask((prev) => ({ ...prev, [key]: { type: "error", message: "Couldn't save that. Tap to try again." } }));
+        console.error("TASK_COMPLETE_ERROR", error);
+      } finally {
+        setCompleting((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+    },
+    [celebrate, completing, loadSideData, petDisplayName, plan, user?.id]
+  );
 
+  // all of today's care done: one bigger moment, once per day
+  const doneCount = plan.items.filter((item) => item.done).length;
+  const totalCount = plan.items.length;
+  useEffect(() => {
+    if (totalCount === 0 || doneCount < totalCount) return;
+    if (celebratedAllDone.current === homeDateKey) return;
+    celebratedAllDone.current = homeDateKey;
+    if (!completedThisSession.current) return;
+    const id = setTimeout(() => {
+      haptics.success();
+      setPetReaction("love");
+      setToast({ id: Date.now(), text: `We did it together. ${petDisplayName} is so proud of you.` });
+    }, 1400);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneCount, totalCount, homeDateKey]);
+
+  const openItem = useCallback(
+    (item) => {
+      const route = item.planned.task.route;
+      if (!route) {
+        void completeItem(item);
+        return;
+      }
+      openedTask.current = { key: item.planned.task.id, at: Date.now() };
+      navigation.navigate(route);
+    },
+    [completeItem, navigation]
+  );
+
+  // ---- focus: refresh everything, and tick a task whose screen the person just came back from ---------
+  // The focus callback is memoised, so it reads the latest plan and actions through refs.
+  const latest = useRef({ items: plan.items, reload: plan.reload, completeItem });
+  latest.current = { items: plan.items, reload: plan.reload, completeItem };
+  useFocusEffect(
+    useCallback(() => {
+      setHomeDateKey(todayKey());
+      setHour(new Date().getHours());
+      void refreshPet();
+      void loadSideData();
+      const opened = openedTask.current;
+      openedTask.current = null;
+      if (opened && Date.now() - opened.at >= OPENED_TASK_MIN_MS) {
+        const item = latest.current.items.find((row) => row.planned.task.id === opened.key);
+        if (item && !item.done) void latest.current.completeItem(item, { silent: true });
+      } else if (!firstFocus.current) {
+        // the plan hook loads on mount; later focuses pick up completions made elsewhere (games, Tasks)
+        void latest.current.reload();
+      }
+      firstFocus.current = false;
+    }, [loadSideData, refreshPet])
+  );
+  // the status bar follows the sky while Home is in front, and goes back to the default (stack screens have
+  // light headers) when leaving; kept apart so an hour change does not re-run the refresh above
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle(sky.statusBar);
+      return () => setStatusBarStyle("auto");
+    }, [sky.statusBar])
+  );
+
+  // ---- Graceful Hibernation: after days away, a warm welcome once per visit, no backlog ---------------
   useEffect(() => {
     if (!user?.id || lastSeenChecked.current === user.id) return;
     lastSeenChecked.current = user.id;
@@ -399,266 +375,113 @@ export default function HomeScreen() {
           setPetReaction("love");
         }
         await AsyncStorage.setItem(key, nextLastSeen(previous, todayKey()));
-      } catch (_error) {}
+      } catch (_error) {
+      } finally {
+        setReturnChecked(true);
+      }
     })();
   }, [user?.id]);
 
-  useFocusEffect(
-    useCallback(() => {
-      setHomeDateKey(todayKey());
-      void refreshPet();
-      loadGardenData();
-      loadTasks();
-      loadRetentionData();
-    }, [loadGardenData, refreshPet, loadTasks, loadRetentionData])
-  );
-
-  // Reminders in the pet's voice: roll the next week forward whenever Home is in front (rate-limited
-  // inside), and immediately when the memorial state flips so nothing cheerful fires after a loss.
+  // ---- reminders in the pet's voice (rate-limited inside; immediate when memorial flips) ---------------
   useReminderTaps();
   const lastMemorialRef = useRef(!!memorial);
+  const petKnown = petStatus === "ready" || petStatus === "error";
   useEffect(() => {
-    if (!user?.id) return;
+    // wait for the pet: the sync is rate-limited, so a first pass as "Your pet" would stick for the week
+    if (!user?.id || !petKnown) return;
     const force = lastMemorialRef.current !== !!memorial;
     lastMemorialRef.current = !!memorial;
     void syncReminders(
       user.id,
-      { petName: normalizePetName(petName) || "Your pet", species: petLook?.species ?? null, memorial: !!memorial, checkedInToday: hasExistingCheckin },
+      { petName: petDisplayName, species: petLook?.species ?? null, memorial: !!memorial, checkedInToday: hasExistingCheckin },
       { force }
     );
-  }, [hasExistingCheckin, memorial, petName, petLook?.species, user?.id]);
+  }, [hasExistingCheckin, memorial, petDisplayName, petKnown, petLook?.species, user?.id]);
 
-  const syncQueuedCompletions = useCallback(
+  // ---- offline completions sync on start, on foreground and when the connection returns ---------------
+  const syncQueued = useCallback(
     async (source) => {
       if (!user?.id) return;
       try {
         const result = await syncPendingCompletions({ source });
         if (result.succeeded > 0) {
-          await Promise.all([loadTasks(), loadGardenData(), loadRetentionData()]);
-          if (Number.isFinite(Number(result.earned_points_today))) {
-            setEarnedPointsTodayServer(Math.max(0, Math.floor(Number(result.earned_points_today))));
-          }
+          // the queued ticks are on the server now: drop their "saved on this phone" notes
+          setNoticeByTask((prev) => Object.fromEntries(Object.entries(prev).filter(([, notice]) => notice?.type !== "queued")));
+          await Promise.all([latest.current.reload(), loadSideData()]);
         }
       } catch (error) {
         console.warn("TASK_QUEUE_SYNC_ERROR", error?.message || String(error));
       }
     },
-    [loadGardenData, loadRetentionData, loadTasks, user?.id]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loadSideData, user?.id]
   );
-
   useEffect(() => {
-    if (!user?.id) return;
-
-    void syncQueuedCompletions("startup");
-
+    if (!user?.id) return undefined;
+    void syncQueued("startup");
     const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        void syncQueuedCompletions("foreground");
-      }
+      if (state !== "active") return;
+      // coming back from the background does not fire a navigation focus: roll the day and the light here
+      setHomeDateKey(todayKey());
+      setHour(new Date().getHours());
+      void syncQueued("foreground");
     });
-
     const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
       if (state?.isConnected === false || state?.isInternetReachable === false) return;
-      void syncQueuedCompletions("connectivity_restored");
+      void syncQueued("connectivity_restored");
     });
-
     return () => {
       appStateSubscription.remove();
       netInfoUnsubscribe();
     };
-  }, [syncQueuedCompletions, user?.id]);
+  }, [syncQueued, user?.id]);
 
-  const pointsSnapshot = useMemo(
-    () => {
-      const snapshot = getPointsDebugSnapshot({
-        tasks,
-        completionsToday: taskCompletionsToday,
-        gardenItems,
-        gardenUnlocks: gardenUnlockRows,
-        todayISO: homeDateKey,
-      });
-      const serverEarned = Number(earnedPointsTodayServer);
-      if (!Number.isFinite(serverEarned)) return snapshot;
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    const today = todayKey();
+    setHour(new Date().getHours());
+    if (today !== homeDateKey) {
+      // a new day: changing the key reloads the plan with today's inputs
+      setHomeDateKey(today);
+      await Promise.all([loadSideData(), refreshPet()]).catch(() => {});
+    } else {
+      await Promise.all([latest.current.reload(), loadSideData(), refreshPet()]).catch(() => {});
+    }
+    setRefreshing(false);
+  }, [homeDateKey, loadSideData, refreshPet]);
 
-      const normalizedEarned = Math.max(0, Math.floor(serverEarned));
-      const requiredPoints = Number.isFinite(Number(snapshot.requiredPoints))
-        ? Math.max(1, Math.floor(Number(snapshot.requiredPoints)))
-        : 1;
-      const remaining = Math.max(requiredPoints - normalizedEarned, 0);
-      return {
-        ...snapshot,
-        earnedPointsToday: normalizedEarned,
-        remaining,
-        isReady: normalizedEarned >= requiredPoints,
-      };
-    },
-    [tasks, taskCompletionsToday, gardenItems, gardenUnlockRows, homeDateKey, earnedPointsTodayServer]
-  );
-
+  // a notice belongs to an undone task: once it is done (here, in a game or after a sync) the notice goes
   useEffect(() => {
-    diagLog("GARDEN_PROGRESS", {
-      earnedPointsToday: pointsSnapshot.earnedPointsToday,
-      nextUnlock: pointsSnapshot.nextLockedItem?.id ?? null,
-      remaining: pointsSnapshot.remaining,
+    const doneKeys = new Set(plan.items.filter((item) => item.done).map((item) => item.planned.task.id));
+    setNoticeByTask((prev) => {
+      const stale = Object.keys(prev).filter((key) => doneKeys.has(key) && prev[key]?.type === "error");
+      if (stale.length === 0) return prev;
+      const next = { ...prev };
+      stale.forEach((key) => delete next[key]);
+      return next;
     });
-  }, [pointsSnapshot.earnedPointsToday, pointsSnapshot.nextLockedItem?.id, pointsSnapshot.remaining]);
+  }, [plan.items]);
 
-  const completedCount = useMemo(() => tasks.filter((task) => task.done).length, [tasks]);
-
-  const profileStreak = unifiedStreak(petRetentionState?.streak_days, profile?.current_streak ?? profile?.streak_count);
-  const streakText = profileStreak > 0 ? `${profileStreak} ${profileStreak === 1 ? "day" : "days"} of care in a row` : "a fresh start";
-  const moodText = moodState === "happy" ? "feeling happy" : moodState === "sad" ? "having a quiet day" : moodState === "neutral" ? "doing okay" : "settling in";
-  const returnCopy = inMemorial ? memorialGreeting(normalizePetName(petName) || "Your pet") : returnNote ? returnGreeting(returnNote, normalizePetName(petName) || "Your pet") : null;
-  const headerTitle = returnCopy
-    ? returnCopy.title
-    : protectedMode
-      ? hasExistingCheckin
-        ? "That's enough for today"
-        : "Go gently today"
-      : phaseGreeting(dayPhase(new Date().getHours()));
-  const headerSubtitle = returnCopy
-    ? returnCopy.subtitle
-    : protectedMode
-    ? hasExistingCheckin
-      ? "You already checked in. Keep things light."
-      : "No pressure. Keep it simple today."
-    : `${normalizePetName(petName) || "Your pet"} is ${moodText} \u00b7 ${streakText}`;
-  const quickActionsTitle = protectedMode && !hasExistingCheckin ? "Simple next step" : "Quick Actions";
-  const quickCheckInLabel = protectedMode ? "Quick check-in" : "Check-in";
-  const secondaryActionLabel = protectedMode && !hasExistingCheckin ? "One minute breathing" : "Habits";
-  const secondaryActionIcon = protectedMode && !hasExistingCheckin ? "wind" : "check-square";
-  const headerHeight = Math.round(height * 0.4);
-
-  const handleToggleTask = useCallback(
-    async (taskId, options = {}) => {
-      const retry = !!options.retry;
-      const task = tasks.find((row) => row.id === taskId);
-      if (!task) return;
-      if (task.done) {
-        notify("Already completed today", "This task was already completed today.");
-        return;
-      }
-      if (completingTaskIds[taskId]) return;
-
-      setCompletingTaskIds((prev) => ({ ...prev, [taskId]: true }));
-      setTaskMutationNoticeById((prev) => {
-        const next = { ...prev };
-        delete next[taskId];
-        return next;
-      });
-
-      const dateKey = todayKey();
+  // ---- focus areas --------------------------------------------------------------------------------------
+  const focusAreas = (plan.settings?.focusAreas || []).map((id) => FOCUS_AREAS.find((area) => area.id === id)).filter(Boolean);
+  const handleSaveFocus = useCallback(
+    async (areas) => {
+      setSavingFocus(true);
       try {
-        const nextTasks = tasks.map((row) => (row.id === taskId ? { ...row, done: true } : row));
-
-        if (!user?.id || !task.remoteId) {
-          setTasks(nextTasks);
-          setTaskCompletionsToday(completionRowsFromTasks(nextTasks));
-          setEarnedPointsTodayServer(null);
-          await persistLocalTasks(user?.id || "guest", dateKey, nextTasks);
-          playDing();
-          setPetReaction("cheer");
-          setPetAct(actForTask(task.title));
-          setCelebration({ id: Date.now(), text: celebrationLine(normalizePetName(petName) || "Your pet", getTaskPoints(task), task.title.length) });
-          return;
-        }
-
-        const mutation = await completeTaskWithResilience({
-          taskId: task.remoteId,
-          retry,
-          eventMeta: {
-            category: task.type || null,
-            difficulty: task.difficulty ?? null,
-            points: task.points ?? null,
-          },
-        });
-        if (mutation.state === "queued") {
-          setTaskMutationNoticeById((prev) => ({
-            ...prev,
-            [taskId]: { type: "queued", message: "Queued. Will sync when online." },
-          }));
-          return;
-        }
-
-        const result = mutation.result;
-        setTasks(nextTasks);
-        setTaskCompletionsToday((prev) => {
-          const completionKey = String(task.remoteId);
-          const alreadyHasRow = (prev || []).some((row) => String(row?.task_id) === completionKey);
-          if (alreadyHasRow) return prev;
-          return [...(prev || []), { task_id: task.remoteId, completed: true }];
-        });
-        setEarnedPointsTodayServer(result.earned_points_today);
-        await persistLocalTasks(user.id, dateKey, nextTasks);
-        if (result.inserted) {
-          playDing();
-          setPetReaction("cheer");
-          setPetAct(actForTask(task.title));
-          setCelebration({
-            id: Date.now(),
-            text: celebrationLine(normalizePetName(petName) || "Your pet", result.points_awarded, task.title.length + result.earned_points_today),
-          });
-        } else {
-          notify("Already completed today", "This task was already completed today.");
-        }
-        await Promise.all([loadGardenData(), loadRetentionData(), syncQueuedCompletions("post_success")]);
+        await plan.saveSettings({ focusAreas: areas, dailyCount: plan.settings?.dailyCount ?? 4 });
+        setFocusOpen(false);
+        setPetReaction("cheer");
+        setToast({ id: Date.now(), text: `${petDisplayName} rebuilt today around what matters to you.` });
       } catch (error) {
-        setTaskMutationNoticeById((prev) => ({
-          ...prev,
-          [taskId]: { type: "error", message: "Couldn't save. Tap to retry." },
-        }));
-        console.error("TASK_COMPLETE_ERROR", error);
+        notify("Couldn't save that", "Please try again in a moment.");
       } finally {
-        setCompletingTaskIds((prev) => {
-          const next = { ...prev };
-          delete next[taskId];
-          return next;
-        });
+        setSavingFocus(false);
       }
     },
-    [completingTaskIds, loadGardenData, loadRetentionData, petName, syncQueuedCompletions, tasks, user?.id]
+    [petDisplayName, plan]
   );
 
-  const retentionMoodLabel = toMoodLabel(petRetentionState?.mood);
-  const retentionStreakDays = Number.isFinite(Number(petRetentionState?.streak_days))
-    ? Math.max(0, Math.floor(Number(petRetentionState?.streak_days)))
-    : 0;
-  const weekMaxActivity = retentionMetrics.reduce((max, row) => Math.max(max, row.activity_count), 0);
-  const weekActiveDays = retentionMetrics.filter((row) => row.activity_count > 0).length;
-  const weekPoints = retentionMetrics.reduce((sum, row) => sum + (row.points_earned || 0), 0);
-  const weekSentence =
-    weekActiveDays === 0
-      ? "Nothing logged yet this week. One small thing is plenty to start."
-      : `${weekActiveDays} active ${weekActiveDays === 1 ? "day" : "days"} this week \u00b7 ${weekPoints} pts for the ${homePlace}`;
-  const weekSummaryLabel = `Activity over the last seven days: ${retentionMetrics
-    .map((row) => `${toWeekdayFromDateKey(row.day)} ${row.activity_count}`)
-    .join(", ")}`;
-
-  const handleSaveHabitEdits = useCallback(
-    async (drafts) => {
-      if (savingHabitEdits) return;
-      setSavingHabitEdits(true);
-      try {
-        const userKey = user?.id || "guest";
-        await setHabitOverrides(
-          userKey,
-          drafts.map((row) => ({
-            taskId: row.taskId,
-            patch: { title: row.title, points: row.points },
-          }))
-        );
-        await loadTasks();
-        setEditHabitsOpen(false);
-      } catch (error) {
-        console.error("HOME_HABIT_EDIT_SAVE_ERROR", error);
-        notify("Error", "Could not save habit edits. Please try again.");
-      } finally {
-        setSavingHabitEdits(false);
-      }
-    },
-    [loadTasks, savingHabitEdits, user?.id]
-  );
-
+  // ---- pet name -----------------------------------------------------------------------------------------
   const handleSavePetName = useCallback(async () => {
     const normalized = normalizePetName(petNameInput);
     if (!normalized) {
@@ -673,7 +496,6 @@ export default function HomeScreen() {
       setPetNameError("Sign in required.");
       return;
     }
-
     setSavingPetName(true);
     setPetNameError("");
     try {
@@ -689,491 +511,227 @@ export default function HomeScreen() {
     }
   }, [refreshPet, petNameInput, user?.id]);
 
-  const petDisplayName = normalizePetName(petName) || "Your pet";
-  const petMood = petMoodFromStores({ liveState: petEmotionState, dailyMood: moodState, hour: new Date().getHours() });
+  // ---- what the screen says -----------------------------------------------------------------------------
+  const returnCopy = inMemorial ? memorialGreeting(petDisplayName) : returnNote ? returnGreeting(returnNote, petDisplayName) : null;
+  const greeting = returnCopy ? returnCopy.title : gentle ? "Go gently today" : phaseGreeting(phase);
+  const subline = returnCopy ? returnCopy.subtitle : longDate(new Date());
+  const petLine = homePetLine({
+    petName: petDisplayName,
+    phase,
+    energy,
+    done: doneCount,
+    total: totalCount,
+    returning,
+    place,
+    focus: focusAreas[0]?.short ?? null,
+    seed: homeDateKey,
+  });
+  const petMood = energyOption(energy)?.petMood ?? petMoodFromStores({ liveState: petEmotionState, dailyMood: moodState, hour });
+
+  const tasks = useMemo(
+    () =>
+      plan.items.map((item) => ({
+        key: item.planned.task.id,
+        title: item.title,
+        category: item.planned.task.category,
+        icon: item.planned.task.icon,
+        minutes: item.planned.task.minutes,
+        reason: item.planned.reason || null,
+        done: item.done,
+        saving: !!completing[item.planned.task.id],
+        notice: noticeByTask[item.planned.task.id] || null,
+        opens: !!item.planned.task.route,
+      })),
+    [completing, noticeByTask, plan.items]
+  );
+  const itemByKey = useCallback((key) => plan.items.find((item) => item.planned.task.id === key), [plan.items]);
+
+  const more = useMemo(() => {
+    const items = [
+      { key: "play", title: `Play with ${petDisplayName}`, subtitle: "Fetch, bubbles and more", icon: "tennisball-outline", category: "play", onPress: () => navigation.navigate("Play") },
+      { key: "breathe", title: "Breathe together", subtitle: "One slow minute", icon: "leaf-outline", category: "calm", onPress: () => navigation.navigate("Breathing") },
+      { key: "journal", title: `Write to ${petDisplayName}`, subtitle: "Today's question is waiting", icon: "book-outline", category: "connection", onPress: () => navigation.navigate("Journal") },
+      {
+        key: "checkin",
+        title: "Check in",
+        subtitle: hasExistingCheckin ? "Done today. Add a little more?" : "How did today really feel?",
+        icon: "sunny-outline",
+        category: "energy",
+        onPress: () => navigation.navigate("CheckIn"),
+      },
+      {
+        key: "cycle",
+        title: cycle.enabled && cycle.status?.phase && cycle.status.phase !== "unknown" ? phaseLabel(cycle.status.phase) : "Your rhythm",
+        subtitle: cycle.enabled ? (cycle.status?.cycleDay ? `Day ${cycle.status.cycleDay} · private to this phone` : "Log a day to begin") : "Track your cycle privately",
+        icon: "flower-outline",
+        category: "cycle",
+        onPress: () => navigation.navigate("Cycle"),
+      },
+      { key: "garden", title: theme === "nook" ? "Your nook" : "Your garden", subtitle: "Grow something with your Sprouts", icon: "flower-outline", category: "body", onPress: () => navigation.navigate("Garden") },
+    ];
+    // on a heavy day, the calmest door comes first
+    if (gentle) items.sort((a, b) => (a.key === "breathe" ? -1 : b.key === "breathe" ? 1 : 0));
+    return items;
+  }, [cycle.enabled, cycle.status?.cycleDay, cycle.status?.phase, gentle, hasExistingCheckin, navigation, petDisplayName, theme]);
+
+  const footerLinks = [
+    { label: "All tasks", onPress: () => navigation.navigate("Tasks") },
+    { label: "Habits", onPress: () => navigation.navigate("Habits") },
+    ...(__DEV__ ? [{ label: "Network debug", onPress: () => navigation.navigate("NetworkDebug") }] : []),
+  ];
+
+  const night = sky.surface === "night";
+  const nameSurface = night ? surfaces.night : surfaces.light;
 
   return (
-    <LinearGradient colors={["#0f1420", "#121826"]} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerWrap}>
-          <FinchGardenHeader
-            height={headerHeight}
-            streakText={streakText}
-            moodText={moodText}
-            titleText={headerTitle}
-            subtitleText={headerSubtitle}
-            petImageSources={petSources}
-            petLook={petLook}
-            plants={scenePlants}
-            petName={normalizePetName(petName) || null}
-            petMood={petMood}
-            petReaction={petReaction}
-            onPetReactionEnd={() => setPetReaction(null)}
-            onPetPress={() => setPetReaction("love")}
-            petAct={petAct}
-            onPetActEnd={() => setPetAct(null)}
-            petResting={inMemorial}
-            celebration={inMemorial ? null : celebration}
-          />
-        </View>
-
-        {inMemorial ? (
-          <View>
-            <View style={styles.sectionSpacing} />
-            <View style={styles.memorialCard}>
-              <Text style={styles.memorialReflection}>{memorialReflection(homeDateKey)}</Text>
-              <Text style={styles.memorialMeta}>Daily tasks and prompts are paused. Check-ins and breathing are still here if you want them.</Text>
-              <View style={styles.memorialActions}>
-                <Pressable style={styles.memorialButton} onPress={() => navigation.navigate("Memorial")} accessibilityRole="button">
-                  <Text style={styles.memorialButtonText}>Memories</Text>
-                </Pressable>
-                <Pressable style={styles.memorialButtonGhost} onPress={() => setBreathingOpen(true)} accessibilityRole="button">
-                  <Text style={styles.memorialButtonGhostText}>One quiet minute</Text>
-                </Pressable>
-                <Pressable style={styles.memorialButtonGhost} onPress={() => navigation.navigate("CheckIn")} accessibilityRole="button">
-                  <Text style={styles.memorialButtonGhostText}>Check in</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        ) : null}
-        {inMemorial ? null : (
-        <View>
-        <View style={styles.sectionSpacing} />
-        <FinchProgressCard
-          title={homePlace === "window nook" ? "Next for the nook" : "Next garden item"}
-          current={pointsSnapshot.earnedPointsToday}
-          total={pointsSnapshot.requiredPoints}
-          remaining={pointsSnapshot.remaining}
-        />
-        <PointsDebugPanel snapshot={pointsSnapshot} />
-
-        <View style={styles.sectionSpacing} />
-        <Pressable style={styles.retentionCard} onPress={() => navigation.navigate("WeeklyReflection")} accessibilityRole="button" accessibilityLabel="Our week">
-          <View style={styles.weekHeaderRow}>
-            <Text style={styles.retentionTitle}>This week with {petDisplayName}</Text>
-            <Text style={styles.retentionMeta}>
-              {retentionStreakDays > 0 ? `${retentionStreakDays}-day run` : "Fresh start"} · {retentionMoodLabel}
-            </Text>
-          </View>
-          {loadingRetention && retentionMetrics.length === 0 ? (
-            <ActivityIndicator color="#35d07f" style={styles.retentionLoading} />
-          ) : (
-            <View style={styles.weekBars} accessible accessibilityLabel={weekSummaryLabel}>
-              {retentionMetrics.map((row) => {
-                const level = Math.min(1, row.activity_count / Math.max(1, weekMaxActivity));
-                const active = row.activity_count > 0;
-                return (
-                  <View key={row.day} style={styles.weekBarColumn}>
-                    <View style={styles.weekBarTrack}>
-                      <View style={[styles.weekBarFill, { height: `${Math.max(active ? 18 : 6, Math.round(level * 100))}%` }, active ? styles.weekBarFillActive : null]} />
-                    </View>
-                    <Text style={[styles.weekBarLabel, active && styles.weekBarLabelActive]}>{toWeekdayFromDateKey(row.day).slice(0, 2)}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-          <Text style={styles.retentionRow}>{weekSentence}</Text>
-          <Text style={styles.weekLink}>What {petDisplayName} noticed ›</Text>
-        </Pressable>
-
-        {cycle.enabled ? (
-          <Pressable style={styles.cycleCard} onPress={() => navigation.navigate("Cycle")} accessibilityRole="button" accessibilityLabel="Cycle tracking">
-            <View style={styles.cycleIcon}>
-              <Feather name="calendar" size={16} color="#fbcfe8" />
-            </View>
-            <View style={styles.cycleBody}>
-              <Text style={styles.cycleTitle}>{cycle.status.phase === "unknown" ? "Cycle tracking is on" : phaseLabel(cycle.status.phase)}</Text>
-              <Text style={styles.cycleMeta}>
-                {cycle.status.phase === "unknown"
-                  ? "Log your first period day to get started."
-                  : `Day ${cycle.status.cycleDay}${cycle.status.nextPeriodStart ? ` · next period around ${shortDate(cycle.status.nextPeriodStart)}` : ""}`}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={16} color="rgba(148,163,184,0.8)" />
-          </Pressable>
-        ) : null}
-
-        <View style={styles.sectionSpacing} />
-        <FinchQuickActions
-          title={quickActionsTitle}
-          checkInLabel={quickCheckInLabel}
-          checkInIcon="sunrise"
-          secondaryLabel={secondaryActionLabel}
-          secondaryIcon={secondaryActionIcon}
-          onSecondaryAction={protectedMode && !hasExistingCheckin ? () => setBreathingOpen(true) : undefined}
-          onCheckIn={() => navigation.navigate("CheckIn")}
-          onHabits={() => navigation.navigate("Habits")}
-        />
-
-        {protectedMode && hasExistingCheckin ? (
-          <View style={styles.protectedCard}>
-            <Text style={styles.protectedTitle}>That's enough for today.</Text>
-            <Text style={styles.protectedSubtitle}>Want one slow minute before moving on?</Text>
-            <Pressable style={styles.protectedBreathingButton} onPress={() => setBreathingOpen(true)}>
-              <Text style={styles.protectedBreathingButtonText}>One minute breathing</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <View style={styles.sectionSpacing} />
-        <View style={styles.sectionHeaderRow}>
-          <FinchSectionTitle>Today's Tasks</FinchSectionTitle>
-          <View style={styles.sectionHeaderActions}>
-            <Pressable style={styles.sectionMiniButton} onPress={() => setEditHabitsOpen(true)}>
-              <Text style={styles.sectionMiniButtonText}>Edit habits</Text>
-            </Pressable>
-            <Pressable style={styles.sectionMiniButton} onPress={() => navigation.navigate("Tasks")}>
-              <Text style={styles.sectionMiniButtonText}>See all</Text>
-            </Pressable>
-          </View>
-        </View>
-        {loadingTasks ? (
-          <ActivityIndicator color="#35d07f" style={{ marginTop: 12 }} />
-        ) : tasks.length === 0 ? (
-          <Text style={styles.emptyText}>No tasks yet.</Text>
-        ) : (
-          tasks.map((task) => {
-            const notice = taskMutationNoticeById[task.id];
-            const isSaving = !!completingTaskIds[task.id];
-            return (
-              <View key={task.id}>
-                <FinchTaskCard
-                  title={task.title}
-                  reward={task.reward}
-                  icon={task.icon}
-                  completed={task.done}
-                  saving={isSaving}
-                  disabled={task.done || isSaving}
-                  onToggle={() => handleToggleTask(task.id)}
-                />
-                {notice?.type === "error" ? (
-                  <Pressable onPress={() => handleToggleTask(task.id, { retry: true })}>
-                    <Text style={styles.taskErrorText}>{notice.message}</Text>
-                  </Pressable>
-                ) : null}
-                {notice?.type === "queued" ? (
-                  <Text style={styles.taskQueuedText}>{notice.message}</Text>
-                ) : null}
-              </View>
-            );
-          })
-        )}
-
-        </View>
-        )}
-
-        {__DEV__ ? (
-          <Pressable style={styles.devButton} onPress={() => navigation.navigate("NetworkDebug")}>
-            <Text style={styles.devButtonText}>Network debug</Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
-
-      <BreathingModal visible={breathingOpen} onClose={() => setBreathingOpen(false)} />
-      <EditHabitsModal
-        visible={editHabitsOpen}
-        tasks={tasks}
-        saving={savingHabitEdits}
-        onCancel={() => (savingHabitEdits ? null : setEditHabitsOpen(false))}
-        onSave={handleSaveHabitEdits}
-      />
-      <Modal
-        visible={petNameModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (savingPetName) return;
+    <View style={styles.root}>
+      <HomeView
+        topInset={insets.top}
+        phase={phase}
+        greeting={greeting}
+        subline={subline}
+        petLine={petLine}
+        daysTogether={daysTogether}
+        sprouts={sprouts}
+        theme={theme}
+        petName={petDisplayName}
+        petSources={petSources}
+        petLook={petLook}
+        plants={scenePlants}
+        petMood={petMood}
+        petReaction={petReaction}
+        onPetReactionEnd={() => setPetReaction(null)}
+        onPetPress={() => {
+          haptics.tapLight();
+          setPetReaction("love");
         }}
-      >
-        <View style={styles.petNameModalBackdrop}>
-          <View style={styles.petNameModalCard}>
-            <Text style={styles.petNameModalTitle}>Name your pet</Text>
+        petAct={petAct}
+        onPetActEnd={() => setPetAct(null)}
+        petResting={inMemorial}
+        memorial={
+          inMemorial
+            ? {
+                reflection: memorialReflection(homeDateKey),
+                onMemories: () => navigation.navigate("Memorial"),
+                onQuiet: () => setBreathingOpen(true),
+                onCheckIn: () => navigation.navigate("CheckIn"),
+              }
+            : null
+        }
+        energy={energy}
+        onEnergy={handleEnergy}
+        focusChosen={!!plan.settings?.chosen}
+        focusLabel={plan.settings?.chosen && focusAreas.length ? focusAreas.map((area) => area.short).join(" · ") : null}
+        focusCategory={focusAreas[0]?.category ?? null}
+        onOpenFocus={() => setFocusOpen(true)}
+        tasks={tasks}
+        loadingTasks={plan.loading}
+        tasksError={plan.error}
+        onRetryTasks={() => void plan.reload()}
+        onCompleteTask={(key, options) => {
+          const item = itemByKey(key);
+          if (item) void completeItem(item, options);
+        }}
+        onOpenTask={(key) => {
+          const item = itemByKey(key);
+          if (item) openItem(item);
+        }}
+        more={more}
+        week={weekMetrics}
+        loadingWeek={loadingWeek}
+        onOpenWeek={() => navigation.navigate("WeeklyReflection")}
+        footerLinks={footerLinks}
+        toast={inMemorial ? null : toast}
+        toastBottom={16}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
+
+      <FocusPickerSheet
+        visible={focusOpen}
+        initial={plan.settings?.chosen ? plan.settings.focusAreas : NO_FOCUS}
+        petName={petDisplayName}
+        saving={savingFocus}
+        onSave={handleSaveFocus}
+        onClose={() => (savingFocus ? null : setFocusOpen(false))}
+      />
+      <BreathingModal visible={breathingOpen} onClose={() => setBreathingOpen(false)} />
+
+      <Modal visible={petNameModalVisible} transparent animationType="fade" onRequestClose={() => {}}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.nameBackdrop}>
+          <View style={[styles.nameCard, { backgroundColor: nameSurface.paper }]}>
+            <Text style={[type.title, { color: nameSurface.text }]}>What's your pet called?</Text>
+            <Text style={[type.callout, styles.nameLead, { color: nameSurface.textSecondary }]}>Their portrait is ready. Give it a name and they'll move in.</Text>
             <TextInput
               value={petNameInput}
               onChangeText={(text) => {
                 setPetNameInput(text);
                 if (petNameError) setPetNameError("");
               }}
-              placeholder="Enter a name"
-              placeholderTextColor="rgba(148,163,184,0.9)"
+              placeholder="Their name"
+              placeholderTextColor={nameSurface.textTertiary}
               autoCapitalize="words"
               maxLength={PET_NAME_MAX_CHARS}
               editable={!savingPetName}
-              style={styles.petNameInput}
+              returnKeyType="done"
+              onSubmitEditing={handleSavePetName}
+              style={[styles.nameInput, { color: nameSurface.text, backgroundColor: nameSurface.sunken }]}
             />
-            {petNameError ? <Text style={styles.petNameErrorText}>{petNameError}</Text> : null}
-            <Pressable
-              style={[styles.petNameSaveButton, savingPetName ? styles.petNameSaveButtonDisabled : null]}
-              onPress={handleSavePetName}
-              disabled={savingPetName}
-            >
-              <Text style={styles.petNameSaveButtonText}>{savingPetName ? "Saving..." : "Save"}</Text>
-            </Pressable>
+            {petNameError ? <Text style={[type.meta, styles.nameError]}>{petNameError}</Text> : null}
+            <PressableScale onPress={handleSavePetName} disabled={savingPetName} accessibilityRole="button" style={[styles.nameSave, savingPetName && styles.nameSaveDisabled]}>
+              <Text style={styles.nameSaveText}>{savingPetName ? "Saving..." : "Save"}</Text>
+            </PressableScale>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  headerWrap: {
-    marginHorizontal: -16,
-    overflow: "hidden",
-    borderRadius: 24,
-  },
-  sectionSpacing: {
-    height: 12,
-  },
-  protectedCard: {
-    marginTop: 12,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.25)",
-    alignItems: "flex-start",
-  },
-  protectedTitle: {
-    color: "#e2e8f0",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  protectedSubtitle: {
-    marginTop: 4,
-    color: "rgba(203,213,225,0.88)",
-    fontSize: 13,
-  },
-  protectedBreathingButton: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.55)",
-    backgroundColor: "rgba(16,185,129,0.16)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  protectedBreathingButtonText: {
-    color: "#a7f3d0",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  sectionHeaderRow: {
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sectionHeaderActions: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sectionMiniButton: {
-    marginLeft: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-  },
-  sectionMiniButtonText: {
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  emptyText: {
-    color: "rgba(148,163,184,0.8)",
-    marginTop: 6,
-  },
-  taskErrorText: {
-    color: "#fca5a5",
-    fontSize: 12,
-    marginTop: -4,
-    marginBottom: 8,
-    marginLeft: 8,
-    textDecorationLine: "underline",
-  },
-  taskQueuedText: {
-    color: "#fcd34d",
-    fontSize: 12,
-    marginTop: -4,
-    marginBottom: 8,
-    marginLeft: 8,
-  },
-  devButton: {
-    alignSelf: "center",
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.3)",
-  },
-  devButtonText: {
-    color: "rgba(148,163,184,0.8)",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  memorialCard: {
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(244,114,182,0.3)",
-  },
-  memorialReflection: { color: "#f8fafc", fontSize: 15, lineHeight: 22 },
-  memorialMeta: { marginTop: 8, color: "rgba(148,163,184,0.9)", fontSize: 12, lineHeight: 17 },
-  memorialActions: { flexDirection: "row", flexWrap: "wrap", marginTop: 12 },
-  memorialButton: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: "#35d07f", marginRight: 8, marginBottom: 8 },
-  memorialButtonText: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
-  memorialButtonGhost: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: "rgba(148,163,184,0.35)", marginRight: 8, marginBottom: 8 },
-  memorialButtonGhostText: { color: "#e2e8f0", fontSize: 13, fontWeight: "700" },
-  cycleCard: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(244,114,182,0.35)",
-  },
-  cycleIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(244,114,182,0.18)", alignItems: "center", justifyContent: "center", marginRight: 12 },
-  cycleBody: { flex: 1 },
-  cycleTitle: { color: "#e2e8f0", fontSize: 15, fontWeight: "700" },
-  cycleMeta: { marginTop: 2, color: "rgba(203,213,225,0.9)", fontSize: 12 },
-  retentionCard: {
-    marginTop: 2,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.25)",
-  },
-  retentionTitle: {
-    color: "#e2e8f0",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  retentionMeta: {
-    marginTop: 4,
-    marginBottom: 6,
-    color: "rgba(203,213,225,0.9)",
-    fontSize: 12,
-  },
-  retentionLoading: {
-    marginTop: 6,
-    alignSelf: "flex-start",
-  },
-  retentionRow: {
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 12,
-    marginTop: 10,
-  },
-  weekLink: { marginTop: 8, color: "#35d07f", fontSize: 13, fontWeight: "700" },
-  weekHeaderRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
-  weekBars: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
-    height: 64,
-  },
-  weekBarColumn: {
+  root: { flex: 1 },
+  nameBackdrop: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  weekBarTrack: {
-    width: 14,
-    height: 44,
-    borderRadius: 7,
-    backgroundColor: "rgba(148,163,184,0.14)",
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  weekBarFill: {
-    width: "100%",
-    borderRadius: 7,
-    backgroundColor: "rgba(148,163,184,0.35)",
-  },
-  weekBarFillActive: {
-    backgroundColor: "#35d07f",
-  },
-  weekBarLabel: {
-    marginTop: 6,
-    color: "rgba(148,163,184,0.8)",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  weekBarLabelActive: {
-    color: "#e2e8f0",
-  },
-  petNameModalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(2,6,23,0.78)",
+    backgroundColor: "rgba(32,24,40,0.5)",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
   },
-  petNameModalCard: {
+  nameCard: {
     width: "100%",
     maxWidth: 420,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    backgroundColor: "#0f172a",
-    padding: 16,
+    borderRadius: radius.card,
+    padding: 20,
   },
-  petNameModalTitle: {
-    color: "#e2e8f0",
-    fontSize: 20,
-    fontWeight: "800",
+  nameLead: {
+    marginTop: 6,
   },
-  petNameInput: {
-    marginTop: 12,
-    minHeight: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.45)",
-    backgroundColor: "rgba(15,23,42,0.55)",
-    color: "#e2e8f0",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+  nameInput: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: radius.chip,
+    paddingHorizontal: 14,
+    fontFamily: fonts.bodySemibold,
+    fontSize: 17,
   },
-  petNameErrorText: {
+  nameError: {
     marginTop: 8,
-    color: "#fca5a5",
-    fontSize: 12,
-    fontWeight: "600",
+    color: brand.ember,
   },
-  petNameSaveButton: {
-    marginTop: 14,
-    minHeight: 44,
-    borderRadius: 10,
+  nameSave: {
+    marginTop: 16,
+    height: 52,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#16a34a",
+    backgroundColor: brand.bloom,
   },
-  petNameSaveButtonDisabled: {
-    opacity: 0.65,
+  nameSaveDisabled: {
+    opacity: 0.6,
   },
-  petNameSaveButtonText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "800",
+  nameSaveText: {
+    color: ink.primary,
+    fontFamily: fonts.bodyHeavy,
+    fontSize: 16,
   },
 });

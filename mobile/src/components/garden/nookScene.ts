@@ -27,6 +27,7 @@ export const NOOK_SCENE = {
 /** How the room is framed in each place it appears (same keys as the garden's SCENE_FRAMING). */
 export const NOOK_FRAMING = {
   home: { focus: { u: 0.5, v: 0.62 }, zoom: 1.08 },
+  hero: { focus: { u: 0.48, v: 0.66 }, zoom: 1.04 },
   garden: { focus: { u: 0.5, v: 0.6 }, zoom: 1.02 },
   pet: { focus: { u: 0.44, v: 0.74 }, zoom: 1.38 },
   welcome: { focus: { u: 0.5, v: 0.64 }, zoom: 1.1 },

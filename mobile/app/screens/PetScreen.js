@@ -214,6 +214,9 @@ export default function PetScreen() {
       const safeMessage = buildProcessingError(error);
       await upsertPet(user.id, { processing_status: "error", processing_error: safeMessage }).catch(() => {});
       patchPetLocally(user.id, { processing_status: "error", processing_error: safeMessage });
+      // an all-opaque result repoints the row at the photo (petStylize.js); reload so this session's
+      // cached locators cannot open the overwritten white-backed files later
+      await refresh().catch(() => {});
     } finally {
       setRetrying(false);
     }

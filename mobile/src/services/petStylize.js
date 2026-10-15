@@ -14,6 +14,30 @@ const MAX_BASE64_LENGTH = 7_000_000;
 const MAX_REFERENCE_PHOTOS = 3;
 const MAX_TOTAL_BASE64_LENGTH = 10_000_000;
 const DEFAULT_STYLE = "portrait";
+// Painting is one Gemini call of up to 60 s (GEMINI_IMAGE_TIMEOUT_MS in the function) plus keying and uploads,
+// so this request gets its own timeout instead of netFetch's 15 s default. It is a POST that costs a painting:
+// it is never retried automatically (resilientFetch only retries auth endpoints).
+export const PET_STYLIZE_TIMEOUT_MS = 110_000;
+
+/**
+ * Which of the function's images may stand in as the pet. The function stores an opaque painting when it
+ * cannot key out the backdrop and flags it `alpha_stylized: false` (the same for `alpha_cutout`); that
+ * white-backed rectangle is not the pet, so it is dropped here and no caller saves it as stylized_url /
+ * cutout_url. The pet row keeps no alpha flags, so a saved one would be drawn as the pet after a restart.
+ * An unknown flag (null: an older deployment) is trusted, as the render ladder does.
+ */
+export function pickUsablePetImages({ stylizedUrl = null, cutoutUrl = null, alphaStylized = null, alphaCutout = null } = {}) {
+  const stylized = stylizedUrl && alphaStylized !== false ? stylizedUrl : null;
+  const cutout = cutoutUrl && alphaCutout !== false ? cutoutUrl : null;
+  return {
+    stylizedUrl: stylized,
+    cutoutUrl: cutout,
+    renderUrl: stylized || cutout || null,
+    renderSource: stylized ? "stylized" : cutout ? "cutout" : "missing",
+    /** true when the function returned images and every one of them is opaque */
+    onlyOpaque: !stylized && !cutout && !!(stylizedUrl || cutoutUrl),
+  };
+}
 
 function logDebug(message, payload) {
   if (__DEV__) {
@@ -201,6 +225,22 @@ async function updatePetAndProfile({ userId, photoUrl }) {
   return { updatedProfile, petUpdated };
 }
 
+// The function writes every result to the fixed <uid>/processed/ paths, opaque ones included, so the row's
+// earlier stylized/cutout locators (a previous portrait) now open those white-backed images. Point the row
+// back at the photo so the next launch does not draw one as the pet. Best effort: the caller shows the error
+// that follows either way.
+async function forgetOpaqueProcessedImages(userId, originalUrl) {
+  try {
+    await upsertPet(userId, {
+      stylized_url: null,
+      cutout_url: null,
+      ...(originalUrl ? { photo_url: originalUrl } : {}),
+    });
+  } catch (error) {
+    logDebug("PET_STYLIZE_FORGET_OPAQUE_FAILED", error?.message);
+  }
+}
+
 function buildEdgeErrorDetails(error, data, keysSent) {
   let parsedBody = null;
   if (typeof error?.context?.body === "string") {
@@ -275,13 +315,22 @@ async function invokeEdgeFunction(body) {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(body),
+      timeoutMs: PET_STYLIZE_TIMEOUT_MS,
     });
   } catch (fetchError) {
     // A transport failure used to escape as a bare "Failed to fetch"; give it the same shape as server errors.
     const error = new Error(`Stylize request failed: ${fetchError?.message || "network error"}`);
     error.context = { status: 0, body: "" };
-    error.userMessage = "We couldn't reach the painting service. Check your connection and try again.";
-    error.errorCode = "NETWORK_FAIL";
+    // our own timer (timedOut), or the platform's when it gives up first: iOS reports "Network request timed out"
+    const timedOut = !!fetchError?.timedOut || /timed out/i.test(String(fetchError?.message || ""));
+    if (timedOut) {
+      // not a connection problem: the painting may still finish server-side, where it is cached per photo set
+      error.userMessage = "The painting is taking longer than usual. Please try again in a minute.";
+      error.errorCode = "TIMEOUT";
+    } else {
+      error.userMessage = "We couldn't reach the painting service. Check your connection and try again.";
+      error.errorCode = "NETWORK_FAIL";
+    }
     return { data: null, error, status: 0 };
   }
   const text = await response.text();
@@ -435,6 +484,8 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
       : responseStatus === 404
         ? "Stylize service is not deployed. Please contact support."
         : serverMessage || "We could not reach the stylize service. Please try again.";
+    // a transport failure already carries its message (a timeout is not "check your connection")
+    if (error.userMessage) wrapped.userMessage = error.userMessage;
     wrapped.devDetails = buildEdgeErrorDetails(error, data, {
       imageBase64: !!cleanBase64,
       images: references.length,
@@ -443,7 +494,7 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
       sourceHash,
     });
     wrapped.context = error?.context;
-    wrapped.errorCode = serverCode;
+    wrapped.errorCode = serverCode || error.errorCode;
     wrapped.retryAfterSeconds = retryAfterSeconds;
     wrapped.requestId = serverError?.requestId;
     wrapped.status = responseStatus;
@@ -531,23 +582,17 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
     throw wrapped;
   }
   const fallbackOriginal = originalUrl || null;
-  const canUseStylized = alphaStylized === true || (alphaStylized == null && !!stylizedUrl);
-  const canUseCutout = alphaCutout === true || (alphaCutout == null && !!cutoutUrl);
-  const renderUrl =
-    (canUseStylized ? stylizedUrl : null) ||
-    (canUseCutout ? cutoutUrl : null) ||
-    null;
-  const renderSource = canUseStylized
-    ? "stylized"
-    : canUseCutout
-      ? "cutout"
-      : "missing";
+  // only transparent images go on from here; an opaque painting is never handed to callers as the pet
+  const usable = pickUsablePetImages({ stylizedUrl, cutoutUrl, alphaStylized, alphaCutout });
+  const { renderUrl, renderSource } = usable;
 
   logDebug("PET_STYLIZE_OUTPUT_URLS", {
     originalUrl: fallbackOriginal,
     maskUrl,
     cutoutUrl,
     stylizedUrl,
+    alphaStylized,
+    alphaCutout,
     renderSource,
     renderUrl,
   });
@@ -571,6 +616,7 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
       failureReason,
       responseSnippet,
     });
+    if (usable.onlyOpaque) await forgetOpaqueProcessedImages(userId, fallbackOriginal);
     const wrapped = new Error("Stylize response missing alpha-safe processed image.");
     wrapped.userMessage = "Stylize did not return a transparent pet image. Please try again.";
     wrapped.devDetails = responseSnippet;
@@ -579,8 +625,8 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
 
   setPetImageCache({
     userId,
-    stylized: stylizedUrl,
-    cutout: cutoutUrl,
+    stylized: usable.stylizedUrl,
+    cutout: usable.cutoutUrl,
     mask: maskUrl,
     original: fallbackOriginal,
     allowOriginal: false,
@@ -591,13 +637,14 @@ export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeTy
     cacheBust,
   });
 
+  // stylizedUrl / cutoutUrl are null when that image came back opaque, so callers that save them never store it
   return {
-    stylizedUrl,
+    stylizedUrl: usable.stylizedUrl,
     stylizedBase64: null,
     mimeType: outputMime,
     sourceHash,
     version,
-    cutoutUrl,
+    cutoutUrl: usable.cutoutUrl,
     maskUrl,
     originalUrl: fallbackOriginal,
     alphaCutout,

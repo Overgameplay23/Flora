@@ -25,6 +25,8 @@ export const PLANT_SPRITES: Record<PlantStage, ImageSourcePropType> = {
 /** How the painting is framed in each place it appears: what to centre on and how far to zoom in. */
 export const SCENE_FRAMING = {
   home: { focus: { u: 0.56, v: 0.7 }, zoom: 1.3 },
+  /** the Home hero: wider, so the (enlarged) pet stands in the lower third with the pond behind it */
+  hero: { focus: { u: 0.5, v: 0.56 }, zoom: 1 },
   garden: { focus: { u: 0.56, v: 0.69 }, zoom: 1.22 },
   /** the Pet tab: close on the pet, the patch just in view on the right */
   pet: { focus: { u: 0.44, v: 0.72 }, zoom: 1.45 },

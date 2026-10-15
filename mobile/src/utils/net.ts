@@ -352,7 +352,11 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
       controller.abort();
     }
 
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     const abortListener = () => controller.abort();
     if (signal && !signal.aborted) {
       signal.addEventListener("abort", abortListener, { once: true });
@@ -469,8 +473,13 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
         durationMs: Date.now() - startedAt,
         stack: error?.stack,
         attempt,
+        timedOut,
       });
-      throw tagNetworkError(error, message);
+      // Never retried here (only auth endpoints retry, and only on a 5xx response). The flag lets callers with
+      // a long per-call timeout (pet-stylize) tell "too slow" apart from "unreachable".
+      const tagged = tagNetworkError(error, message);
+      if (timedOut) (tagged as any).timedOut = true;
+      throw tagged;
     } finally {
       clearTimeout(timeout);
       if (signal) {

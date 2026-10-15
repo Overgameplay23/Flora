@@ -64,6 +64,8 @@ type GardenStageProps = {
   petWander?: boolean;
   /** which sanctuary to draw; defaults to the pet's species (cats: the window nook, otherwise the garden) */
   theme?: SanctuaryTheme;
+  /** where the pet stands, in this view's coordinates (ground point and height), for overlays like a speech bubble */
+  onPetAnchor?: (anchor: { x: number; y: number; height: number }) => void;
 };
 
 function useReducedMotion() {
@@ -131,6 +133,7 @@ export default function GardenStage({
   petResting = false,
   petWander = false,
   theme: themeProp,
+  onPetAnchor,
 }: GardenStageProps) {
   // The garden follows the clock: a wash for the time of day over background and sprites alike, and a
   // few stars once it is dark. Re-evaluated when the component re-renders (focus, data changes).
@@ -190,6 +193,13 @@ export default function GardenStage({
   const petRowPadding =
     petGround.x >= width / 2 ? { paddingLeft: 2 * petGround.x - width } : { paddingRight: width - 2 * petGround.x };
   const renderSource = portraitShown ? firstCandidate : rigShown ? "rig" : isPlaceholder ? "placeholder" : petImageSources?.photo ? "photo" : "originalMasked";
+
+  const anchorKey = `${Math.round(petGround.x)}:${Math.round(petGround.y)}:${Math.round(petHeight)}`;
+  useEffect(() => {
+    if (!onPetAnchor || hidePet || frame.width <= 0) return;
+    onPetAnchor({ x: petGround.x, y: petGround.y, height: petHeight });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorKey, hidePet]);
 
   // ---- wander: now and then the illustrated pet ambles a few steps along the grass and settles ------
   const wanderX = useRef(new Animated.Value(0)).current;
@@ -335,7 +345,7 @@ export default function GardenStage({
 
       {children ? <View style={styles.overlay} pointerEvents="box-none">{children}</View> : null}
 
-      {__DEV__ ? (
+      {__DEV__ && variant !== "hero" ? (
         <View pointerEvents="none" style={styles.debugPill}>
           <Text style={styles.debugText}>RENDER_SOURCE={renderSource}</Text>
         </View>

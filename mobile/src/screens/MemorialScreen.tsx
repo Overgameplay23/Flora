@@ -25,7 +25,7 @@ import { humanDate } from "../domain/calendar";
  */
 export default function MemorialScreen({ navigation, route }: any) {
   const { user, profile } = useAuth();
-  const { look, name, displayName, memorial, refresh } = usePet();
+  const { sources, look, name, displayName, memorial, refresh } = usePet();
   const place = sanctuaryCopy(sanctuaryFor(look?.species)).place;
   const { height } = useWindowDimensions();
   const archiveIndex: number | null = typeof route?.params?.archiveIndex === "number" ? route.params.archiveIndex : null;
@@ -247,7 +247,8 @@ export default function MemorialScreen({ navigation, route }: any) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.contentFlush} keyboardShouldPersistTaps="handled">
       <View style={styles.sceneWrap}>
-        <GardenStage height={sceneHeight} variant="pet" petLook={look} petResting petScale={1.05} accessibilityLabel={`${displayName} resting in a quiet garden`}>
+        {/* the painted portrait when there is one (as on the Pet tab), resting; the rig stands in otherwise */}
+        <GardenStage height={sceneHeight} variant="pet" petImageSources={sources} petLook={look} petResting petScale={1.05} accessibilityLabel={`${displayName} resting in a quiet garden`}>
           <View style={styles.sceneText} pointerEvents="none">
             <Text style={styles.sceneTitle}>{greeting.title}</Text>
             <Text style={styles.sceneSub}>Since {humanDate(memorial.since)}</Text>

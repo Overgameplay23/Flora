@@ -26,7 +26,14 @@ import BreathingScreen from '../../src/screens/BreathingScreen';
 import GardenScreen from '../screens/GardenScreen';
 import NetworkDebugScreen from '../../src/screens/NetworkDebugScreen';
 import DiagnosticsScreen from '../../src/screens/DiagnosticsScreen';
-import { finchTabBarItemStyle, finchTabBarLabelStyle, finchTabBarStyle, renderFinchTabIcon } from '../../src/components/finchHome/FinchTabBarStyles';
+import {
+  finchTabBarActiveTint,
+  finchTabBarInactiveTint,
+  finchTabBarItemStyle,
+  finchTabBarLabelStyle,
+  finchTabBarStyle,
+  renderFinchTabIcon,
+} from '../../src/components/finchHome/FinchTabBarStyles';
 import PetTabIcon from '../../src/components/pet/PetTabIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -55,8 +62,8 @@ function MainTabs() {
           tabBarStyle: finchTabBarStyle,
           tabBarLabelStyle: finchTabBarLabelStyle,
           tabBarItemStyle: finchTabBarItemStyle,
-          tabBarActiveTintColor: "#35d07f",
-          tabBarInactiveTintColor: "rgba(148,163,184,0.8)",
+          tabBarActiveTintColor: finchTabBarActiveTint,
+          tabBarInactiveTintColor: finchTabBarInactiveTint,
           tabBarIcon: ({ focused }) =>
             route.name === "Pet" ? <PetTabIcon focused={focused} /> : renderFinchTabIcon(iconName, focused),
         };

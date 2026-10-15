@@ -257,3 +257,76 @@ cartoony, better quality; no name suggestions if they uploaded a picture." Built
 - **Deploy wiring:** `local-backend/supabase/config.toml` now declares `[functions.pet-stylize]` next to pet-talk,
   so `npm run functions:deploy -- pet-stylize` finds it. Nothing was deployed; the secrets it needs are listed in
   `supabase/functions/.env.example`. Deploying is the owner's action.
+
+## 2026-10-15 — new Home, design system, plan engine v1 (owner's direction), notes and conflicts
+
+Owner, 2026-10-15: Finch-level colour "in our own style, a better quality style than Finch"; the user's pet is the
+mascot everywhere; a personalized self-help plan engine (they choose what they want help with, the app picks tasks
+they'll be motivated to do); games with the pet; an outfit shop as a revenue line; cycle tracking "like Flo"; a
+streak system; "a comfort, therapy, self-help app". The plan lives in `docs/ROADMAP.md`; the look in
+`docs/design-system.md`.
+
+**Conflicts with the strategy report, for Donovan to decide (nothing was removed):**
+- **Streaks.** The owner asked for a streak system; the report says "no punitive streaks / no broken streaks" and
+  onboarding promises "Never a streak, never a nag". Built so far: only **Days Together** (lifetime days with any
+  care, never resets) as the headline chip on Home. Proposed next (`docs/ROADMAP.md`, "Cozy Run"): a run with 2
+  automatic Nap Days a week, earned Warm Blankets, cycle days covered, and a run that ends as a scrapbook chapter
+  instead of "breaking". Protection is never sold. Needs the owner's yes on the rules and the copy change in onboarding.
+- **Cycle "like Flo".** Match Flo on logging, calendar, predictions (as ranges) and insights; beat it on privacy
+  (on-device, encrypted) and on pet-driven care. The report bans fertility/ovulation/pregnancy features and the
+  fertile window was removed on 2026-09-25; that stays out unless the owner overrides it explicitly (it would also
+  move the app toward medical-device regulation; see the research note in ROADMAP).
+- **Cycle signal in the plan.** Home passes the on-device cycle phase to the plan engine (a plain value; the plan
+  code never reads the cycle store, and `cycleOnDevice.test.ts` still holds). Cycle-care tasks get neutral titles
+  ("Cozy warmth break") before they are written to `tasks`, but a cozy task showing up on certain days is still a
+  faint pattern in the database. If that is too much, make cycle-care items local-only (no `tasks` row, no Sprouts).
+- **Paywall timing.** The report says after the 3rd daily check-in; Day-0 conversion data (RevenueCat 2026: 82% of
+  Health & Fitness trials start on install day) argues for a soft, skippable offer at the end of onboarding too.
+  Proposed: both, never on a "Drained / On edge" day. Price: the report's $6.99/$44.99 sits under the category
+  medians ($9.99/mo, ~$40/yr); treat as a test.
+- **Energy check vs check-in.** Home's new battery check (Drained / On edge / Steady / Bright, the report's energy
+  slider) is stored on the device per day and shapes the plan and the pet's mood. It does not write a `checkins`
+  row or count toward Days Together; the 1-5 Check-in screen still does. Merge them or keep both: owner's call.
+
+**Judgment calls on Home (all reversible):**
+- Home is now `HomeView` (pure, `src/components/home/`) driven by `app/screens/HomeScreen.js` (data). The old
+  `finchHome/*` cards stay in the repo but Home no longer uses FinchGardenHeader / FinchProgressCard /
+  FinchQuickActions / FinchTaskCard. Dropped from Home: the legacy "Next garden item" bar (it measured today's
+  points against an unlock nothing reachable could claim, R-31), the dev points panel, "Edit habits" (the plan
+  engine picks tasks now) and the Check-in/Habits quick actions (now cards in "More with {pet}"). Habits and the
+  full task list are still one tap away in the footer.
+- Tasks on Home come only from the plan engine (`useTodayPlan`). Each picked catalog task is backed by a `tasks`
+  row matched by title (created if missing, reactivated if inactive, **never deleted**), so `complete_task`, the
+  offline queue and Sprouts work unchanged. Old seed titles ("Drink water", "Go outside / get sunlight",
+  "10-minute focus session") are catalog titles, so their history carries over. Rows from earlier plans stay
+  active, so "All tasks" grows over time; deactivating stale plan rows is a follow-up.
+- Tasks that open their own screen (breathing, journal, a game) are ticked when the person comes back after at
+  least 8 s. A game also completes "Play with {pet}" itself; the second call is idempotent and stays silent.
+- The pet's lines on Home are designed lines (`src/domain/homeDialogue.ts`), not chat.
+- "Sprouts" is now the UI name for the existing points balance (`get_garden_points`); nothing changed server-side.
+- New dependencies (all work in Expo Go): `expo-haptics`, `@expo-google-fonts/fraunces`, `@expo-google-fonts/nunito`.
+- A dev-only design preview renders Home with fixture data on web: `http://localhost:8081/?preview=home`
+  (`&hour=22`, `&theme=nook`, `&focus=none`, `&energy=exhausted`). It is behind `__DEV__` and never ships.
+- Status bar: Home sets it from the sky (dark text by day); leaving Home hands back light text because the other
+  screens are still dark slate until the reskin pass.
+
+**Pet portrait v3 deploy status (2026-10-15):** Bloom (`jhrsfogxxexmzauhtjif`) has **no Edge Functions deployed**
+and no `GEMINI_API_KEY`, so painting cannot work on the phone yet; the app falls back to the rig. The function needs
+`GEMINI_API_KEY` set as a Bloom Edge Function secret (owner's action, dashboard or CLI) and a deploy of
+`pet-stylize`. Client fixes made today so it works once deployed: the painting call gets its own long timeout
+(the shared 15 s timeout gave up while Gemini was still painting) and is not auto-retried; an opaque
+(`alpha_stylized: false`) painting is no longer saved as the pet; the Memorial screen shows the painted portrait.
+
+**From the plan-engine and pet-fix reviews (2026-10-15), open items:**
+- Cycle inference: a cycle-tracking person who did not pick the cycle focus gets cozy tasks only on period days, and
+  `tasks.created_at` / `task_completions` dates for those neutral titles can still reveal those days to the server.
+  Same owner decision as above (sync with neutral titles vs local-only).
+- Person-written tasks whose titles match a pet template ("Play with the kids", "Send someone a photo...") can be
+  reused as that plan row by `catalogIdForTitle` / `ensurePlanTaskRows`. For play this matches the old `isPlayTask`.
+- The plan's anchor task moves after one undone day (its score halves); consider a softer decay.
+- `floura:energy:<uid>:<date>` keys pile up one per day (tiny); prune with the plan cache.
+- iOS may stop waiting on a request after ~60 s without data even with the 110 s client timeout; a painting slower
+  than that fails with the right "taking longer" message. A real fix is an XHR with `timeout`, or a function that
+  answers at once and lets the app check back.
+- The `user_plans` migration (`local-backend/sql/plan_engine_v1.sql`, not applied) rejects the `cycle` focus by design:
+  strip it before syncing focus areas to the server.

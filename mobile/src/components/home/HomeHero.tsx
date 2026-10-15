@@ -1,0 +1,231 @@
+import React, { useCallback, useState } from "react";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import GardenStage from "../garden/GardenStage";
+import SpeechBubble from "../pet/SpeechBubble";
+import type { PetImageSources } from "../garden/usePetCandidates";
+import type { PetMood, PetReaction } from "../pet/PetPortrait";
+import type { PetAct } from "../pet/vector/PetRig";
+import type { PetLook } from "../../domain/petLook";
+import type { ScenePlantInput } from "../../domain/gardenScene";
+import type { DayPhase } from "../../domain/timeOfDay";
+import type { SanctuaryTheme } from "../../domain/sanctuary";
+import { brand, fonts, radius, skyFor, surfaces, type } from "../../theme/tokens";
+
+export type HomeHeroProps = {
+  height: number;
+  /** safe-area top inset; the header sits below it */
+  topInset: number;
+  phase: DayPhase;
+  /** fixed hour for previews; defaults to now inside the scene */
+  hour?: number;
+  greeting: string;
+  /** small line under the greeting, e.g. the date */
+  subline?: string | null;
+  petLine: string | null;
+  daysTogether: number | null;
+  sprouts: number | null;
+  theme: SanctuaryTheme;
+  petName: string;
+  petSources?: PetImageSources | null;
+  petLook?: PetLook | null;
+  plants?: ScenePlantInput[] | null;
+  petMood?: PetMood;
+  petReaction?: PetReaction | null;
+  onPetReactionEnd?: () => void;
+  onPetPress?: () => void;
+  petAct?: PetAct | null;
+  onPetActEnd?: () => void;
+  petResting?: boolean;
+};
+
+function StatChip({ icon, iconColor, iconTint, value, label, night }: { icon: string; iconColor: string; iconTint: string; value: string; label: string; night: boolean }) {
+  const surface = night ? surfaces.night : surfaces.light;
+  return (
+    <View style={[styles.chip, { backgroundColor: surface.paperOverScene, boxShadow: surface.shadow }]} accessible accessibilityLabel={`${value} ${label}`}>
+      <View style={[styles.chipIcon, { backgroundColor: iconTint }]}>
+        <Ionicons name={icon as any} size={14} color={iconColor} />
+      </View>
+      <Text style={[styles.chipValue, { color: surface.text }]}>{value}</Text>
+      <Text style={[styles.chipLabel, { color: surface.textSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+/**
+ * The top of Home: the pet's sanctuary as a full-bleed painting with the pet large in the lower third,
+ * a time-of-day sky veil so the greeting stays readable, two quiet chips (Days Together, Sprouts) and the
+ * pet's line for today in a bubble beside its head.
+ */
+export default function HomeHero({
+  height,
+  topInset,
+  phase,
+  hour,
+  greeting,
+  subline,
+  petLine,
+  daysTogether,
+  sprouts,
+  theme,
+  petName,
+  petSources,
+  petLook,
+  plants,
+  petMood = "calm",
+  petReaction = null,
+  onPetReactionEnd,
+  onPetPress,
+  petAct = null,
+  onPetActEnd,
+  petResting = false,
+}: HomeHeroProps) {
+  const sky = skyFor(phase);
+  const night = sky.surface === "night" || phase === "dusk";
+  const { width } = useWindowDimensions();
+  const [anchor, setAnchor] = useState<{ x: number; y: number; height: number } | null>(null);
+  const onPetAnchor = useCallback((next: { x: number; y: number; height: number }) => setAnchor(next), []);
+  // measured so the bubble never climbs into the greeting/chips band
+  const [headerBottom, setHeaderBottom] = useState(0);
+  const [bubbleHeight, setBubbleHeight] = useState(0);
+  // the pet grows with the screen's width; on wide screens (iPad, desktop web) keep it inside the hero
+  const baseScale = theme === "nook" ? 1.6 : 1.85;
+  const petScale = Math.min(baseScale, (height * 0.46) / (0.24 * Math.max(1, width)));
+
+  // The bubble sits beside the pet's head, on whichever side has more room.
+  let bubble: React.ReactNode = null;
+  if (petLine && anchor) {
+    const headY = anchor.y - anchor.height * 0.86;
+    const rightRoom = width - (anchor.x + anchor.height * 0.24) - 16;
+    const leftRoom = anchor.x - anchor.height * 0.24 - 16;
+    const onRight = rightRoom >= Math.min(200, leftRoom);
+    const maxWidth = Math.max(150, Math.min(240, onRight ? rightRoom : leftRoom));
+    const lowestTop = headerBottom > 0 ? headerBottom + 8 : 0;
+    const bottom = Math.max(0, Math.min(height - headY, height - lowestTop - bubbleHeight));
+    bubble = (
+      <View
+        pointerEvents="none"
+        onLayout={(event) => setBubbleHeight(event.nativeEvent.layout.height)}
+        style={[
+          styles.bubbleSlot,
+          { bottom, maxWidth },
+          onRight ? { left: anchor.x + anchor.height * 0.2 } : { right: width - (anchor.x - anchor.height * 0.2) },
+        ]}
+      >
+        <SpeechBubble text={petLine} tail={onRight ? "bottom-left" : "bottom-right"} night={night} maxWidth={maxWidth} style={onRight ? null : styles.bubbleRightAlign} />
+      </View>
+    );
+  }
+
+  const place = theme === "nook" ? "window nook" : "garden";
+  return (
+    <GardenStage
+      height={height}
+      variant="hero"
+      theme={theme}
+      hour={hour}
+      petScale={petScale}
+      petImageSources={petSources}
+      petLook={petLook}
+      plants={plants}
+      petMood={petMood}
+      petReaction={petReaction}
+      onPetReactionEnd={onPetReactionEnd}
+      onPetPress={onPetPress}
+      petAct={petAct}
+      onPetActEnd={onPetActEnd}
+      petResting={petResting}
+      petWander={false}
+      onPetAnchor={onPetAnchor}
+    >
+      <LinearGradient pointerEvents="none" colors={sky.veil} style={[styles.veil, { height: topInset + 150 }]} />
+      {/* no label on the stage itself: an accessible container would hide the greeting, chips and bubble from VoiceOver */}
+      <View accessible accessibilityLabel={`${petName} in the ${place}.`} style={styles.srOnly} />
+      <View
+        style={[styles.header, { paddingTop: topInset + 10 }]}
+        pointerEvents="box-none"
+        onLayout={(event) => setHeaderBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)}
+      >
+        <View style={styles.headerText} pointerEvents="none">
+          <Text style={[type.title, styles.greeting, { color: sky.text }]} accessibilityRole="header" numberOfLines={2}>
+            {greeting}
+          </Text>
+          {subline ? <Text style={[type.meta, { color: sky.textSecondary }]}>{subline}</Text> : null}
+        </View>
+        <View style={styles.chips}>
+          {daysTogether != null ? (
+            <StatChip icon="flower" iconColor={brand.goldStrong} iconTint={brand.goldTint} value={String(daysTogether)} label={daysTogether === 1 ? "day" : "days"} night={night} />
+          ) : null}
+          {sprouts != null ? (
+            <StatChip icon="leaf" iconColor={brand.sprout} iconTint={brand.sproutTint} value={String(sprouts)} label="Sprouts" night={night} />
+          ) : null}
+        </View>
+      </View>
+      {bubble}
+    </GardenStage>
+  );
+}
+
+const styles = StyleSheet.create({
+  veil: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+  },
+  headerText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  greeting: {
+    marginBottom: 2,
+  },
+  chips: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 4,
+    paddingRight: 10,
+    paddingVertical: 4,
+    minHeight: 32,
+    borderRadius: radius.pill,
+  },
+  chipIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+  },
+  chipValue: {
+    fontFamily: fonts.bodyHeavy,
+    fontSize: 14,
+    marginRight: 4,
+  },
+  chipLabel: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 12,
+  },
+  bubbleSlot: {
+    position: "absolute",
+  },
+  bubbleRightAlign: {
+    alignSelf: "flex-end",
+  },
+});
