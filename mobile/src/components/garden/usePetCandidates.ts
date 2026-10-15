@@ -36,6 +36,15 @@ export function buildPetCandidates(sources?: PetImageSources | null, allowOrigin
   return list;
 }
 
+/**
+ * True when a painted portrait (a transparent stylized image, or at least a transparent cutout) exists.
+ * The portrait is the pet; the illustrated rig only stands in while there is none.
+ */
+export function hasPortrait(sources?: PetImageSources | null): boolean {
+  const first = buildPetCandidates(sources, false)[0];
+  return first?.type === "stylized" || first?.type === "cutout";
+}
+
 export function usePetCandidates(storedSources?: PetImageSources | null, allowOriginalOverride = false) {
   // photos are in a private bucket: render short-lived signed URLs, keep the stored locators for decisions
   const sources = useSignedPetSources(storedSources);

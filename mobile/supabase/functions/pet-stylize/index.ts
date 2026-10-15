@@ -10,25 +10,61 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
-const PROMPT_V1_BEST_CUTE =
+// v3 "portrait": the pet is painted from 1-3 photos of the same animal, faithfully (breed, markings,
+// proportions) and in a polished 2.5D illustration style rather than a chibi mascot. The model paints on
+// a flat white backdrop, which the function keys out afterwards (keyOutFlatBackground) so the silhouette
+// is the painted pet's own, not the photo's.
+const PROMPT_V3_PORTRAIT =
+  "Create one polished character portrait of the pet in the attached reference photo(s). Every attached photo shows the same animal: " +
+  "study all of them and keep this exact pet's breed, body shape, size and proportions, coat colour, markings and patterns, fur length and texture, " +
+  "ear shape, eye colour, nose, and any collar or distinctive feature, so the owner recognises their pet instantly. " +
+  "Style: a high-quality 2.5D illustration like a still from a modern animated feature film, naturally proportioned (not chibi, not a mascot), " +
+  "with soft painterly fur detail, gentle depth and warm, even lighting; appealing and friendly but true to life. " +
+  "No thick cartoon outlines, no flat cel shading, no exaggerated eyes or head. " +
+  "Pose: the whole pet, sitting upright and facing the viewer with a calm, friendly expression, all four paws visible, centred, " +
+  "with the paws resting on the bottom edge of the frame so the pet can stand on the ground of a scene. " +
+  "Fill the frame with the pet and leave only a small margin on the left, right and top. " +
+  "Background: a solid, uniform, pure white background (#FFFFFF) and nothing else: no scenery, no floor, no shadow, no vignette, " +
+  "no gradient, no props, no text, no watermark, no frame.";
+const NEGATIVE_PROMPT_V3 =
+  "Do not change the pet's colours, markings, breed or proportions. No cartoon mascot style, chibi proportions, thick outlines, " +
+  "flat pastel cel shading, oversized eyes, stickers, text, logos, watermarks, borders, multiple animals, extra limbs, cropped or " +
+  "cut-off body parts, outfits or props that are not in the photos, scenery, floors, shadows or gradients in the background.";
+// The previous mascot style, kept for comparison. Only used when the client asks for stylePreset "cute_max_v2".
+const PROMPT_V2_CUTE_MAX =
   "Transform this pet photo into a cute-max storybook mascot that matches a cozy garden world. " +
   "Always draw the WHOLE pet, from the tips of the ears to the paws and tail, sitting upright on the ground and facing the viewer, " +
   "even when the reference photo shows only the head or part of the body; keep the reference pet's markings, colours and ear shape. " +
   "Chibi proportions, soft thick outline, flat pastel colors, simplified shapes, no realistic fur texture. " +
   "Keep the pet centered with a clean silhouette and all four paws visible; the paws rest on the bottom edge of the image so the pet can stand on the ground of a scene. " +
-  "Transparent background only. If transparency is impossible, use a flat very light backdrop for easy masking. " +
-  "No text, UI, watermark, frame, or sticker border.";
-const NEGATIVE_PROMPT_V1 =
+  "Solid pure white background only. No text, UI, watermark, frame, or sticker border.";
+const NEGATIVE_PROMPT_V2 =
   "Avoid photorealism, harsh shadows, cluttered or photographic backgrounds, multiple animals, cropped heads, head-only or bust portraits, cut-off paws, text, UI, logos, or watermarks. " +
   "Do not add outfits or props that obscure the pet. No side characters or extra limbs. " +
   "No scenery, no background elements, no framing.";
-const PROMPT_VERSION = "v2_full_body";
+const PROMPT_VERSION = "v3_portrait";
 const RESPONSE_VERSION = "v2";
 const BACKGROUND_REMOVAL_SYSTEM_PROMPT =
   "Remove the background and return a PNG with a transparent alpha channel. Keep the subject exactly.\n" +
   "Do not add a new background, do not change pose, do not crop tightly, keep natural edges.";
 
 const MAX_BASE64_LENGTH = 7_000_000;
+// up to three photos of the same pet travel in one request (the app shrinks each to ~1024 px first)
+const MAX_REFERENCE_IMAGES = 3;
+const MAX_TOTAL_BASE64_LENGTH = 12_000_000;
+// how far (RGB distance) a pixel may sit from the sampled backdrop colour and still be keyed out
+const FLAT_KEY_TOLERANCE = 26;
+// share of the border that must match the backdrop before the output counts as "painted on a flat backdrop"
+const FLAT_BORDER_SHARE = 0.8;
+const GEMINI_IMAGE_ASPECT = (Deno.env.get("GEMINI_IMAGE_ASPECT") ?? "1:1").trim();
+// "1K" | "2K" | "4K": only Gemini 3 Pro Image understands this; leave unset for gemini-2.5-flash-image
+const GEMINI_IMAGE_SIZE = (Deno.env.get("GEMINI_IMAGE_SIZE") || "").trim();
+const GEMINI_IMAGE_TIMEOUT_MS = Math.max(10000, Number(Deno.env.get("GEMINI_IMAGE_TIMEOUT_MS")) || 60000);
+// imageUrl may only point at this project's storage (or hosts listed here, comma-separated)
+const ALLOWED_IMAGE_HOSTS = (Deno.env.get("PET_STYLIZE_ALLOWED_IMAGE_HOSTS") || "")
+  .split(",")
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
 // Private bucket, one folder per user (<uid>/processed/...). getPublicUrl() below only builds each object's
 // locator URL for the pet row; the app signs it before showing it (src/services/petPhotoUrls.ts).
 const CACHE_BUCKET = "pets";
@@ -851,25 +887,6 @@ async function removeBackground(
   );
 }
 
-function resizeAlphaMask(
-  alpha: Uint8ClampedArray,
-  srcW: number,
-  srcH: number,
-  destW: number,
-  destH: number
-) {
-  if (srcW === destW && srcH === destH) return alpha;
-  const resized = new Uint8ClampedArray(destW * destH);
-  for (let y = 0; y < destH; y++) {
-    const srcY = Math.floor((y / destH) * srcH);
-    for (let x = 0; x < destW; x++) {
-      const srcX = Math.floor((x / destW) * srcW);
-      resized[y * destW + x] = alpha[srcY * srcW + srcX] ?? 0;
-    }
-  }
-  return resized;
-}
-
 function featherAlpha(alpha: Uint8ClampedArray, width: number, height: number, radius: number) {
   if (radius <= 0) return alpha;
   const output = new Uint8ClampedArray(alpha.length);
@@ -893,36 +910,181 @@ function featherAlpha(alpha: Uint8ClampedArray, width: number, height: number, r
   return output;
 }
 
-async function applyAlphaPolish(
-  stylizedBytes: Uint8Array,
-  maskBytes: Uint8Array,
-  featherRadius = ALPHA_FEATHER_RADIUS
-) {
-  const stylized = await Image.decode(stylizedBytes);
-  const mask = await Image.decode(maskBytes);
+type Reference = { base64: string; mime: string };
 
-  const maskAlpha = new Uint8ClampedArray(mask.width * mask.height);
-  for (let i = 0, p = 0; i < mask.bitmap.length; i += 4, p++) {
-    maskAlpha[p] = mask.bitmap[i + 3];
+/** Only this project's storage host (plus PET_STYLIZE_ALLOWED_IMAGE_HOSTS) may be fetched for imageUrl. */
+function isAllowedImageUrl(imageUrl: string, supabaseUrl: string) {
+  try {
+    const target = new URL(imageUrl);
+    if (target.protocol !== "https:" && target.protocol !== "http:") return false;
+    const host = target.host.toLowerCase();
+    if (host === new URL(supabaseUrl).host.toLowerCase()) return true;
+    return ALLOWED_IMAGE_HOSTS.includes(host);
+  } catch (_error) {
+    return false;
   }
+}
 
-  const resizedMask = resizeAlphaMask(maskAlpha, mask.width, mask.height, stylized.width, stylized.height);
-  const feathered = featherAlpha(resizedMask, stylized.width, stylized.height, featherRadius);
-  let alphaDetected = false;
-  for (let i = 0, p = 0; i < stylized.bitmap.length && p < feathered.length; i += 4, p++) {
-    const alpha = feathered[p];
-    const factor = alpha / 255;
-    if (alpha < 255) {
-      alphaDetected = true;
+async function removeObjectsQuietly(admin: any, paths: string[], requestId: string) {
+  try {
+    const { error } = await admin.storage.from(CACHE_BUCKET).remove(paths);
+    if (error) console.log("PET_STYLIZE: stale object cleanup failed", { requestId, paths, message: error.message });
+  } catch (error) {
+    console.log("PET_STYLIZE: stale object cleanup threw", { requestId, paths, message: (error as Error)?.message });
+  }
+}
+
+/**
+ * The portrait is painted on a flat white backdrop. This keys that backdrop out by flood-filling from the
+ * border (so a white chest or a cream coat inside the silhouette survives), then feathers the edge by one
+ * pixel. Returns null when the border is not flat (the model ignored the backdrop instruction) or when
+ * the result looks wrong (almost nothing or almost everything was keyed), so the caller can fall back.
+ */
+async function keyOutFlatBackground(sourceBytes: Uint8Array, requestId: string) {
+  let image: Image;
+  try {
+    image = await Image.decode(sourceBytes);
+  } catch (error) {
+    console.log("PET_STYLIZE: key decode failed", { requestId, message: (error as Error)?.message });
+    return null;
+  }
+  const { width, height, bitmap } = image;
+  if (width < 16 || height < 16) return null;
+
+  // backdrop colour: the mean of the outer two rows and columns
+  let sr = 0, sg = 0, sb = 0, border = 0;
+  const borderIndices: number[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (y > 1 && y < height - 2 && x > 1 && x < width - 2) continue;
+      const i = (y * width + x) * 4;
+      sr += bitmap[i]; sg += bitmap[i + 1]; sb += bitmap[i + 2];
+      border += 1;
+      borderIndices.push(y * width + x);
     }
-    stylized.bitmap[i] = Math.round(stylized.bitmap[i] * factor);
-    stylized.bitmap[i + 1] = Math.round(stylized.bitmap[i + 1] * factor);
-    stylized.bitmap[i + 2] = Math.round(stylized.bitmap[i + 2] * factor);
-    stylized.bitmap[i + 3] = alpha;
+  }
+  const bg: [number, number, number] = [Math.round(sr / border), Math.round(sg / border), Math.round(sb / border)];
+  const tol2 = FLAT_KEY_TOLERANCE * FLAT_KEY_TOLERANCE;
+  const near = (p: number) => {
+    const i = p * 4;
+    const dr = bitmap[i] - bg[0], dg = bitmap[i + 1] - bg[1], db = bitmap[i + 2] - bg[2];
+    return dr * dr + dg * dg + db * db <= tol2;
+  };
+  let flat = 0;
+  for (const p of borderIndices) if (near(p)) flat += 1;
+  const borderShare = flat / Math.max(1, border);
+  if (borderShare < FLAT_BORDER_SHARE) {
+    console.log("PET_STYLIZE: backdrop not flat", { requestId, borderShare: Number(borderShare.toFixed(3)), bg });
+    return null;
   }
 
-  const pngBytes = await stylized.encode();
-  return { bytes: new Uint8Array(pngBytes), alphaDetected };
+  // flood fill from the border through backdrop-coloured pixels (4-connected)
+  const mask = new Uint8Array(width * height); // 1 = backdrop
+  const queue = new Int32Array(width * height);
+  let head = 0, tail = 0;
+  for (const p of borderIndices) {
+    if (!mask[p] && near(p)) {
+      mask[p] = 1;
+      queue[tail++] = p;
+    }
+  }
+  while (head < tail) {
+    const p = queue[head++];
+    const x = p % width;
+    const y = (p - x) / width;
+    if (x > 0) { const q = p - 1; if (!mask[q] && near(q)) { mask[q] = 1; queue[tail++] = q; } }
+    if (x < width - 1) { const q = p + 1; if (!mask[q] && near(q)) { mask[q] = 1; queue[tail++] = q; } }
+    if (y > 0) { const q = p - width; if (!mask[q] && near(q)) { mask[q] = 1; queue[tail++] = q; } }
+    if (y < height - 1) { const q = p + width; if (!mask[q] && near(q)) { mask[q] = 1; queue[tail++] = q; } }
+  }
+  const keyedShare = tail / (width * height);
+  if (keyedShare < 0.05 || keyedShare > 0.97) {
+    console.log("PET_STYLIZE: keyed share out of range", { requestId, keyedShare: Number(keyedShare.toFixed(3)) });
+    return null;
+  }
+
+  // alpha: 0 on the backdrop, 255 on the pet, feathered one pixel at the boundary
+  const alpha = new Uint8ClampedArray(width * height);
+  for (let p = 0; p < alpha.length; p++) alpha[p] = mask[p] ? 0 : 255;
+  const feathered = featherAlpha(alpha, width, height, ALPHA_FEATHER_RADIUS);
+  for (let p = 0, i = 3; p < feathered.length; p++, i += 4) bitmap[i] = feathered[p];
+  const pngBytes = new Uint8Array(await image.encode());
+  return { bytes: pngBytes, keyedShare, borderShare, bg };
+}
+
+type PortraitResult =
+  | { ok: true; bytes: Uint8Array; mime: string; imageConfigDropped: boolean }
+  | { ok: false; reason: string; status?: number; snippet?: string };
+
+/** One Gemini image call with every reference photo attached. */
+async function paintPortrait(options: {
+  references: Reference[];
+  prompt: string;
+  negativePrompt: string;
+  model: string;
+  geminiApiKey: string;
+  requestId: string;
+}): Promise<PortraitResult> {
+  const { references, prompt, negativePrompt, model, geminiApiKey, requestId } = options;
+  const parts: Record<string, unknown>[] = [{ text: prompt }];
+  references.forEach((reference) => {
+    parts.push({ inline_data: { mime_type: reference.mime, data: reference.base64 } });
+  });
+  parts.push({ text: negativePrompt });
+
+  const imageConfig: Record<string, string> = {};
+  if (GEMINI_IMAGE_ASPECT) imageConfig.aspectRatio = GEMINI_IMAGE_ASPECT;
+  if (GEMINI_IMAGE_SIZE) imageConfig.imageSize = GEMINI_IMAGE_SIZE;
+
+  const call = async (withImageConfig: boolean) => {
+    const generationConfig: Record<string, unknown> = { temperature: 0.4 };
+    if (withImageConfig && Object.keys(imageConfig).length > 0) generationConfig.imageConfig = imageConfig;
+    return fetchWithTimeout(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig }),
+      },
+      GEMINI_IMAGE_TIMEOUT_MS
+    );
+  };
+
+  let imageConfigDropped = false;
+  let response = await call(true);
+  if (!response.ok && response.status === 400 && Object.keys(imageConfig).length > 0) {
+    // an older model or API surface that does not know imageConfig: paint without it rather than fail
+    const text = await response.text();
+    if (/image_?config|aspect_?ratio|image_?size|unknown name/i.test(text)) {
+      console.log("PET_STYLIZE: imageConfig rejected, retrying without it", { requestId, snippet: text.slice(0, 200) });
+      imageConfigDropped = true;
+      response = await call(false);
+    } else {
+      return { ok: false, reason: `provider_http_${response.status}`, status: response.status, snippet: text.slice(0, 400) };
+    }
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    return { ok: false, reason: `provider_http_${response.status}`, status: response.status, snippet: text.slice(0, 400) };
+  }
+  const payload = await response.json();
+  const candidateParts = payload?.candidates?.[0]?.content?.parts || [];
+  const imagePart = candidateParts.find(
+    (part: { inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }) =>
+      part?.inlineData?.data || part?.inline_data?.data
+  );
+  const outputData: string | undefined = imagePart?.inlineData?.data || imagePart?.inline_data?.data;
+  if (!outputData) {
+    const finishReason = payload?.candidates?.[0]?.finishReason || payload?.promptFeedback?.blockReason || null;
+    console.log("PET_STYLIZE: portrait missing output", { requestId, finishReason });
+    return { ok: false, reason: finishReason ? `stylized_missing_output_${String(finishReason).toLowerCase()}` : "stylized_missing_output" };
+  }
+  return {
+    ok: true,
+    bytes: decodeBase64(outputData),
+    mime: imagePart?.inlineData?.mimeType || imagePart?.inline_data?.mime_type || "image/png",
+    imageConfigDropped,
+  };
 }
 
 async function getCachedStylized(admin: any, userId: string, sourceHash: string | null, requestId: string) {
@@ -1051,10 +1213,47 @@ serve(async (req) => {
       );
     }
 
-    const imageBase64 = (payload?.imageBase64 || payload?.image_base64 || "") as string;
+    // up to MAX_REFERENCE_IMAGES photos of the same pet; the first one doubles as the single-image fields
+    const rawImages = Array.isArray(payload?.images) ? (payload!.images as unknown[]) : [];
+    const extraReferences: Reference[] = [];
+    for (const item of rawImages.slice(0, MAX_REFERENCE_IMAGES)) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const itemBase64 = stripBase64Prefix(String(record.imageBase64 || record.image_base64 || record.base64 || ""));
+      if (!itemBase64) continue;
+      const itemMime = String(record.mimeType || record.mime || "image/jpeg");
+      if (!itemMime.startsWith("image/")) {
+        return jsonResponse(
+          400,
+          buildErrorPayload({
+            code: "BAD_REQUEST",
+            message: "images[].mimeType must be an image type.",
+            requestId,
+          })
+        );
+      }
+      if (itemBase64.length > MAX_BASE64_LENGTH) {
+        return jsonResponse(
+          400,
+          buildErrorPayload({
+            code: "BAD_REQUEST",
+            message: "Image too large.",
+            requestId,
+          })
+        );
+      }
+      if (!extraReferences.some((reference) => reference.base64 === itemBase64)) {
+        extraReferences.push({ base64: itemBase64, mime: itemMime });
+      }
+    }
+    let imageBase64 = (payload?.imageBase64 || payload?.image_base64 || "") as string;
     const imageUrl = (payload?.imageUrl || payload?.image_url || "") as string;
-    const mime = payload?.mimeType || payload?.mime;
-    const stylePreset = (payload?.stylePreset || payload?.style || "storybook_3") as string;
+    let mime = payload?.mimeType || payload?.mime;
+    if (!imageBase64 && !imageUrl && extraReferences.length > 0) {
+      imageBase64 = extraReferences[0].base64;
+      mime = extraReferences[0].mime;
+    }
+    const stylePreset = (payload?.stylePreset || payload?.style || "portrait") as string;
     const requestedUserId = (payload?.userId || payload?.user_id || "") as string;
     const sourceHash = (payload?.sourceHash || payload?.source_hash || "") as string;
 
@@ -1063,7 +1262,7 @@ serve(async (req) => {
         400,
         buildErrorPayload({
           code: "BAD_REQUEST",
-          message: "Provide imageBase64 or imageUrl.",
+          message: "Provide images, imageBase64 or imageUrl.",
           requestId,
         })
       );
@@ -1144,6 +1343,17 @@ serve(async (req) => {
     let cleanBase64 = stripBase64Prefix(imageBase64);
     let sourceMime = (mime as string) || "image/jpeg";
     if (!cleanBase64 && imageUrl) {
+      if (!isAllowedImageUrl(imageUrl, supabaseUrl)) {
+        console.log("PET_STYLIZE: imageUrl host refused", { requestId });
+        return jsonResponse(
+          400,
+          buildErrorPayload({
+            code: "BAD_REQUEST",
+            message: "imageUrl must point at this project's storage.",
+            requestId,
+          })
+        );
+      }
       const imageResponse = await fetchWithTimeout(imageUrl, { method: "GET" }, 15000);
       if (!imageResponse.ok) {
         const text = await imageResponse.text();
@@ -1193,11 +1403,31 @@ serve(async (req) => {
       );
     }
 
+    // every photo the portrait is painted from, the primary first
+    const references: Reference[] = [{ base64: cleanBase64, mime: sourceMime }];
+    for (const extra of extraReferences) {
+      if (references.length >= MAX_REFERENCE_IMAGES) break;
+      if (!references.some((reference) => reference.base64 === extra.base64)) references.push(extra);
+    }
+    const totalBase64Length = references.reduce((sum, reference) => sum + reference.base64.length, 0);
+    if (totalBase64Length > MAX_TOTAL_BASE64_LENGTH) {
+      return jsonResponse(
+        400,
+        buildErrorPayload({
+          code: "BAD_REQUEST",
+          message: "Images too large together.",
+          requestId,
+        })
+      );
+    }
+
     console.log("PET_STYLIZE: request", {
       requestId,
       userId,
       mimeType: sourceMime,
       imageSize: cleanBase64.length,
+      references: references.length,
+      totalImageSize: totalBase64Length,
       hasGeminiKey: !!geminiApiKey,
       style: stylePreset,
       hasBase64: !!imageBase64,
@@ -1205,6 +1435,9 @@ serve(async (req) => {
       bgRemovalConfigured: !!BACKGROUND_REMOVAL_URL,
       bgRemovalProvider: BACKGROUND_REMOVAL_PROVIDER || "default",
       promptVersion: PROMPT_VERSION,
+      model,
+      imageAspect: GEMINI_IMAGE_ASPECT || null,
+      imageSizeHint: GEMINI_IMAGE_SIZE || null,
     });
 
     const nowIso = new Date().toISOString();
@@ -1308,9 +1541,80 @@ serve(async (req) => {
     const stylizedPath = `${processedPrefix}/stylized.png`;
     const maskPathPng = `${processedPrefix}/mask.png`;
     const maskPathWebp = `${processedPrefix}/mask.webp`;
+    const legacyStyle = stylePreset === "cute_max_v2";
+    const prompt = legacyStyle ? PROMPT_V2_CUTE_MAX : PROMPT_V3_PORTRAIT;
+    const negativePrompt = legacyStyle ? NEGATIVE_PROMPT_V2 : NEGATIVE_PROMPT_V3;
 
     try {
+      // ---- 1. paint the portrait from every reference photo ------------------------------------------
+      let stylizedBytes: Uint8Array | null = null;
+      let alphaStylized = false;
+      let stylizedFailureReason: string | undefined;
+      let stylizedAlphaSample: { min: number; max: number } | null = null;
+      let stylizedFromModel = false;
+      let keyingUsed = "none";
+
+      const portrait = await paintPortrait({ references, prompt, negativePrompt, model, geminiApiKey, requestId });
+      if (!portrait.ok) {
+        console.log("PET_STYLIZE: portrait failed", {
+          requestId,
+          reason: portrait.reason,
+          status: portrait.status ?? null,
+          snippet: portrait.snippet ?? null,
+        });
+        stylizedFailureReason = portrait.reason;
+      } else {
+        stylizedFromModel = true;
+        console.log("PET_STYLIZE: portrait painted", {
+          requestId,
+          mime: portrait.mime,
+          bytes: portrait.bytes.length,
+          references: references.length,
+          imageConfigDropped: portrait.imageConfigDropped,
+        });
+
+        // ---- 2. key the flat backdrop out of the painting (its own silhouette, not the photo's) ---------
+        let keyedBytes: Uint8Array | null = null;
+        const keyed = await keyOutFlatBackground(portrait.bytes, requestId);
+        if (keyed) {
+          keyedBytes = keyed.bytes;
+          keyingUsed = "flat_key";
+          console.log("PET_STYLIZE: backdrop keyed", {
+            requestId,
+            keyedShare: Number(keyed.keyedShare.toFixed(3)),
+            borderShare: Number(keyed.borderShare.toFixed(3)),
+            backdrop: keyed.bg,
+          });
+        } else {
+          // the model painted a scene after all: content-aware removal, when a provider is configured
+          const removal = await removeBackground(portrait.bytes, portrait.mime, requestId, {
+            model: bgRemovalModel,
+            geminiApiKey,
+          });
+          if (removal.ok && removal.bytes) {
+            keyedBytes = removal.bytes;
+            keyingUsed = removal.providerUsed;
+          } else {
+            console.log("PET_STYLIZE: portrait background removal failed", { requestId, reason: removal.reason });
+          }
+        }
+        if (keyedBytes) {
+          const validation = await normalizeToPngWithAlphaCheck(keyedBytes);
+          stylizedBytes = validation.bytes || keyedBytes;
+          alphaStylized = !!validation.ok;
+          stylizedAlphaSample = validation.alphaSample ?? null;
+          if (!alphaStylized) stylizedFailureReason = validation.reason || "stylized_lost_alpha_after_model";
+        } else {
+          // keep the opaque painting so it is at least stored; the app will not draw it on the grass
+          stylizedBytes = await ensurePng(portrait.bytes);
+          alphaStylized = false;
+          stylizedFailureReason = "stylized_backdrop_not_keyed";
+        }
+      }
+
+      // ---- 3. cutout of the first photo, only when there is no transparent portrait to show -------------
       let cutoutBytes: Uint8Array | null = null;
+      let cutoutUrl: string | null = null;
       let cutoutProviderUsed = "none";
       let cutoutFailureReason: string | undefined;
       let cutoutAlphaSample: { min: number; max: number } | null = null;
@@ -1318,166 +1622,85 @@ serve(async (req) => {
       let maskUrl: string | null = null;
       let maskSavedPath: string | null = null;
 
-      const cutoutAttempt = await removeBackground(sourceBytes, sourceMime, requestId, {
-        model: bgRemovalModel,
-        geminiApiKey,
-      });
-
-      cutoutProviderUsed = cutoutAttempt?.providerUsed || "none";
-
-      if (cutoutAttempt?.maskBytes) {
-        const normalizedMask = await normalizeMaskForUpload(cutoutAttempt.maskBytes, cutoutAttempt.maskMime || null);
-        const maskPath = normalizedMask.ext === "webp" ? maskPathWebp : maskPathPng;
-        maskUrl = await uploadAndGetUrl(admin, maskPath, normalizedMask.bytes, normalizedMask.contentType);
-        maskSavedPath = maskPath;
-        console.log("PET_STYLIZE: mask saved", {
-          requestId,
-          maskPath,
-          maskUrl,
-          converted: normalizedMask.converted,
-          maskMime: cutoutAttempt.maskMime || null,
+      if (!alphaStylized) {
+        const cutoutAttempt = await removeBackground(sourceBytes, sourceMime, requestId, {
+          model: bgRemovalModel,
+          geminiApiKey,
         });
-      }
+        cutoutProviderUsed = cutoutAttempt?.providerUsed || "none";
 
-      if (cutoutAttempt?.ok && cutoutAttempt.bytes) {
-        cutoutBytes = cutoutAttempt.bytes;
-        alphaCutout = true;
-        cutoutAlphaSample = cutoutAttempt.alphaSample ?? null;
-      } else {
-        try {
-          const fallback = await fallbackCutout(sourceBytes);
-          const fallbackValidation = await normalizeToPngWithAlphaCheck(fallback.bytes);
-          cutoutBytes = fallbackValidation.bytes || fallback.bytes;
-          alphaCutout = !!fallbackValidation.ok;
-          cutoutAlphaSample = fallbackValidation.alphaSample ?? null;
-          if (!alphaCutout) {
-            cutoutFailureReason =
-              cutoutAttempt?.reason || fallbackValidation.reason || "cutout_missing_alpha";
-          }
-          cutoutProviderUsed = fallback.source;
-        } catch (fallbackError) {
-          console.log("PET_STYLIZE: fallback cutout failed", {
+        if (cutoutAttempt?.maskBytes) {
+          const normalizedMask = await normalizeMaskForUpload(cutoutAttempt.maskBytes, cutoutAttempt.maskMime || null);
+          const maskPath = normalizedMask.ext === "webp" ? maskPathWebp : maskPathPng;
+          maskUrl = await uploadAndGetUrl(admin, maskPath, normalizedMask.bytes, normalizedMask.contentType);
+          maskSavedPath = maskPath;
+          console.log("PET_STYLIZE: mask saved", {
             requestId,
-            message: (fallbackError as Error)?.message,
+            maskPath,
+            maskUrl,
+            converted: normalizedMask.converted,
+            maskMime: cutoutAttempt.maskMime || null,
           });
+        }
+
+        if (cutoutAttempt?.ok && cutoutAttempt.bytes) {
+          cutoutBytes = cutoutAttempt.bytes;
+          alphaCutout = true;
+          cutoutAlphaSample = cutoutAttempt.alphaSample ?? null;
+        } else {
+          try {
+            const fallback = await fallbackCutout(sourceBytes);
+            const fallbackValidation = await normalizeToPngWithAlphaCheck(fallback.bytes);
+            cutoutBytes = fallbackValidation.bytes || fallback.bytes;
+            alphaCutout = !!fallbackValidation.ok;
+            cutoutAlphaSample = fallbackValidation.alphaSample ?? null;
+            if (!alphaCutout) {
+              cutoutFailureReason = cutoutAttempt?.reason || fallbackValidation.reason || "cutout_missing_alpha";
+            }
+            cutoutProviderUsed = fallback.source;
+          } catch (fallbackError) {
+            console.log("PET_STYLIZE: fallback cutout failed", {
+              requestId,
+              message: (fallbackError as Error)?.message,
+            });
+            cutoutBytes = await ensurePng(sourceBytes);
+            alphaCutout = false;
+            cutoutFailureReason = cutoutAttempt?.reason || "cutout_fallback_failed";
+            cutoutProviderUsed = cutoutAttempt?.providerUsed || "fallback";
+          }
+        }
+
+        if (!cutoutBytes) {
           cutoutBytes = await ensurePng(sourceBytes);
           alphaCutout = false;
-          cutoutFailureReason = cutoutAttempt?.reason || "cutout_fallback_failed";
-          cutoutProviderUsed = cutoutAttempt?.providerUsed || "fallback";
+          cutoutFailureReason = cutoutFailureReason || "cutout_missing_bytes";
         }
-      }
-
-      if (!cutoutBytes) {
-        cutoutBytes = await ensurePng(sourceBytes);
-        alphaCutout = false;
-        cutoutFailureReason = cutoutFailureReason || "cutout_missing_bytes";
-      }
-
-      if (!alphaCutout && !cutoutFailureReason) {
-        cutoutFailureReason = "cutout_missing_alpha";
-      }
-
-      const cutoutUrl = await uploadAndGetUrl(admin, cutoutPath, cutoutBytes, "image/png");
-      console.log("PET_STYLIZE: cutout saved", {
-        requestId,
-        providerUsed: cutoutProviderUsed,
-        alphaDetected: alphaCutout,
-        cutoutPath,
-        cutoutUrl,
-      });
-
-      let stylizedBytes: Uint8Array | null = null;
-      let alphaStylized = false;
-      let stylizedFailureReason: string | undefined;
-      let maskReapplied = false;
-      let stylizedAlphaSample: { min: number; max: number } | null = null;
-      let stylizedFromModel = false;
-
-      try {
-        const cutoutBase64 = encodeBase64(cutoutBytes);
-        const geminiResponse = await fetchWithTimeout(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    { text: PROMPT_V1_BEST_CUTE },
-                    { text: NEGATIVE_PROMPT_V1 },
-                    { inline_data: { mime_type: "image/png", data: cutoutBase64 } },
-                  ],
-                },
-              ],
-              generationConfig: { temperature: 0.45 },
-            }),
-          },
-          25000
-        );
-
-        if (!geminiResponse.ok) {
-          const text = await geminiResponse.text();
-          const snippet = text ? text.slice(0, 400) : "";
-          const status = geminiResponse.status;
-          console.log("PET_STYLIZE: gemini error (v2)", { requestId, status, body: snippet });
-          stylizedFailureReason = `provider_http_${status}`;
-        } else {
-          const geminiPayload = await geminiResponse.json();
-          const parts = geminiPayload?.candidates?.[0]?.content?.parts || [];
-          const imagePart = parts.find(
-            (part: {
-              inlineData?: { data?: string; mimeType?: string };
-              inline_data?: { data?: string; mime_type?: string };
-            }) => part?.inlineData?.data || part?.inline_data?.data
-          );
-          const outputData = imagePart?.inlineData?.data || imagePart?.inline_data?.data;
-          if (!outputData) {
-            stylizedFailureReason = "stylized_missing_output";
-          } else {
-            stylizedFromModel = true;
-            const stylizedBytesRaw = decodeBase64(outputData);
-            const decoded = await Image.decode(stylizedBytesRaw);
-            const alphaStats = scanAlpha(decoded.bitmap);
-            stylizedBytes = new Uint8Array(await decoded.encode());
-
-            if (!alphaStats.alphaDetected) {
-              const polished = await applyAlphaPolish(stylizedBytes, cutoutBytes, ALPHA_FEATHER_RADIUS);
-              stylizedBytes = polished.bytes;
-              maskReapplied = true;
-            }
-
-            const stylizedValidation = await normalizeToPngWithAlphaCheck(stylizedBytes);
-            alphaStylized = !!stylizedValidation.ok;
-            stylizedAlphaSample = stylizedValidation.alphaSample ?? null;
-            if (stylizedValidation.bytes) {
-              stylizedBytes = stylizedValidation.bytes;
-            }
-            if (!alphaStylized) {
-              stylizedFailureReason = stylizedFailureReason || "stylized_lost_alpha_after_model";
-            }
-          }
+        if (!alphaCutout && !cutoutFailureReason) {
+          cutoutFailureReason = "cutout_missing_alpha";
         }
-      } catch (error) {
-        console.log("PET_STYLIZE: stylize stage failed", {
+
+        cutoutUrl = await uploadAndGetUrl(admin, cutoutPath, cutoutBytes, "image/png");
+        console.log("PET_STYLIZE: cutout saved", {
           requestId,
-          message: (error as Error)?.message,
+          providerUsed: cutoutProviderUsed,
+          alphaDetected: alphaCutout,
+          cutoutPath,
+          cutoutUrl,
         });
-        stylizedFailureReason = stylizedFailureReason || "stylized_exception";
+      } else {
+        // a transparent portrait exists: drop any older cutout/mask so a cache hit cannot bring back a stale photo
+        await removeObjectsQuietly(admin, [cutoutPath, maskPathPng, maskPathWebp], requestId);
       }
 
       if (!stylizedBytes) {
-        stylizedBytes = cutoutBytes;
+        stylizedBytes = cutoutBytes || (await ensurePng(sourceBytes));
       }
-
       if (!stylizedFromModel) {
         alphaStylized = false;
         if (!stylizedFailureReason) {
           stylizedFailureReason = "stylized_unavailable";
         }
       }
-
       if (!alphaStylized && !stylizedFailureReason) {
         stylizedFailureReason = "stylized_lost_alpha_after_model";
       }
@@ -1487,10 +1710,12 @@ serve(async (req) => {
         requestId,
         stylizedPath,
         stylizedUrl,
-        maskReapplied,
+        keyingUsed,
         alphaDetected: alphaStylized,
+        promptVersion: legacyStyle ? "v2_cute_max" : PROMPT_VERSION,
       });
 
+      const maskReapplied = false;
       const failureReason =
         stylizedFailureReason || cutoutFailureReason || (!alphaStylized && !alphaCutout ? "alpha_missing" : undefined);
       const providerUsed = stylizedFromModel ? "gemini" : cutoutProviderUsed || "fallback";
@@ -1527,9 +1752,10 @@ serve(async (req) => {
         alphaCutout,
         alphaStylized,
         maskReapplied,
+        keyingUsed,
         failureReason: failureReason || null,
         savedPaths: {
-          cutout: cutoutPath,
+          cutout: cutoutUrl ? cutoutPath : null,
           mask: maskSavedPath,
           stylized: stylizedPath,
         },

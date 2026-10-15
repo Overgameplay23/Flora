@@ -210,3 +210,50 @@ Runbook: `docs/backend/DEPLOY.md`. Evidence: `RESTORATION_BASELINE.md` 6.30.
   the demo seed stays local-only and now also requires plain `http`. `seedSeparation.test.ts` guards both.
 - **Left alone:** the six `supabase:*` npm scripts that name the deleted project. They're superseded by the new
   wrappers and would fail harmlessly; remove them when you like.
+
+## 2026-10-14 — the pet is painted from photos (owner's call), notes and conflicts
+
+Owner, 2026-10-14: "when selecting a pet, they select 1-3 pictures of their pet, and we call the API to make a
+version of their pets only through the photos, not selecting anything (the ears, the colour, nothing), less
+cartoony, better quality; no name suggestions if they uploaded a picture." Built as `docs/pet-portrait-v3.md`.
+
+- **Conflict with the strategy report** (parametric vector rig over generated raster art): the owner chose the
+  painted portrait as the pet. Nothing was removed: the rig, the look editor and the shelter all still exist.
+  The rig now stands in only while no transparent portrait exists (and for adopted companions, who have no
+  photo); the look editor is reached only by skipping the photos, and by "Change look" on the Pet tab, where it
+  edits the stand-in. Consider relabelling that tile once a portrait exists.
+- **Portrait precedence** changed in `PetPortrait`, `GardenStage` and `PetTabIcon`: a transparent stylized or
+  cutout image beats the rig. Previously the rig beat everything, so a painted portrait never showed for anyone
+  with a look saved. Wander and acted-out routines are rig-only; with a portrait on screen an act ends at once.
+- **Photos: only the first is stored** (`<uid>/original.<ext>`); photos 2-3 travel in the request only, so
+  "Paint again" from the Pet tab repaints from photo 1. Storing all three (`<uid>/reference-N.jpg`) would need
+  the retry path to list the folder; left for later.
+- **Pipeline change** in `pet-stylize`: the painting's backdrop is keyed from the painting itself (flood fill
+  from the border). v2 clipped the painting with the *photo's* cutout mask, which cut off any part of the body
+  the photo did not show (a head shot gave a head-shaped full-body painting). The photo cutout is now only
+  made when the portrait fails, as the fallback render.
+- **New dependency** `expo-image-manipulator ~14.0.8` (SDK 54 bundled version, installed with `npx expo install`;
+  works in Expo Go and on web). Photos are shrunk to 1024 px JPEG on the device before upload; a side effect is
+  that PNG photos now get the colour suggestion too (R-80 closed).
+- **Model choice is the owner's:** default stays `gemini-2.5-flash-image`; `GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview`
+  (optionally `GEMINI_IMAGE_SIZE=2K`) paints finer fur and likeness at several times the price. `imageConfig`
+  (aspect 1:1) is sent and dropped automatically if the model rejects it.
+- **Not verified against Gemini from this machine** (no provider key here). Verified on 2026-10-14: app typecheck,
+  Deno check of the function, jest (33 suites / 192 tests), the keying algorithm on synthetic paintings (white
+  chest patch inside a brown body survives; a painted scene and a blank image are refused; 1024² keys in ~40 ms),
+  and the onboarding flow in the web build against the local stack: three stubbed photos picked at once
+  (multi-select, limit 3), one removed, one re-added (single-select, limit 1), the look editor skipped, no name
+  ideas, painting failing soft ("kept-photo") because no edge runtime runs locally, the shrunken 1024 px JPEG
+  stored as `<uid>/original.jpg`, and `pet.look` tinted from the photo. A transparent `processed/stylized.png`
+  seeded for the same user then rendered as `RENDER_SOURCE=stylized` on Home and in the Pet tab icon with the look
+  still saved. First real run: deploy with a key and check the function log for `backdrop keyed`
+  (`keyedShare` ≈ 0.4-0.8) and `alpha_stylized: true`.
+- **Observed, pre-existing:** on the kept-photo path the "one small thing" step is skipped: saving the original
+  photo updates `profiles.pet_photo_url`, the profile refresh flips the app gate to the main tabs, and the meet
+  step's Continue lands on Home. Same code path as before this change; part of the onboarding pass the owner
+  has planned.
+- **imageUrl is now restricted** to the project's storage host (`PET_STYLIZE_ALLOWED_IMAGE_HOSTS` adds more),
+  which closes the 2026-09-27 "fetches any URL" note before the function is deployed.
+- **Deploy wiring:** `local-backend/supabase/config.toml` now declares `[functions.pet-stylize]` next to pet-talk,
+  so `npm run functions:deploy -- pet-stylize` finds it. Nothing was deployed; the secrets it needs are listed in
+  `supabase/functions/.env.example`. Deploying is the owner's action.

@@ -13,7 +13,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { notify } from "../../utils/confirm";
-import * as ImagePicker from "expo-image-picker";
+import { type PetPhoto, cameraAvailable, pickPetPhotos } from "../../utils/pickPetPhotos";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePet } from "../../hooks/usePet";
@@ -39,11 +39,12 @@ import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
 import { suggestLookFromPhoto } from "../../services/photoLook";
 import {
-  NAME_SUGGESTIONS,
   OnboardingMode,
   OnboardingStep,
   PET_NAME_MAX,
+  PET_PHOTO_MAX,
   firstStepFor,
+  nameSuggestionsFor,
   nextStep,
   paintingLine,
   previousStep,
@@ -52,7 +53,6 @@ import {
 } from "../../domain/onboarding";
 import { playDing } from "../../utils/sfx";
 
-type PickedPhoto = { uri: string; base64: string; mimeType: string };
 type PaintingState = { status: "idle" | "running" | "done" | "kept-photo" | "failed"; message?: string };
 type SeedTask = { id: number | string; title: string; points?: number | null; category?: string | null; difficulty?: string | number | null };
 
@@ -74,10 +74,11 @@ function StepDots({ steps, current }: { steps: OnboardingStep[]; current: Onboar
 }
 
 /**
- * First run: welcome -> dog or cat -> make it look like yours -> photo (optional) -> name ->
- * painting (only with a photo) -> meet -> one small thing. "look" mode reuses the species and look
- * steps for "Change look"; "replace" mode is the new-photo flow. The main tabs are entered only when
- * the person taps Start, so a profile refresh can never interrupt the flow.
+ * First run: welcome -> dog or cat -> 1-3 photos -> name -> painting -> meet -> one small thing. The
+ * portrait is painted from the photos alone (nothing to pick by hand); only a person who skips the
+ * photos gets the look editor instead. "look" mode reuses the species and look steps for "Change
+ * look"; "replace" mode is the new-photos flow. The main tabs are entered only when the person taps
+ * Start, so a profile refresh can never interrupt the flow.
  */
 export default function OnboardingScreen({ route, navigation }: any) {
   const mode: OnboardingMode = route?.params?.mode === "replace" ? "replace" : route?.params?.mode === "look" ? "look" : "first";
@@ -113,9 +114,12 @@ export default function OnboardingScreen({ route, navigation }: any) {
   };
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
-  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  // 1-3 photos of the real pet; the first one is kept as the pet's original photo
+  const [photos, setPhotos] = useState<PetPhoto[]>([]);
+  const hasPhoto = photos.length > 0;
   const [suggestion, setSuggestion] = useState<LookSuggestion | null>(null);
   const [picking, setPicking] = useState(false);
+  const [committingPhotos, setCommittingPhotos] = useState(false);
   const [nameDraft, setNameDraft] = useState(existingName || "");
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
@@ -142,19 +146,19 @@ export default function OnboardingScreen({ route, navigation }: any) {
     const valid = validatePetName(nameDraft);
     return valid.ok ? valid.name : existingName || "your pet";
   }, [nameDraft, existingName]);
-  const steps = useMemo(() => visibleSteps(mode, track), [mode, track]);
+  const steps = useMemo(() => visibleSteps(mode, track, hasPhoto), [hasPhoto, mode, track]);
   const sceneHeight = Math.round(Math.min(340, Math.max(220, height * 0.36)));
 
   const goNext = useCallback(() => {
-    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto: !!photo, track });
+    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto, track });
     if (next) setStep(next);
-  }, [existingName, mode, photo, step, track]);
+  }, [existingName, hasPhoto, mode, step, track]);
 
   const goBack = useCallback(() => {
-    const prev = previousStep(step, mode, track);
+    const prev = previousStep(step, mode, track, hasPhoto);
     if (prev) setStep(prev);
     else if (mode !== "first" && navigation?.canGoBack?.()) navigation.goBack();
-  }, [mode, navigation, step, track]);
+  }, [hasPhoto, mode, navigation, step, track]);
 
   // ---- adopt a companion -------------------------------------------------------------------------------
   const adopt = async () => {
@@ -199,53 +203,66 @@ export default function OnboardingScreen({ route, navigation }: any) {
     }
   };
 
-  // ---- photo ------------------------------------------------------------------------------------------
-  const pick = useCallback(async (source: "camera" | "library") => {
+  // ---- photos (1-3 of the same pet) ---------------------------------------------------------------------
+  const addPhotos = useCallback(async (source: "camera" | "library") => {
     if (picking) return;
+    const remaining = PET_PHOTO_MAX - photos.length;
+    if (remaining <= 0) return;
     setPicking(true);
     try {
-      const permission =
-        source === "camera"
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
+      const result = await pickPetPhotos(source, remaining);
+      if (result.denied) {
         notify(
           "Permission needed",
-          source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose a picture of your pet."
+          source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose pictures of your pet."
         );
         return;
       }
-      const options: ImagePicker.ImagePickerOptions = {
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-        base64: true,
-      };
-      const result =
-        source === "camera" ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
       if (result.canceled) return;
-      const asset = result.assets?.[0];
-      if (!asset?.uri || !asset?.base64) {
-        notify("Couldn't read that photo", "Please try another picture.");
+      if (result.photos.length === 0) {
+        notify("Couldn't read those photos", "Please try other pictures.");
         return;
       }
-      setPhoto({
-        uri: asset.uri,
-        base64: asset.base64,
-        mimeType: asset.mimeType || (asset.uri.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"),
-      });
-      // read the photo's colours into the illustrated pet (the editor is the adjustment step)
-      const next = suggestLookFromPhoto(asset.base64, species);
-      setSuggestion(next);
-      if (next) setDraftLook((prev) => applySuggestion(prev, next));
+      if (result.unreadable > 0) notify("Some photos were skipped", "One or more pictures could not be read.");
+      const next = [...photos, ...result.photos].slice(0, PET_PHOTO_MAX);
+      setPhotos(next);
+      // the illustrated pet stands in until the portrait is painted: quietly tint it from the first photo
+      if (photos.length === 0) {
+        const hint = suggestLookFromPhoto(next[0].base64, species);
+        setSuggestion(hint);
+        if (hint) setDraftLook((prev) => applySuggestion(prev, hint));
+      }
     } catch (error) {
       console.error("ONBOARDING_PICK_ERROR", { message: (error as any)?.message });
       notify("Couldn't open the picker", "Please try again.");
     } finally {
       setPicking(false);
     }
-  }, [picking]);
+  }, [photos, picking, species]);
+
+  const removePhoto = useCallback((index: number) => {
+    setPhotos((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) setSuggestion(null);
+      return next;
+    });
+  }, []);
+
+  // "Use these photos": the portrait comes from the photos, nothing is picked by hand. The species and
+  // the photo-tinted look are still saved so the stand-in matches while the portrait is painted (and if
+  // the painting cannot finish).
+  const commitPhotos = useCallback(async () => {
+    if (!user?.id || committingPhotos || photos.length === 0) return;
+    setCommittingPhotos(true);
+    try {
+      if (mode === "first") await savePetLook(user.id, draftLook);
+      goNext();
+    } catch (error) {
+      notify("Couldn't save that yet", safeErrorMessage(error));
+    } finally {
+      setCommittingPhotos(false);
+    }
+  }, [committingPhotos, draftLook, goNext, mode, photos.length, user?.id]);
 
   // ---- name -------------------------------------------------------------------------------------------
   const submitName = useCallback(async () => {
@@ -269,10 +286,11 @@ export default function OnboardingScreen({ route, navigation }: any) {
     }
   }, [goNext, nameDraft, user?.id]);
 
-  // ---- painting (only when a photo was chosen) ------------------------------------------------------
+  // ---- painting (only when photos were chosen) --------------------------------------------------------
   useEffect(() => {
-    if (step !== "painting" || paintingStarted.current || !user?.id || !photo) return;
+    if (step !== "painting" || paintingStarted.current || !user?.id || photos.length === 0) return;
     paintingStarted.current = true;
+    const primary = photos[0];
     let alive = true;
     const startedAt = Date.now();
     const timer = setInterval(() => alive && setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
@@ -282,7 +300,12 @@ export default function OnboardingScreen({ route, navigation }: any) {
       patchPetLocally(user.id, { processing_status: "processing", processing_error: null });
       await upsertPet(user.id, { processing_status: "processing", processing_error: null }).catch(() => {});
       try {
-        const result = await stylizePet({ userId: user.id, imageBase64: photo.base64, imageUrl: undefined, mimeType: photo.mimeType, style: "cute_max" });
+        const result = await stylizePet({
+          userId: user.id,
+          images: photos.map((item) => ({ base64: item.base64, mimeType: item.mimeType })),
+          imageUrl: undefined,
+          style: "portrait",
+        });
         await upsertPetResult(user.id, {
           stylized_url: result.stylizedUrl,
           cutout_url: result.cutoutUrl,
@@ -300,7 +323,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
         let keptPhoto = !!(cache && cache.userId === user.id && cache.original);
         if (!keptPhoto) {
           try {
-            await saveOriginalPetPhoto({ userId: user.id, imageBase64: photo.base64, mimeType: photo.mimeType });
+            await saveOriginalPetPhoto({ userId: user.id, imageBase64: primary.base64, mimeType: primary.mimeType });
             keptPhoto = true;
           } catch (saveError) {
             console.error("ONBOARDING_SAVE_ORIGINAL_FAILED", { message: (saveError as any)?.message });
@@ -320,7 +343,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       alive = false;
       clearInterval(timer);
     };
-  }, [photo, refreshPet, step, user?.id]);
+  }, [photos, refreshPet, step, user?.id]);
 
   useEffect(() => {
     if (step === "painting" && (painting.status === "done" || painting.status === "kept-photo")) {
@@ -421,10 +444,11 @@ export default function OnboardingScreen({ route, navigation }: any) {
     }
   };
 
-  const previewSources: PetImageSources | null = photo ? { original: photo.uri, allowOriginal: true } : null;
-  const canGoBack = previousStep(step, mode, track) !== null || (mode !== "first" && (step === "photo" || step === "species"));
-  const showCamera = Platform.OS !== "web";
+  const previewSources: PetImageSources | null = hasPhoto ? { original: photos[0].uri, allowOriginal: true } : null;
+  const canGoBack = previousStep(step, mode, track, hasPhoto) !== null || (mode !== "first" && (step === "photo" || step === "species"));
+  const showCamera = cameraAvailable;
   const sceneLook = mode === "replace" ? existingLook : draftLook;
+  const photosLeft = PET_PHOTO_MAX - photos.length;
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -551,9 +575,9 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 look={draftLook}
                 onChange={setDraftLook}
                 aside={
-                  photo ? (
+                  hasPhoto ? (
                     <View style={styles.photoAside}>
-                      <Image source={{ uri: photo.uri }} style={styles.photoAsideImage} resizeMode="cover" accessibilityLabel="Your photo" />
+                      <Image source={{ uri: photos[0].uri }} style={styles.photoAsideImage} resizeMode="cover" accessibilityLabel="Your photo" />
                       {suggestion ? (
                         <Pressable style={styles.asideButton} onPress={() => setDraftLook((prev) => applySuggestion(prev, suggestion))} accessibilityRole="button">
                           <Text style={styles.asideButtonText}>Use photo colours</Text>
@@ -572,16 +596,38 @@ export default function OnboardingScreen({ route, navigation }: any) {
 
         {step === "photo" ? (
           <View>
-            <Text style={styles.title}>{mode === "replace" ? "A new photo" : "Add a photo of them"}</Text>
+            <Text style={styles.title}>{mode === "replace" ? "New photos" : "Add photos of them"}</Text>
             <Text style={styles.body}>
-              {mode === "replace"
-                ? "A clear photo makes the best painted portrait."
-                : "Optional. We'll pick colours from it for the illustrated pet, keep it on your profile, and it can be painted into a portrait later."}
+              {`Pick 1 to ${PET_PHOTO_MAX} clear photos. ${petName === "your pet" ? "Your pet" : petName} is painted from the photos alone, nothing to choose by hand. Photos in good light, with the whole body showing, make the truest portrait.`}
             </Text>
             <View style={styles.photoStage}>
-              {photo ? (
-                <View style={styles.photoFrame}>
-                  <Image source={{ uri: photo.uri }} style={styles.photoImage} resizeMode="cover" accessibilityLabel="Your chosen photo" />
+              {hasPhoto ? (
+                <View style={styles.photoRow} accessibilityRole="list">
+                  {photos.map((item, index) => (
+                    <View key={`${item.uri}-${index}`} style={styles.photoThumb}>
+                      <Image source={{ uri: item.uri }} style={styles.photoThumbImage} resizeMode="cover" accessibilityLabel={`Photo ${index + 1} of ${photos.length}`} />
+                      <Pressable
+                        style={styles.photoRemove}
+                        onPress={() => removePhoto(index)}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove photo ${index + 1}`}
+                      >
+                        <Feather name="x" size={14} color="#0f172a" />
+                      </Pressable>
+                    </View>
+                  ))}
+                  {photosLeft > 0 ? (
+                    <Pressable
+                      style={[styles.photoThumb, styles.photoAdd]}
+                      onPress={() => addPhotos("library")}
+                      disabled={picking}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add another photo, ${photosLeft} more allowed`}
+                    >
+                      {picking ? <ActivityIndicator color="#35d07f" /> : <Feather name="plus" size={26} color="rgba(226,232,240,0.85)" />}
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : (
                 <View style={[styles.photoFrame, styles.photoEmpty]}>
@@ -589,25 +635,31 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 </View>
               )}
             </View>
-            {photo ? (
+            {hasPhoto ? (
               <View>
-                <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
-                  <Text style={styles.primaryButtonText}>Use this photo</Text>
+                <Text style={styles.photoCount}>
+                  {photos.length === 1 ? "1 photo" : `${photos.length} photos`}
+                  {photosLeft > 0 ? ` · you can add ${photosLeft} more` : ""}
+                </Text>
+                <Pressable style={[styles.primaryButton, committingPhotos && styles.buttonDisabled]} onPress={commitPhotos} disabled={committingPhotos || picking} accessibilityRole="button">
+                  {committingPhotos ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{photos.length === 1 ? "Use this photo" : "Use these photos"}</Text>}
                 </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => pick("library")} disabled={picking} accessibilityRole="button">
-                  <Text style={styles.secondaryButtonText}>Choose another</Text>
-                </Pressable>
+                {photosLeft > 0 && showCamera ? (
+                  <Pressable style={styles.secondaryButton} onPress={() => addPhotos("camera")} disabled={picking} accessibilityRole="button">
+                    <Text style={styles.secondaryButtonText}>Take another photo</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : (
               <View>
                 {showCamera ? (
-                  <Pressable style={styles.primaryButton} onPress={() => pick("camera")} disabled={picking} accessibilityRole="button">
+                  <Pressable style={styles.primaryButton} onPress={() => addPhotos("camera")} disabled={picking} accessibilityRole="button">
                     {picking ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>Take a photo</Text>}
                   </Pressable>
                 ) : null}
                 <Pressable
                   style={showCamera ? styles.secondaryButton : styles.primaryButton}
-                  onPress={() => pick("library")}
+                  onPress={() => addPhotos("library")}
                   disabled={picking}
                   accessibilityRole="button"
                 >
@@ -625,8 +677,8 @@ export default function OnboardingScreen({ route, navigation }: any) {
               </View>
             )}
             <View style={styles.tips}>
-              <Text style={styles.tip}>• The photo stays private to your account.</Text>
-              <Text style={styles.tip}>• Painting a portrait from it needs the painting service, which may not be available yet.</Text>
+              <Text style={styles.tip}>• The photos stay private to your account.</Text>
+              <Text style={styles.tip}>• Painting takes about a minute. If it can't finish, your photo is kept and you can retry from the Pet tab.</Text>
             </View>
           </View>
         ) : null}
@@ -634,7 +686,13 @@ export default function OnboardingScreen({ route, navigation }: any) {
         {step === "name" ? (
           <View>
             <View style={styles.photoStage}>
-              <PetRig look={draftLook} size={140} mood="happy" />
+              {hasPhoto ? (
+                <View style={styles.photoFrame}>
+                  <Image source={{ uri: photos[0].uri }} style={styles.photoImage} resizeMode="cover" accessibilityLabel="Your pet" />
+                </View>
+              ) : (
+                <PetRig look={draftLook} size={140} mood="happy" />
+              )}
             </View>
             <Text style={styles.title}>What's their name?</Text>
             <Text style={styles.body}>
@@ -658,13 +716,16 @@ export default function OnboardingScreen({ route, navigation }: any) {
               accessibilityLabel="Pet name"
             />
             {nameError ? <Text style={styles.error}>{nameError}</Text> : null}
-            <View style={styles.chips}>
-              {NAME_SUGGESTIONS.map((suggestion) => (
-                <Pressable key={suggestion} style={styles.chip} onPress={() => setNameDraft(suggestion)} accessibilityRole="button">
-                  <Text style={styles.chipText}>{suggestion}</Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* a real pet in a photo already has a name: ideas only appear for a companion or a look-only pet */}
+            {nameSuggestionsFor({ hasPhoto }).length > 0 ? (
+              <View style={styles.chips}>
+                {nameSuggestionsFor({ hasPhoto }).map((idea) => (
+                  <Pressable key={idea} style={styles.chip} onPress={() => setNameDraft(idea)} accessibilityRole="button">
+                    <Text style={styles.chipText}>{idea}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <Pressable style={[styles.primaryButton, savingName && styles.buttonDisabled]} onPress={submitName} disabled={savingName} accessibilityRole="button">
               {savingName ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>That's the one</Text>}
             </Pressable>
@@ -678,7 +739,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
                 height={sceneHeight}
                 variant="welcome"
                 petImageSources={previewSources}
-                petLook={sceneLook}
+                petLook={hasPhoto ? null : sceneLook}
                 allowOriginal
                 petMood="calm"
                 accessibilityLabel={`${petName} waiting in the garden while the portrait is painted`}
@@ -901,6 +962,32 @@ const styles = StyleSheet.create({
   },
   photoEmpty: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: "rgba(148,163,184,0.6)" },
   photoImage: { width: "100%", height: "100%" },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12 },
+  photoThumb: {
+    width: 96,
+    height: 96,
+    borderRadius: 20,
+    overflow: "visible",
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(15,23,42,0.6)",
+  },
+  photoThumbImage: { width: "100%", height: "100%", borderRadius: 17 },
+  photoRemove: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.6)",
+  },
+  photoAdd: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: "rgba(148,163,184,0.6)" },
+  photoCount: { marginTop: 10, color: "rgba(148,163,184,0.9)", fontSize: 13, textAlign: "center", fontWeight: "600" },
   tips: { marginTop: 22 },
   tip: { color: "rgba(148,163,184,0.9)", fontSize: 13, lineHeight: 20 },
   input: {

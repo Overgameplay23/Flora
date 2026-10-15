@@ -1,4 +1,4 @@
-import { firstStepFor, nextStep, paintingLine, previousStep, validatePetName, visibleSteps } from "../domain/onboarding";
+import { NAME_SUGGESTIONS, firstStepFor, nameSuggestionsFor, nextStep, paintingLine, previousStep, validatePetName, visibleSteps } from "../domain/onboarding";
 
 function walk(mode: any, context: any) {
   const steps: string[] = [firstStepFor(mode)];
@@ -11,10 +11,21 @@ function walk(mode: any, context: any) {
 }
 
 describe("onboarding steps", () => {
-  it("walks a new user through species and look, skipping painting without a photo", () => {
+  it("paints from the photos and skips the look editor when photos were added", () => {
+    expect(walk("first", { hasName: false, hasPhoto: true })).toEqual(["welcome", "species", "photo", "name", "painting", "meet", "firstStep"]);
+    expect(visibleSteps("first", "own", true)).toEqual(["welcome", "species", "photo", "name", "meet", "firstStep"]);
+    expect(previousStep("name", "first", "own", true)).toBe("photo");
+  });
+
+  it("falls back to the look editor without a photo, and never paints", () => {
     expect(walk("first", { hasName: false, hasPhoto: false })).toEqual(["welcome", "species", "photo", "look", "name", "meet", "firstStep"]);
-    expect(walk("first", { hasName: false, hasPhoto: true })).toEqual(["welcome", "species", "photo", "look", "name", "painting", "meet", "firstStep"]);
+    expect(visibleSteps("first")).toEqual(["welcome", "species", "photo", "look", "name", "meet", "firstStep"]);
     expect(visibleSteps("first")).not.toContain("painting");
+  });
+
+  it("suggests names only for a pet that has no photo", () => {
+    expect(nameSuggestionsFor({ hasPhoto: true })).toEqual([]);
+    expect(nameSuggestionsFor({ hasPhoto: false })).toEqual(NAME_SUGGESTIONS);
   });
 
   it("the adopt track skips the photo and the look editor for a shelter pick", () => {

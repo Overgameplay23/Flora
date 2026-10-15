@@ -9,6 +9,11 @@ import { isRecord, safeJsonParse } from "../utils/guards";
 
 const EDGE_FUNCTION = "pet-stylize";
 const MAX_BASE64_LENGTH = 7_000_000;
+// the portrait is painted from up to three photos of the same pet; together they must stay well under the
+// function's request limit (the picker shrinks each one to ~1024 px, roughly 200-400 KB of base64)
+const MAX_REFERENCE_PHOTOS = 3;
+const MAX_TOTAL_BASE64_LENGTH = 10_000_000;
+const DEFAULT_STYLE = "portrait";
 
 function logDebug(message, payload) {
   if (__DEV__) {
@@ -302,20 +307,58 @@ async function invokeEdgeFunction(body) {
   return { data, error: null, status: response.status };
 }
 
-export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, style }) {
+/**
+ * The photos the portrait is painted from, in order, without data: prefixes. Accepts the new `images`
+ * list ({ base64 | imageBase64, mimeType }) and the older single `imageBase64` + `mimeType`.
+ */
+export function normalizeReferencePhotos({ images, imageBase64, mimeType } = {}) {
+  const list = [];
+  const push = (base64, mime) => {
+    const clean = stripBase64Prefix(base64 || "");
+    if (!clean || list.some((item) => item.base64 === clean)) return;
+    list.push({ base64: clean, mimeType: typeof mime === "string" && mime.startsWith("image/") ? mime : "image/jpeg" });
+  };
+  if (Array.isArray(images)) {
+    images.forEach((item) => {
+      if (!item) return;
+      if (typeof item === "string") push(item, "image/jpeg");
+      else push(item.base64 || item.imageBase64, item.mimeType || item.mime);
+    });
+  }
+  if (imageBase64) push(imageBase64, mimeType);
+  return list.slice(0, MAX_REFERENCE_PHOTOS);
+}
+
+/**
+ * Paints the pet's portrait from 1-3 photos (`images`) or one photo (`imageBase64`), or re-paints it from
+ * the stored original (`imageUrl`). The first photo is kept as the pet's original photo.
+ * @param {{
+ *   userId: string;
+ *   imageBase64?: string | null;
+ *   images?: Array<{ base64?: string; imageBase64?: string; mimeType?: string } | string> | null;
+ *   imageUrl?: string | null;
+ *   mimeType?: string | null;
+ *   style?: string | null;
+ * }} options
+ */
+export async function stylizePet({ userId, imageBase64, images, imageUrl, mimeType, style }) {
   if (!userId) {
     throw new Error("Missing user or image data for pet stylization.");
   }
-  if (!imageBase64 && !imageUrl) {
+  const references = normalizeReferencePhotos({ images, imageBase64, mimeType });
+  if (references.length === 0 && !imageUrl) {
     throw new Error("Missing image data for pet stylization.");
   }
-  const cleanBase64 = imageBase64 ? stripBase64Prefix(imageBase64) : "";
-  if (cleanBase64 && cleanBase64.length > MAX_BASE64_LENGTH) {
+  const totalLength = references.reduce((sum, item) => sum + item.base64.length, 0);
+  if (references.some((item) => item.base64.length > MAX_BASE64_LENGTH) || totalLength > MAX_TOTAL_BASE64_LENGTH) {
     const tooLarge = new Error("Image too large.");
-    tooLarge.userMessage = "Your image is too large. Please choose a smaller photo.";
-    tooLarge.devDetails = `base64_length=${cleanBase64.length}`;
+    tooLarge.userMessage = "Those photos are too large together. Please choose smaller photos.";
+    tooLarge.devDetails = `base64_total=${totalLength} count=${references.length}`;
     throw tooLarge;
   }
+  const primary = references[0] || null;
+  const cleanBase64 = primary ? primary.base64 : "";
+  const primaryMime = primary ? primary.mimeType : mimeType || "image/jpeg";
   if (__DEV__) {
     const supabaseUrl = getValidatedPublicEnv("EXPO_PUBLIC_SUPABASE_URL");
     if (supabaseUrl && /localhost|127\.0\.0\.1|192\./i.test(supabaseUrl)) {
@@ -323,7 +366,8 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
     }
   }
 
-  const sourceHash = await computeSourceHash(cleanBase64 || imageUrl || "");
+  // one hash over every photo: the function caches a finished portrait per hash
+  const sourceHash = await computeSourceHash(references.length ? references.map((item) => item.base64).join("|") : imageUrl || "");
 
   let originalUrl = null;
   if (cleanBase64) {
@@ -331,7 +375,7 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
       originalUrl = await saveOriginalPetPhoto({
         userId,
         imageBase64: cleanBase64,
-        mimeType: mimeType || "image/jpeg",
+        mimeType: primaryMime,
       });
     } catch (error) {
       const hint = buildSchemaHint(error);
@@ -362,10 +406,12 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
   }
 
   const { data, error, status } = await invokeEdgeFunction({
+    // the first photo also travels in the single-image fields, so an older deployment still paints from it
     imageBase64: cleanBase64 || undefined,
     imageUrl: fetchableImageUrl,
-    mimeType: cleanBase64 ? mimeType || "image/jpeg" : undefined,
-    stylePreset: style || "cute_max",
+    mimeType: cleanBase64 ? primaryMime : undefined,
+    images: references.length > 1 ? references.map((item) => ({ imageBase64: item.base64, mimeType: item.mimeType })) : undefined,
+    stylePreset: style || DEFAULT_STYLE,
     outputFormat: "png",
     userId,
     sourceHash,
@@ -391,8 +437,9 @@ export async function stylizePet({ userId, imageBase64, imageUrl, mimeType, styl
         : serverMessage || "We could not reach the stylize service. Please try again.";
     wrapped.devDetails = buildEdgeErrorDetails(error, data, {
       imageBase64: !!cleanBase64,
-      mimeType: mimeType || "image/jpeg",
-      stylePreset: style || "cute_max",
+      images: references.length,
+      mimeType: primaryMime,
+      stylePreset: style || DEFAULT_STYLE,
       sourceHash,
     });
     wrapped.context = error?.context;

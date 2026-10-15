@@ -107,9 +107,21 @@ export default function PetPortrait({
 }: PetPortraitProps) {
   const reducedMotion = useReducedMotion();
   const { choice, onError, framed: framedImage } = usePetCandidates(sources, allowOriginal);
-  const hasRig = !!look;
+  // The painted portrait (from the person's photos) is the pet. The illustrated rig stands in while no
+  // portrait exists, and comes back if the portrait image fails to load.
+  const portraitShown = choice.type === "stylized" || choice.type === "cutout";
+  const hasRig = !!look && !portraitShown;
   const isPlaceholder = !hasRig && choice.type === "placeholder";
   const framed = !hasRig && framedImage;
+
+  // Acted-out routines (drink, walk…) belong to the rig; with a portrait on screen, finish them at once
+  // so the parent's act state does not stay stuck.
+  useEffect(() => {
+    if (!act || hasRig) return undefined;
+    const id = setTimeout(() => onActEnd?.(), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [act, hasRig]);
 
   // ---- sprite box -----------------------------------------------------------------------------------
   const [aspect, setAspect] = useState<{ w: number; h: number } | null>(null);
