@@ -1,23 +1,19 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, TextInput, Button, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
-
-function getAuthErrorDetails(error) {
-  const status = typeof error?.status === "number" ? error.status : undefined;
-  const message = String(error?.message || "").toLowerCase();
-  const nonJsonResponse = Boolean(error?.isNonJsonResponse) || message.includes("non-json error response");
-  const serviceUnavailable =
-    nonJsonResponse || status === 521 || status === 502 || status === 503 || status === 504;
-  const missingEmailOrPhone = status === 400 && message.includes("missing email or phone");
-
-  return { serviceUnavailable, missingEmailOrPhone };
-}
+import { signupOutcome } from "../utils/authMessages";
+import { confirmAsync } from "../utils/confirm";
+import { describeEmailForLog, redactForLog } from "../utils/logRedact";
 
 export default function SignupScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
+  const [notice, setNotice] = useState("");
   const [emailHasError, setEmailHasError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // A ref as well as state: a quick double tap fires twice before the disabled button re-renders.
+  const inFlight = useRef(false);
 
   function handleEmailChange(nextEmail) {
     setEmail(nextEmail);
@@ -27,17 +23,21 @@ export default function SignupScreen({ navigation }) {
   }
 
   async function handleSignup() {
+    if (inFlight.current) return;
+
     setErr("");
+    setNotice("");
     setEmailHasError(false);
 
     const normalizedEmail = typeof email === "string" ? email.trim() : "";
     const normalizedPassword = typeof pwd === "string" ? pwd : "";
 
-    console.log("AUTH_INPUT", {
-      email: normalizedEmail,
-      emailType: typeof normalizedEmail,
-      passwordLen: normalizedPassword?.length,
-    });
+    if (__DEV__) {
+      console.log("AUTH_INPUT", {
+        ...describeEmailForLog(normalizedEmail),
+        passwordLen: normalizedPassword?.length,
+      });
+    }
 
     if (!normalizedEmail) {
       setEmailHasError(true);
@@ -50,31 +50,49 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
+    inFlight.current = true;
+    setBusy(true);
+    let result;
     try {
-      const { error } = await supabase.auth.signUp({
+      result = await supabase.auth.signUp({
         email: normalizedEmail,
         password: normalizedPassword,
       });
-
-      if (error) {
-        throw error;
-      }
     } catch (error) {
-      const { serviceUnavailable, missingEmailOrPhone } = getAuthErrorDetails(error);
-      console.error("AUTH_SIGNUP_ERROR", error);
-      if (serviceUnavailable) {
-        setErr("Auth service temporarily unavailable. Try again.");
-      } else if (missingEmailOrPhone) {
-        setEmailHasError(true);
-        setErr("Please enter a valid email.");
-      } else {
-        setErr("Unable to create account. Please try again.");
-      }
-      return;
+      result = { data: null, error };
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
 
-    // Profile row is created by a database trigger after signup.
-    // The navigation will be handled by the AuthProvider
+    const outcome = signupOutcome(result);
+    if (result?.error) {
+      console.error("AUTH_SIGNUP_ERROR", {
+        status: result.error?.status,
+        code: result.error?.code,
+        message: redactForLog(result.error?.message),
+      });
+    } else if (__DEV__) {
+      console.log("AUTH_SIGNUP_RESULT", { outcome: outcome.kind });
+    }
+
+    if (outcome.emailField) setEmailHasError(true);
+    if (outcome.tone === "error") {
+      setErr(outcome.message);
+      return;
+    }
+    setNotice(outcome.message);
+
+    if (outcome.kind === "already_registered") {
+      const goToLogin = await confirmAsync({
+        title: "You already have an account",
+        message: outcome.message,
+        confirmText: "Go to log in",
+        cancelText: "Stay here",
+      });
+      if (goToLogin) navigation.navigate("Login");
+    }
+    // "signed_in": the AuthProvider takes over navigation. The profile row is created on first hydrate.
   }
 
   return (
@@ -95,7 +113,8 @@ export default function SignupScreen({ navigation }) {
         value={pwd}
       />
       {err ? <Text style={styles.err}>{err}</Text> : null}
-      <Button title="Create Account" onPress={handleSignup} />
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      <Button title={busy ? "Creating account…" : "Create Account"} onPress={handleSignup} disabled={busy} />
               <Text onPress={() => navigation.goBack()} style={styles.link}>
                 {"<- Back to login"}      </Text>
     </View>
@@ -116,5 +135,6 @@ const styles = StyleSheet.create({
     borderColor: "red",
   },
   err: { color: "red", marginBottom: 8 },
+  notice: { color: "#2f6b4f", marginBottom: 8, lineHeight: 20 },
   link: { marginTop: 16, color: "#0a84ff", textAlign: "center" },
 });

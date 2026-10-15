@@ -1,23 +1,18 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, TextInput, Button, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
-
-function getAuthErrorDetails(error) {
-  const status = typeof error?.status === "number" ? error.status : undefined;
-  const message = String(error?.message || "").toLowerCase();
-  const nonJsonResponse = Boolean(error?.isNonJsonResponse) || message.includes("non-json error response");
-  const serviceUnavailable =
-    nonJsonResponse || status === 521 || status === 502 || status === 503 || status === 504;
-  const missingEmailOrPhone = status === 400 && message.includes("missing email or phone");
-
-  return { serviceUnavailable, missingEmailOrPhone };
-}
+import { signinErrorOutcome } from "../utils/authMessages";
+import { describeEmailForLog, redactForLog } from "../utils/logRedact";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
+  const [errIsNotice, setErrIsNotice] = useState(false);
   const [emailHasError, setEmailHasError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // A ref as well as state: a quick double tap fires twice before the disabled button re-renders.
+  const inFlight = useRef(false);
 
   function handleEmailChange(nextEmail) {
     setEmail(nextEmail);
@@ -27,17 +22,21 @@ export default function LoginScreen({ navigation }) {
   }
 
   async function handleLogin() {
+    if (inFlight.current) return;
+
     setErr("");
+    setErrIsNotice(false);
     setEmailHasError(false);
 
     const normalizedEmail = typeof email === "string" ? email.trim() : "";
     const normalizedPassword = typeof pwd === "string" ? pwd : "";
 
-    console.log("AUTH_INPUT", {
-      email: normalizedEmail,
-      emailType: typeof normalizedEmail,
-      passwordLen: normalizedPassword?.length,
-    });
+    if (__DEV__) {
+      console.log("AUTH_INPUT", {
+        ...describeEmailForLog(normalizedEmail),
+        passwordLen: normalizedPassword?.length,
+      });
+    }
 
     if (!normalizedEmail) {
       setEmailHasError(true);
@@ -50,6 +49,8 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
+    inFlight.current = true;
+    setBusy(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -60,16 +61,18 @@ export default function LoginScreen({ navigation }) {
         throw error;
       }
     } catch (error) {
-      const { serviceUnavailable, missingEmailOrPhone } = getAuthErrorDetails(error);
-      console.error("AUTH_SIGNIN_ERROR", error);
-      if (serviceUnavailable) {
-        setErr("Auth service temporarily unavailable. Try again.");
-      } else if (missingEmailOrPhone) {
-        setEmailHasError(true);
-        setErr("Please enter a valid email.");
-      } else {
-        setErr("Unable to sign in. Please check your details.");
-      }
+      const outcome = signinErrorOutcome(error);
+      console.error("AUTH_SIGNIN_ERROR", {
+        status: error?.status,
+        code: error?.code,
+        message: redactForLog(error?.message),
+      });
+      if (outcome.emailField) setEmailHasError(true);
+      setErrIsNotice(outcome.tone === "notice");
+      setErr(outcome.message);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
     // The navigation will be handled by the AuthProvider
   }
@@ -91,8 +94,8 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPwd}
         value={pwd}
       />
-      {err ? <Text style={styles.err}>{err}</Text> : null}
-      <Button title="Sign In" onPress={handleLogin} />
+      {err ? <Text style={errIsNotice ? styles.notice : styles.err}>{err}</Text> : null}
+      <Button title={busy ? "Signing in…" : "Sign In"} onPress={handleLogin} disabled={busy} />
       <Text onPress={() => navigation.navigate("Signup")} style={styles.link}>
         New here? Create account
       </Text>
@@ -114,5 +117,6 @@ const styles = StyleSheet.create({
     borderColor: "red",
   },
   err: { color: "red", marginBottom: 8 },
+  notice: { color: "#2f6b4f", marginBottom: 8, lineHeight: 20 },
   link: { marginTop: 16, color: "#0a84ff", textAlign: "center" },
 });
