@@ -728,6 +728,39 @@ Owner: "sync this repo with GitHub and with the hosted Supabase project Bloom", 
 - R-40, left open in 6.29, is closed.
 - The local branch `backend/hardening` (at `dfe4f1b`) was not pushed; `main` contains it.
 
+### 6.32 Twenty-fifth change set — 2026-10-14: Expo SDK 57, and the first run on a real iPhone (branch `upgrade/sdk-57`)
+
+Owner, on a new PC (fresh clone at `C:\Users\donov\Flora`, Node 22.23.2, no Docker or Supabase CLI): get the app running against Bloom on web and then on the iPhone; then "we need to upgrade the project to sdk 57.0.0", because the App Store Expo Go on the owner's iPhone no longer opens SDK 54. This replaces the house rule "don't upgrade the SDK while the test device is App Store Expo Go".
+
+**Bloom.** It had been paused for inactivity (status `INACTIVE`); restored with the owner's approval. After restore: 29 migrations, 22 tables, 10 catalog plants, 5 legacy garden items. Anonymous REST reads are refused (`42501`), as designed. Auth has email confirmation on; the built-in sender delivers (`mail.send` from `noreply@mail.app.supabase.io`), limited to one confirmation per address per minute.
+
+**Running against Bloom.** Public values go in `mobile/.env.staging` (gitignored), not `.env.local`: `app.config.js` refuses a hosted URL in the local profile. Web: `.claude/launch.json` entry `luna-web-staging`. Phone: this PC is on eduroam (Public profile, inbound `node.exe` blocked, client isolation), so the phone uses tunnel mode — from `mobile/`, `$env:APP_ENV = 'staging'; node scripts/start-expo-phone.js --tunnel --port 8082` (`npm` itself is blocked by the PowerShell execution policy; `@expo/ngrok` installed globally at the owner's prompt).
+
+**Commits:** `df0ff3f` (the upgrade), `f5de7d0` (launch entry), then this entry.
+- `npx expo install expo@^57.0.0 --fix`: expo 57.0.29, react-native 0.86.3, react 19.2.3, every `expo-*` package to 57.x, gesture-handler 2.32, screens 4.26, svg 15.15.4, netinfo 12, view-shot 5.1.
+- `expo-av` (removed from Expo Go in SDK 55) replaced by `expo-audio` in `src/utils/sfx.js` (`createAudioPlayer`, rewind with `seekTo(0)` before each ding). The only `expo-av` caller.
+- `expo-router` removed: never imported, and `expo-doctor` warns about router + react-navigation from SDK 56. It was the only source of reanimated, so `react-native-reanimated` 4.5.1 and `react-native-worklets` 0.10.1 are now direct dependencies (NativeWind needs them; `nativewind` 4.2.7 / `react-native-css-interop` 0.2.7 accept reanimated >= 3.6.2). `@expo/vector-icons` declared (SDK 56 stopped bundling it; 20 files import `Feather`).
+- `app.json`: `newArchEnabled` and `edgeToEdgeEnabled` removed (SDK 55); `splash` moved into the `expo-splash-screen` plugin (same image, `contain`, white); `expo-audio`, `expo-asset` and `expo-status-bar` plugins added. `expo-asset` and `expo-splash-screen` installed.
+- TypeScript 6.0.3 (SDK 56 default) turns `strict` on and no longer loads every `@types` package: 1,124 errors. `tsconfig.json` now states `strict: false` and `types: ["jest", "node"]`, the defaults the code was written for. Turning strict on is a separate piece of work.
+- React Native 0.86 no longer exports `StyleSheet.absoluteFillObject`; spreading it gave `{}` at runtime, so overlays would have lost their absolute fill. Replaced by `StyleSheet.absoluteFill` (a plain frozen object in 0.86) in `FinchGardenHeader`, `GardenStage` (3), `PetExpressionOverlay`, `GameEndCard`, `GameField`.
+- `expo install` wrote the new tooling versions into `dependencies` while the old ones stayed in `devDependencies` (which won). Moved back to `devDependencies`: `babel-preset-expo` 57.0.15, `jest-expo` 57.0.6, `typescript` 6.0.3, `@types/react` 19.2, `@babel/core` 7.29.
+- `package-lock.json` regenerated from scratch: after several incremental installs `expo-modules-core` stayed nested under `expo/`, and `jest-expo` 57 requires it from the top level (every suite failed with "Cannot find module 'expo-modules-core'"). Side effect inside the declared ranges: `@supabase/supabase-js` 2.50 → 2.117, `@react-navigation/native` 7.5. `npm audit`: 95 → 79 findings, none critical.
+- Pre-upgrade copies of the changed config files: `docs/baseline/pre-sdk57-upgrade/`.
+
+**Evidence (14 Oct):**
+- `npx expo-doctor@latest`: 20/21. The one failure is the known stale `android/` and `ios/` folders next to app config (section 10; regenerate once there is an app identity).
+- Client typecheck 0 errors; Deno check of the four functions 0 errors; `jest --maxWorkers=2` **33/33 suites, 190/190 tests**; `npm run export:web` built (2.4 MB bundle).
+- Web against Bloom: login screen renders, `NET_PROBE_OK` to Bloom auth, no server errors; the old `expo-av` deprecation warning is gone.
+- **iPhone, Expo Go, through the tunnel: the first verified run on a physical phone.** The tunnel manifest reports `sdkVersion 57.0.0`, `appEnv staging`, Bloom URL. The owner signed up, confirmed the email and signed in; Home loaded with `200` from `pet`, `profiles`, `tasks`, `task_completions`, `user_plants`, `plant_catalog`, `garden_unlocks`, `daily_user_metrics` and `rpc/recompute_pet_state`. `garden_items.required_points` returned `42703` and `GARDEN_SCHEMA_FALLBACK_USED` took over, as designed (section 9).
+
+**Notes for the next person:**
+- **First load on the phone after a tunnel drop:** Expo Go reloaded and failed with `Cannot find native module 'ExpoAsset'` plus `"main" has not been registered`. Force-quitting Expo Go and scanning again fixed it; nothing in the project changed (matches expo/expo#48950: no native modules are registered, `ExpoAsset` is just the first one asked for).
+- **Run one heavy process at a time on this PC.** Two Metro servers (web and tunnel) plus a background job froze the machine; the crash zero-filled `.git/HEAD` and the new branch ref. Both were rebuilt (the branch had no commits yet) and `git fsck` was clean.
+- NativeWind's metro plugin appends this machine's absolute path to `tsconfig.json` `include` on every start. `git restore mobile/tsconfig.json` before committing.
+- Signing up again with an already registered address returns success and sends nothing (Supabase `user_repeated_signup`); the app gives no hint. Repeated taps produced about 15 such requests in a few seconds.
+- The client's debug logging (`AUTH_INPUT`) prints the signing-in email to the Metro console. Fine on a dev PC; remove before any public build.
+- Hermes v1 is the default since SDK 56. SDK 57 builds earlier than 57.0.17 had a Hermes memory regression with reanimated/worklets; this project is on 57.0.29.
+
 ### 6.7 Remote Supabase (read-only)
 ```
 supabase projects list                                   -> 3 projects (AuraMind Production ACTIVE, Auramind gym INACTIVE, AuraMind Release Evidence INACTIVE); gghesvpmskjlrlpoosgf absent
