@@ -3,20 +3,23 @@ import { Image, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { usePet } from "../../hooks/usePet";
 import { useSignedPetPhotoUrl } from "../../services/petPhotoUrls";
+import { hasPortrait } from "../garden/usePetCandidates";
 import PetRig from "./vector/PetRig";
 
 /**
- * The Pet tab shows the user's own pet instead of a generic icon: the stylized cutout when it exists,
- * the photo while it is still being painted, and a heart before any pet is set up.
+ * The Pet tab shows the user's own pet instead of a generic icon: the painted portrait when it exists,
+ * the illustrated rig while there is none (or the photo while it is still being painted), and a heart
+ * before any pet is set up.
  */
 export default function PetTabIcon({ focused }: { focused: boolean }) {
   const { sources, look, hasProcessedImage } = usePet();
   // the pets bucket is private: show a short-lived signed URL for the stored locator
   const uri = useSignedPetPhotoUrl(sources.stylized || sources.cutout || sources.photo || sources.original || null);
+  const showRig = !!look && !(hasPortrait(sources) && uri);
   return (
     <View style={styles.iconWrap}>
       <View style={[styles.ring, focused && styles.ringActive]}>
-        {look ? (
+        {showRig ? (
           <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
             <PetRig look={look} size={30} mood="calm" reducedMotion />
           </View>

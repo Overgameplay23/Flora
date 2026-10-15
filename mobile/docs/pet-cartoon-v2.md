@@ -1,4 +1,8 @@
-# Pet Cartoon v2
+# Pet Cartoon v2 (superseded)
+
+Superseded on 2026-10-14 by `pet-portrait-v3.md`: the portrait is now painted from 1-3 photos in a less
+cartoony style, and the backdrop is keyed out of the painting instead of re-applying the photo's cutout mask.
+The notes below describe the previous pipeline.
 
 ## Pipeline
 - Stage 1: Background removal produces a transparent PNG cutout and uploads it to `pets/processed/{id}/cutout.png`.

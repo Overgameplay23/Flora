@@ -198,7 +198,7 @@ export default function PetScreen() {
     patchPetLocally(user.id, { processing_status: "processing", processing_error: null });
     try {
       await upsertPet(user.id, { processing_status: "processing", processing_error: null });
-      const result = await stylizePet({ userId: user.id, imageUrl: originalUrl, style: "cute_max" });
+      const result = await stylizePet({ userId: user.id, imageUrl: originalUrl, style: "portrait" });
       await upsertPetResult(user.id, {
         stylized_url: result.stylizedUrl,
         cutout_url: result.cutoutUrl,

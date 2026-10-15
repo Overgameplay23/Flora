@@ -180,12 +180,16 @@ export default function GardenStage({
   // and the idle motion; the stage only decides where on the painting it stands and how large it is.
   const petGround = sceneToView(frame, scene.pet);
   const petHeight = scene.pet.heightRatio * frame.width * Math.max(0.3, petScale);
-  const isPlaceholder = !petLook && buildPetCandidates(petImageSources, allowOriginal)[0]?.type === "placeholder";
+  const firstCandidate = buildPetCandidates(petImageSources, allowOriginal)[0]?.type;
+  // The painted portrait is the pet; the illustrated rig only stands in while there is none.
+  const portraitShown = firstCandidate === "stylized" || firstCandidate === "cutout";
+  const rigShown = !!petLook && !portraitShown;
+  const isPlaceholder = !rigShown && firstCandidate === "placeholder";
   // The portrait centres itself inside a full-width row; padding shifts that row's centre to the pet's
   // ground point, which keeps the portrait's own width (from the image aspect) out of this layout.
   const petRowPadding =
     petGround.x >= width / 2 ? { paddingLeft: 2 * petGround.x - width } : { paddingRight: width - 2 * petGround.x };
-  const renderSource = petLook ? "rig" : isPlaceholder ? "placeholder" : petImageSources?.stylized ? "stylized" : petImageSources?.cutout ? "cutout" : petImageSources?.photo ? "photo" : "originalMasked";
+  const renderSource = portraitShown ? firstCandidate : rigShown ? "rig" : isPlaceholder ? "placeholder" : petImageSources?.photo ? "photo" : "originalMasked";
 
   // ---- wander: now and then the illustrated pet ambles a few steps along the grass and settles ------
   const wanderX = useRef(new Animated.Value(0)).current;
@@ -198,7 +202,7 @@ export default function GardenStage({
     });
     return () => wanderX.removeListener(id);
   }, [wanderX]);
-  const wanderActive = petWander && !!petLook && !hidePet && !petResting && !reducedMotion && !petAct;
+  const wanderActive = petWander && rigShown && !hidePet && !petResting && !reducedMotion && !petAct;
   const wanderBounds = useMemo(
     () => ({
       min: -Math.max(0, Math.min(frame.width * 0.16, petGround.x - frame.left - petHeight * 0.45)),
