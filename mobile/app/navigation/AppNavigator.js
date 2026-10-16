@@ -28,6 +28,7 @@ import NetworkDebugScreen from '../../src/screens/NetworkDebugScreen';
 import DiagnosticsScreen from '../../src/screens/DiagnosticsScreen';
 import JourneysScreen from '../../src/screens/JourneysScreen';
 import JourneyScreen from '../../src/screens/JourneyScreen';
+import KeepsakesScreen from '../../src/screens/KeepsakesScreen';
 import {
   finchTabBarItemStyle,
   finchTabBarLabelStyle,
@@ -131,6 +132,7 @@ export default function AppNavigator({ initialRoute = null }) {
       <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} options={{ title: "Diagnostics", headerShown: true }} />
       <Stack.Screen name="Journeys" component={JourneysScreen} options={{ title: "Journeys", headerShown: true }} />
       <Stack.Screen name="Journey" component={JourneyScreen} options={{ title: "Journey", headerShown: true }} />
+      <Stack.Screen name="Keepsakes" component={KeepsakesScreen} options={{ title: "Keepsakes", headerShown: true }} />
     </Stack.Navigator>
   );
 }

@@ -26,6 +26,21 @@ describe("homePetLine", () => {
     expect(line).not.toMatch(/\d+ days?|skipped|missed (a|your)|behind/i);
   });
 
+  it("follows the voice the person chose, and falls back to warm", () => {
+    const warm = homePetLine({ ...base, voice: "warm" });
+    const gentle = homePetLine({ ...base, voice: "gentle" });
+    const plain = homePetLine({ ...base, voice: "plain" });
+    expect(homePetLine(base)).toBe(warm);
+    expect(homePetLine({ ...base, voice: "shouty" as any })).toBe(warm);
+    expect(new Set([warm, gentle, plain]).size).toBe(3);
+    for (const voice of ["gentle", "plain", "warm"] as const) {
+      for (const energy of ["exhausted", "anxious"] as const) {
+        expect(homePetLine({ ...base, voice, energy })).not.toMatch(/\b(should|must|missed|behind|lazy)\b/i);
+      }
+      expect(homePetLine({ ...base, voice, done: 2 })).toMatch(/2|done|progress|noticed|kind/i);
+    }
+  });
+
   it("celebrates once everything is done", () => {
     expect(homePetLine({ ...base, done: 4 })).toMatch(/together|done|proud|yours/i);
   });

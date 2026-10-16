@@ -47,6 +47,9 @@ one is something a real-pet app can beat:
   the soft paywall (Club decision).
 - **2026-10-16, later:** **Journeys v1** (item 8): ten seven-day arcs, one per focus area, paced one step a day with
   no penalties; today's step on Home, a Journeys list and detail. Rewards for finishing and sequels are next.
+- **2026-10-16, later still:** "Add your own" care tasks on Home (Finch's custom goals); **Days Together
+  milestones** (1 to 365 days, one moment each, kept as **Keepsakes** with the journeys walked and the day the pet
+  moved in: Profile › Keepsakes); the pet's lines on Home follow the **voice** chosen in onboarding.
 
 ## Next, in order
 

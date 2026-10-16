@@ -482,3 +482,21 @@ stale-row deactivation never touches them (it only quietens catalog titles). Mid
 "Welcome back" (confusing on a first day) to "Good afternoon"; "Welcome back" remains the real return greeting.
 Verified on web: add "Take my meds" → Body · 5 min · Your own → tick → +2 Sprouts. `customTasks.test.ts` covers
 the title/colour rules and the device meta.
+
+## 2026-10-16 — Days Together milestones, keepsakes, and the pet's voice
+
+- **Milestones** (`src/domain/milestones.ts`, store `floura:milestones:<uid>`): thresholds 1, 3, 7, 14, 21, 30, 50,
+  75, 100, 150, 200 and 365 days of care. When Days Together (the same count Home shows) reaches one, Home shows
+  one moment (`MilestoneSheet`: the pet, its line, the keepsake it leaves; love reaction, success haptic) and
+  writes it down. A person who updates on day 40 gets one sheet ("a month together"); the thresholds below are
+  recorded quietly as reached "before keepsakes existed". Nothing is ever lost or reset, and there is no
+  penalty anywhere in this: Days Together only goes up.
+- **Keepsakes** (Profile › Keepsakes, route `Keepsakes`): the milestones, the journeys walked (from the journey
+  store) and the day the pet moved in (care prefs `completedAt`), newest first, plus "next keepsake in N days".
+  This is the first half of the roadmap's scrapbook; the Sunday page and room items are still open.
+- **Voice**: `homePetLine` now takes the voice chosen in onboarding (`carePrefs.voice`: gentle / warm / plain),
+  with a line set per voice for every branch (returning, all done, drained, on edge, progress, morning, evening,
+  night, day); unknown or missing falls back to warm, so nothing changes for existing users until they choose.
+  Not yet voiced: the task-done toast, the journey lines, the reminders.
+- Verified on web with the test account (day 1): the "First day together" sheet on Home, Keepsakes with the
+  milestone and "Maple moved in". jest: `milestones.test.ts` new, `homeDialogue.test.ts` extended.

@@ -8,7 +8,10 @@ import NetInfo from "@react-native-community/netinfo";
 import HomeView from "../../src/components/home/HomeView";
 import FocusPickerSheet from "../../src/components/home/FocusPickerSheet";
 import AddTaskSheet from "../../src/components/home/AddTaskSheet";
+import MilestoneSheet from "../../src/components/home/MilestoneSheet";
 import { createCustomTask, removeCustomTask } from "../../src/services/customTasks";
+import { reconcileMilestonesForUser } from "../../src/services/milestoneStore";
+import { loadCarePrefs } from "../../src/services/carePrefs";
 import PressableScale from "../../src/components/common/PressableScale";
 import BreathingModal from "../../src/components/checkin/BreathingModal";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -117,6 +120,10 @@ export default function HomeScreen() {
   const [savingFocus, setSavingFocus] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
+  // how the pet talks (chosen in onboarding) and the Days Together milestone being celebrated, if any
+  const [voice, setVoice] = useState("warm");
+  const [milestone, setMilestone] = useState(null);
+  const milestoneChecked = useRef(null);
   const [completing, setCompleting] = useState({});
   const [noticeByTask, setNoticeByTask] = useState({});
   const [toast, setToast] = useState(null);
@@ -225,6 +232,36 @@ export default function HomeScreen() {
     },
     [homeDateKey, user?.id]
   );
+
+  // ---- the pet's voice, from the care preferences ---------------------------------------------------------
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let alive = true;
+    loadCarePrefs(user.id)
+      .then((prefs) => {
+        if (alive) setVoice(prefs.voice);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [homeDateKey, user?.id]);
+
+  // ---- Days Together milestones: one moment when a threshold is reached, kept as a keepsake -----------
+  useEffect(() => {
+    if (!user?.id || inMemorial || typeof daysTogether !== "number") return;
+    const key = `${user.id}:${homeDateKey}:${daysTogether}`;
+    if (milestoneChecked.current === key) return;
+    milestoneChecked.current = key;
+    reconcileMilestonesForUser(user.id, daysTogether, homeDateKey)
+      .then((reached) => {
+        if (reached == null) return;
+        setMilestone(reached);
+        setPetReaction("love");
+        haptics.success();
+      })
+      .catch(() => {});
+  }, [daysTogether, homeDateKey, inMemorial, user?.id]);
 
   // ---- ask for a name once the pet is painted and still unnamed ---------------------------------------
   useEffect(() => {
@@ -711,6 +748,7 @@ export default function HomeScreen() {
     place,
     focus: focusAreas[0]?.short ?? null,
     seed: homeDateKey,
+    voice,
   });
   const petMood = energyOption(energy)?.petMood ?? petMoodFromStores({ liveState: petEmotionState, dailyMood: moodState, hour });
 
@@ -896,6 +934,15 @@ export default function HomeScreen() {
         onClose={() => (savingFocus ? null : setFocusOpen(false))}
       />
       <AddTaskSheet visible={addOpen} petName={petDisplayName} saving={savingTask} onSave={(input) => void handleAddTask(input)} onClose={() => (savingTask ? null : setAddOpen(false))} />
+      <MilestoneSheet
+        days={milestone}
+        petName={petDisplayName}
+        onClose={() => setMilestone(null)}
+        onKeepsakes={() => {
+          setMilestone(null);
+          navigation.navigate("Keepsakes");
+        }}
+      />
       <BreathingModal visible={breathingOpen} onClose={() => setBreathingOpen(false)} />
 
       <Modal visible={petNameModalVisible} transparent animationType="fade" onRequestClose={() => {}}>
