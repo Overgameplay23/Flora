@@ -13,6 +13,15 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 16 October 2026** (details in `docs/dev-notes.md`, five entries dated 2026-10-16, and `docs/ROADMAP.md`):
+> `main` now carries the SDK 57 upgrade, the home redesign + plan engine (reviewed; the review fixes are on main) and
+> the honest sign-up messages, plus five change sets built the same day: **Onboarding v2** (pet first, quiz, plan
+> reveal), **Journeys** (seven-day arcs), **"Add your own"** care tasks, **Days Together milestones + Keepsakes**
+> and the pet's chosen **voice**, and a calm **Pet the pet** game with Sprouts for the first game of the day.
+> `npm run check`: 44 suites / 323 tests, typecheck, Deno check and web export green. Everything was verified on
+> web against the local stack; nothing new has been run on a phone yet. Still the owner's: deploy `pet-stylize`
+> with a Gemini key, the Cozy Run rules, anonymous sign-in on Bloom, an app identity for a dev build.
+
 > **Update, 14 October 2026** (details in `RESTORATION_BASELINE.md` 6.31 and 6.32): there is now a hosted
 > Supabase project, **Bloom** (`jhrsfogxxexmzauhtjif`, all 29 migrations). The app is on **Expo SDK 57**
 > (React Native 0.86, React 19.2; branch `upgrade/sdk-57`) because App Store Expo Go no longer opens SDK 54.
