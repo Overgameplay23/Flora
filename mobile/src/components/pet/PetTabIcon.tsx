@@ -5,7 +5,8 @@ import { usePet } from "../../hooks/usePet";
 import { useSignedPetPhotoUrl } from "../../services/petPhotoUrls";
 import { hasPortrait } from "../garden/usePetCandidates";
 import PetRig from "./vector/PetRig";
-import { brand, ink, surfaces } from "../../theme/tokens";
+import { brand } from "../../theme/tokens";
+import { useTheme } from "../../theme/theme";
 
 /**
  * The Pet tab shows the user's own pet instead of a generic icon: the painted portrait when it exists,
@@ -17,9 +18,10 @@ export default function PetTabIcon({ focused }: { focused: boolean }) {
   // the pets bucket is private: show a short-lived signed URL for the stored locator
   const uri = useSignedPetPhotoUrl(sources.stylized || sources.cutout || sources.photo || sources.original || null);
   const showRig = !!look && !(hasPortrait(sources) && uri);
+  const { surface, bloom } = useTheme();
   return (
     <View style={styles.iconWrap}>
-      <View style={[styles.ring, focused && styles.ringActive]}>
+      <View style={[styles.ring, { borderColor: focused ? surface.text : surface.track }]}>
         {showRig ? (
           <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
             <PetRig look={look} size={30} mood="calm" reducedMotion />
@@ -34,10 +36,10 @@ export default function PetTabIcon({ focused }: { focused: boolean }) {
             importantForAccessibility="no"
           />
         ) : (
-          <Feather name="heart" size={16} color={focused ? ink.primary : ink.tertiary} />
+          <Feather name="heart" size={16} color={focused ? surface.text : surface.textTertiary} />
         )}
       </View>
-      <View style={[styles.indicator, focused && styles.indicatorActive]} />
+      <View style={[styles.indicator, focused && { backgroundColor: bloom }]} />
     </View>
   );
 }
@@ -56,10 +58,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: brand.goldTint,
     borderWidth: 1.5,
-    borderColor: surfaces.light.track,
-  },
-  ringActive: {
-    borderColor: ink.primary,
   },
   image: {
     width: 24,
@@ -78,8 +76,5 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "transparent",
     marginTop: 3,
-  },
-  indicatorActive: {
-    backgroundColor: brand.bloom,
   },
 });

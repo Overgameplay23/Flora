@@ -33,6 +33,12 @@ one is something a real-pet app can beat:
 - **Pet portrait v3 client fixes** (timeout, opaque-portrait guard, memorial portrait). The function still has to
   be **deployed to Bloom with a `GEMINI_API_KEY`** (owner's action).
 
+- **Every screen on the design system** (same day): Garden, Pet, Profile, Check-in, Journal, Our week, Cycle,
+  Reminders, Memorial, Play + game chrome, All tasks, Habits, sign-in, splash; day/night paper app-wide, themed
+  headers and status bar, a shared kit (`src/components/common`), the pet in empty/loading states and sheets, and
+  breathing rebuilt once (4-2-6, the pet breathes with you, a haptic per phase). Onboarding, Talk, plant store and
+  the painting screens are still dark slate. Web previews of every screen: `?preview=<screen>`.
+
 ## Next, in order
 
 ### 1. The pet everywhere (1-2 sessions)

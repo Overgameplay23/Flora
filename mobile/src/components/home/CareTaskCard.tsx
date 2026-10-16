@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import PressableScale from "../common/PressableScale";
-import { brand, categoryTone, fonts, radius, springs, type, type Surface } from "../../theme/tokens";
+import { brand, categoryTone, fonts, ink, radius, springs, type, type Surface } from "../../theme/tokens";
 
 export type CareTaskCardProps = {
   title: string;
@@ -114,7 +114,7 @@ export default function CareTaskCard({
             {saving ? (
               <ActivityIndicator size="small" color={accent} />
             ) : done ? (
-              <Ionicons name="checkmark" size={22} color={brand.cream} />
+              <Ionicons name="checkmark" size={22} color={night ? ink.primary : brand.cream} />
             ) : opens ? (
               <Ionicons name="arrow-forward" size={18} color={accent} />
             ) : null}

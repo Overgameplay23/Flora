@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Image, LayoutChangeEvent, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { AccessibilityInfo, Image, LayoutChangeEvent, Platform, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { computeSceneFrame } from "../domain/gardenScene";
 import { SCENE, SCENE_BACKGROUND } from "../components/garden/sceneAssets";
+import PressableScale from "../components/common/PressableScale";
+import { useTheme } from "../theme/theme";
+import { fonts, radius, type } from "../theme/tokens";
 
 export type FieldSize = { width: number; height: number };
 
@@ -41,6 +44,9 @@ type GameFieldProps = {
  */
 export default function GameField({ title, stat, secondary, onClose, children, hint }: GameFieldProps) {
   const insets = useSafeAreaInsets();
+  const { surface } = useTheme();
+  // the HUD is paper laid over the painting: a soft pill with a warm shadow and ink text
+  const pill = { backgroundColor: surface.paperOverScene, boxShadow: surface.shadow };
   const [size, setSize] = useState<FieldSize>({ width: 0, height: 0 });
   const fieldRef = useRef<any>(null);
 
@@ -82,22 +88,31 @@ export default function GameField({ title, stat, secondary, onClose, children, h
         <View pointerEvents="none" style={styles.wash} />
         {size.width > 0 ? children(size) : null}
         <View style={[styles.hud, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-          <View style={styles.hudPill}>
-            <Text style={styles.hudTitle}>{title}</Text>
-            <Text style={styles.hudStat}>{stat}</Text>
+          <View style={[styles.hudPill, pill]}>
+            <Text style={[type.meta, styles.hudTitle, { color: surface.textSecondary }]}>{title}</Text>
+            <Text style={[styles.hudStat, { color: surface.text }]}>{stat}</Text>
           </View>
           <View style={styles.hudRight}>
-            <View style={styles.hudPill}>
-              <Text style={styles.hudStat}>{secondary}</Text>
+            <View style={[styles.hudPill, pill]}>
+              <Text style={[styles.hudStat, { color: surface.text }]}>{secondary}</Text>
             </View>
-            <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10} accessibilityRole="button" accessibilityLabel="Leave the game">
-              <Feather name="x" size={18} color="#f8fafc" />
-            </Pressable>
+            <PressableScale
+              onPress={onClose}
+              style={[styles.closeButton, pill]}
+              hitSlop={10}
+              pressedScale={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Leave the game"
+            >
+              <Ionicons name="close" size={20} color={surface.text} />
+            </PressableScale>
           </View>
         </View>
         {hint ? (
           <View style={[styles.hintWrap, { top: insets.top + 60 }]} pointerEvents="none">
-            <Text style={styles.hint}>{hint}</Text>
+            <View style={[styles.hintPill, pill]}>
+              <Text style={[type.meta, styles.hint, { color: surface.text }]}>{hint}</Text>
+            </View>
           </View>
         ) : null}
       </View>
@@ -122,36 +137,26 @@ const styles = StyleSheet.create({
   hudPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,23,42,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    minHeight: 38,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
     marginRight: 8,
   },
-  hudTitle: { color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: "700", marginRight: 8 },
-  hudStat: { color: "#f8fafc", fontSize: 15, fontWeight: "800" },
+  hudTitle: { marginRight: 8 },
+  hudStat: { fontFamily: fonts.bodyHeavy, fontSize: 15, lineHeight: 20 },
   closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(15,23,42,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
   },
   hintWrap: { position: "absolute", left: 16, right: 16, alignItems: "center" },
-  hint: {
-    color: "#f8fafc",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,23,42,0.55)",
-    overflow: "hidden",
+  hintPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
   },
+  hint: { textAlign: "center" },
 });

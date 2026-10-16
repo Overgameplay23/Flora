@@ -1,14 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { notify } from "../../src/utils/confirm";
 import { useFocusEffect } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { supabase } from "../../src/lib/supabase";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import PetPortrait from "../../src/components/pet/PetPortrait";
+import { PetLoading } from "../../src/components/pet/PetMoments";
+import Screen from "../../src/components/common/Screen";
+import StatStrip from "../../src/components/common/StatStrip";
+import { ListGroup, ListRow } from "../../src/components/common/ListGroup";
+import { Eyebrow } from "../../src/components/common/Headings";
+import { useTheme } from "../../src/theme/theme";
+import { type } from "../../src/theme/tokens";
 import { isAdopted } from "../../src/domain/shelter";
 import { remindersSummary } from "../../src/domain/reminders";
 import { loadReminderSettings, remindersSupported } from "../../src/services/reminders";
@@ -17,28 +23,10 @@ import { getISOWeekKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 
-function Row({ icon, label, hint, onPress, badge, tone = "default" }) {
-  return (
-    <Pressable style={[styles.row, tone === "danger" && styles.rowDanger]} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-      <View style={styles.rowIcon}>
-        <Feather name={icon} size={16} color={tone === "danger" ? "#fca5a5" : "#e2e8f0"} />
-      </View>
-      <View style={styles.rowBody}>
-        <Text style={[styles.rowLabel, tone === "danger" && styles.rowLabelDanger]}>{label}</Text>
-        {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
-      </View>
-      {badge ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badge}</Text>
-        </View>
-      ) : null}
-      <Feather name="chevron-right" size={16} color="rgba(148,163,184,0.7)" />
-    </Pressable>
-  );
-}
-
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
+  const theme = useTheme();
+  const { surface } = theme;
   const { sources: petSources, look: petLook, displayName, memorial } = usePet();
   const adopted = isAdopted(petLook);
   const [reminderHint, setReminderHint] = useState(remindersSupported ? "Off" : "On your phone");
@@ -123,64 +111,63 @@ export default function ProfileScreen({ navigation }) {
 
   if (loading && !profile) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
-      </View>
+      <Screen scroll={false} centered topInset>
+        <PetLoading />
+      </Screen>
     );
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.hero}>
-        <PetPortrait sources={petSources} look={petLook} size={96} mood="calm" allowOriginal emptyLabel="Add pet" resting={!!memorial} />
-        <Text style={styles.heroTitle}>You and {displayName}</Text>
-        <Text style={styles.heroEmail} numberOfLines={1}>
+    <Screen topInset bottomPad={110}>
+      <View style={[styles.hero, { backgroundColor: theme.tone("connection").fill, boxShadow: surface.shadow }]}>
+        <PetPortrait sources={petSources} look={petLook} size={112} mood={memorial ? "calm" : "happy"} allowOriginal emptyLabel="Add pet" resting={!!memorial} />
+        <Text style={[type.title, styles.heroTitle, { color: surface.text }]} accessibilityRole="header">
+          You and {displayName}
+        </Text>
+        <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={1}>
           {user?.email || "Signed in"}
         </Text>
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>days in a row</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{bestStreak}</Text>
-            <Text style={styles.statLabel}>best run</Text>
-          </View>
-        </View>
       </View>
+      <StatStrip
+        style={styles.stats}
+        items={[
+          { value: streak, label: streak === 1 ? "day in a row" : "days in a row", icon: "flame-outline", category: "energy" },
+          { value: bestStreak, label: "best run", icon: "ribbon-outline", category: "play" },
+        ]}
+      />
 
-      <Text style={styles.sectionTitle}>Reflect</Text>
-      <View style={styles.group}>
-        <Row icon="book-open" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
-        <Row icon="sun" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />
-        <Row icon="edit-3" label="Journal" hint="A few lines for yourself" onPress={() => navigation.navigate("Journal")} />
-        <Row icon="calendar" label="Cycle tracking" hint={cycleEnabled ? "On · stays on this device" : "Off · optional, on-device only"} onPress={() => navigation.navigate("Cycle")} />
-        <Row icon="bell" label="Reminders" hint={reminderHint} onPress={() => navigation.navigate("Reminders")} />
-      </View>
+      <Eyebrow style={styles.sectionTitle}>Reflect</Eyebrow>
+      <ListGroup>
+        <ListRow icon="book-outline" category="connection" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
+        <ListRow icon="sunny-outline" category="energy" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />
+        <ListRow icon="create-outline" category="focus" label="Journal" hint="A few lines for yourself" onPress={() => navigation.navigate("Journal")} />
+        <ListRow icon="flower-outline" category="cycle" label="Cycle tracking" hint={cycleEnabled ? "On · stays on this device" : "Off · optional, on-device only"} onPress={() => navigation.navigate("Cycle")} />
+        <ListRow icon="notifications-outline" category="rest" label="Reminders" hint={reminderHint} onPress={() => navigation.navigate("Reminders")} />
+      </ListGroup>
 
-      <Text style={styles.sectionTitle}>Your pet</Text>
-      <View style={styles.group}>
-        {talkOn ? <Row icon="message-circle" label={`Talk to ${displayName}`} hint="A few words, in their voice" onPress={() => navigation.navigate("PetTalk")} /> : null}
+      <Eyebrow style={styles.sectionTitle}>Your pet</Eyebrow>
+      <ListGroup>
+        {talkOn ? <ListRow icon="chatbubble-ellipses-outline" category="calm" label={`Talk to ${displayName}`} hint="A few words, in their voice" onPress={() => navigation.navigate("PetTalk")} /> : null}
         {adopted ? (
-          <Row icon="heart" label={`${displayName} is an adopted companion`} hint="Change their look or name from the Pet tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
+          <ListRow icon="heart-outline" category="connection" label={`${displayName} is an adopted companion`} hint="Change their look or name from the Pet tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
         ) : (
-          <Row icon="camera" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
+          <ListRow icon="camera-outline" category="play" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
         )}
         {!adopted || memorial ? (
-          <Row
-            icon="moon"
+          <ListRow
+            icon="moon-outline"
+            category="calm"
             label={memorial ? `Remembering ${displayName}` : `If ${displayName} has passed away`}
             hint={memorial ? "Memories, and the way back if this was a mistake" : "A quiet memorial garden, no pressure"}
             onPress={() => navigation.navigate("Memorial")}
           />
         ) : null}
-      </View>
+      </ListGroup>
 
-      <Text style={styles.sectionTitle}>Account</Text>
-      <View style={styles.group}>
-        <Row
-          icon="log-out"
+      <Eyebrow style={styles.sectionTitle}>Account</Eyebrow>
+      <ListGroup>
+        <ListRow
+          icon="log-out-outline"
           label="Sign out"
           tone="danger"
           onPress={async () => {
@@ -192,83 +179,26 @@ export default function ProfileScreen({ navigation }) {
             }
           }}
         />
-      </View>
+      </ListGroup>
 
-      <Pressable style={styles.version} onPress={handleVersionTap}>
-        <Text style={styles.versionText}>Luna {appVersion}</Text>
+      <Pressable style={styles.version} onPress={handleVersionTap} accessibilityLabel={`Version ${appVersion}`}>
+        <Text style={[type.meta, { color: surface.textTertiary }]}>Luna {appVersion}</Text>
       </Pressable>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  content: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 110 },
   hero: {
     alignItems: "center",
-    paddingVertical: 18,
+    paddingTop: 20,
+    paddingBottom: 18,
     paddingHorizontal: 16,
-    borderRadius: 22,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
+    borderRadius: 28,
+    borderCurve: "continuous",
   },
-  heroTitle: { marginTop: 8, color: "#e2e8f0", fontSize: 20, fontWeight: "800" },
-  heroEmail: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 12 },
-  statsRow: { flexDirection: "row", alignItems: "center", marginTop: 14 },
-  stat: { alignItems: "center", paddingHorizontal: 22 },
-  statDivider: { width: 1, height: 28, backgroundColor: "rgba(148,163,184,0.3)" },
-  statValue: { color: "#e2e8f0", fontSize: 20, fontWeight: "800" },
-  statLabel: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 11, fontWeight: "600" },
-  sectionTitle: {
-    marginTop: 18,
-    marginBottom: 8,
-    marginLeft: 4,
-    color: "rgba(148,163,184,0.95)",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  group: {
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    overflow: "hidden",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(148,163,184,0.12)",
-    minHeight: 56,
-  },
-  rowDanger: { borderBottomWidth: 0 },
-  rowIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(148,163,184,0.16)",
-    marginRight: 12,
-  },
-  rowBody: { flex: 1 },
-  rowLabel: { color: "#e2e8f0", fontSize: 15, fontWeight: "600" },
-  rowLabelDanger: { color: "#fca5a5" },
-  rowHint: { marginTop: 2, color: "rgba(148,163,184,0.85)", fontSize: 12 },
-  badge: {
-    marginRight: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#35d07f",
-  },
-  badgeText: { color: "#0f172a", fontSize: 11, fontWeight: "800" },
+  heroTitle: { marginTop: 10, textAlign: "center" },
+  stats: { marginTop: 12 },
+  sectionTitle: { marginTop: 24, marginBottom: 8, marginLeft: 6 },
   version: { alignSelf: "center", marginTop: 22, padding: 8 },
-  versionText: { color: "rgba(148,163,184,0.7)", fontSize: 12 },
 });

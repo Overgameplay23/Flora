@@ -1,6 +1,11 @@
 import React, { useState } from "react";
-import { View, TextInput, Button, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
+import AuthLayout from "../components/auth/AuthLayout";
+import TextField from "../components/common/TextField";
+import Button from "../components/common/Button";
+import { useTheme } from "../theme/theme";
+import { fonts, type } from "../theme/tokens";
 
 function getAuthErrorDetails(error) {
   const status = typeof error?.status === "number" ? error.status : undefined;
@@ -18,6 +23,8 @@ export default function LoginScreen({ navigation }) {
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
   const [emailHasError, setEmailHasError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const theme = useTheme();
 
   function handleEmailChange(nextEmail) {
     setEmail(nextEmail);
@@ -50,6 +57,7 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
+    setBusy(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -70,49 +78,48 @@ export default function LoginScreen({ navigation }) {
       } else {
         setErr("Unable to sign in. Please check your details.");
       }
+    } finally {
+      setBusy(false);
     }
     // The navigation will be handled by the AuthProvider
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Log In</Text>
-      <TextInput
-        style={[styles.input, emailHasError && styles.inputError]}
-        placeholder="Email"
+    <AuthLayout title="Welcome back" subtitle="Your pet's garden is waiting for you.">
+      <TextField
+        label="Email"
+        placeholder="you@example.com"
         autoCapitalize="none"
+        autoComplete="email"
+        keyboardType="email-address"
+        textContentType="emailAddress"
         onChangeText={handleEmailChange}
         value={email}
+        error={emailHasError}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
+      <TextField
+        label="Password"
+        placeholder="Your password"
         secureTextEntry
+        autoComplete="current-password"
+        textContentType="password"
         onChangeText={setPwd}
         value={pwd}
+        returnKeyType="go"
+        onSubmitEditing={handleLogin}
       />
-      {err ? <Text style={styles.err}>{err}</Text> : null}
-      <Button title="Sign In" onPress={handleLogin} />
-      <Text onPress={() => navigation.navigate("Signup")} style={styles.link}>
-        New here? Create account
-      </Text>
-    </View>
+      {err ? <Text style={[type.meta, { color: theme.alert }]} accessibilityLiveRegion="polite">{err}</Text> : null}
+      <Button label="Sign in" onPress={handleLogin} loading={busy} containerStyle={styles.cta} />
+      <Pressable onPress={() => navigation.navigate("Signup")} hitSlop={8} accessibilityRole="link" style={styles.link}>
+        <Text style={[type.callout, { color: theme.surface.textSecondary }]}>
+          New here? <Text style={{ color: theme.link, fontFamily: fonts.bodyBold }}>Create an account</Text>
+        </Text>
+      </Pressable>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  title: { fontSize: 32, marginBottom: 20, textAlign: "center" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  inputError: {
-    borderColor: "red",
-  },
-  err: { color: "red", marginBottom: 8 },
-  link: { marginTop: 16, color: "#0a84ff", textAlign: "center" },
+  cta: { marginTop: 6 },
+  link: { alignSelf: "center", marginTop: 8, paddingVertical: 6 },
 });

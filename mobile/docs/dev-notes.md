@@ -330,3 +330,29 @@ and no `GEMINI_API_KEY`, so painting cannot work on the phone yet; the app falls
   answers at once and lets the app check back.
 - The `user_plans` migration (`local-backend/sql/plan_engine_v1.sql`, not applied) rejects the `cycle` focus by design:
   strip it before syncing focus areas to the server.
+
+**Reskin of every remaining screen (2026-10-15):** Garden, Pet, Profile, Check-in, Journal, Breathing, Our week,
+Cycle, Reminders, Memorial, Play and the game chrome, All tasks, Habits, Login/Signup, the splash and "can't reach"
+screens and the stack headers now use the design system (see the new last section of `docs/design-system.md`).
+Decisions made and conflicts left for Donovan:
+- Night paper app-wide: from 21:00 to 05:00 every screen, header and the tab bar go to the night paper, as Home
+  already did. The status bar follows (one app-wide style; Home, Garden and Pet follow their sky while in front).
+- Breathing: the old box breathing (4-4-4-4, Breathing route) and the 4-second modal are one 4-2-6 session now.
+  Home still ticks a breathing task when the person comes back from it; nothing new is logged.
+- Check-in: the 1-5 slider is a five-tile picker (same 1-5 values, protected mode unchanged). The "Saved" alert is
+  replaced by the pet reacting in place (bubble, cheer, toast) before going back. `@react-native-community/slider`
+  is no longer imported anywhere; drop it from package.json if nothing else needs it.
+- Garden says "Sprouts" (as Home) instead of "points"; All tasks still says "pts" and Our week "points went into
+  the garden". Pick one word everywhere.
+- Conflicts with the roadmap: Cycle shows one predicted date and "expected" days with default 28/5 lengths before
+  any cycles are logged (roadmap: ranges only, after 2+ cycles). Play is a stack screen and points still need the
+  "Play with {pet}" task (roadmap: the first game of the day earns Sprouts on its own). Our week shows "of 7 days"
+  and All tasks/Habits show "N of M done", which count what was missed; "Mark the other N done" on All tasks is a
+  bulk tick (one pet response per act is the rule). Habits, All tasks and Home's plan overlap; the All tasks empty
+  line ("Edit your habits from Home") is stale.
+- App name: copy still says "Luna" (Profile footer, Memorial, Cycle, Reminders) while the docs say Floura.
+- Still dark slate (not part of this pass): onboarding, Talk, pet chat, garden progress, plant store, the painting
+  loading/result screens, PetLookEditor, the env/network banners, Diagnostics and Network debug.
+  `src/components/GardenScene.js` and `src/components/habits/EditHabitsModal.tsx` are no longer used.
+- Dev previews pin a fixture pet through `pinPetForPreview` (petStore) and `PreviewAuthProvider` (AuthContext);
+  both are only reached from `src/screens/dev/DesignPreview.tsx` under `__DEV__` on web.

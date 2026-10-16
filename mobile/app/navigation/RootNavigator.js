@@ -1,7 +1,9 @@
 import React from "react";
-import { ActivityIndicator, View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { deriveAppGate } from "../../src/domain/appGate";
 import LoginScreen from "../../src/screens/LoginScreen";
@@ -14,17 +16,25 @@ import AppNavigator from "./AppNavigator";
 import EnvWarningBanner from "../../src/components/EnvWarningBanner";
 import NetworkBlockBanner from "../../src/components/NetworkBlockBanner";
 import AuthStatusBanner from "../../src/components/AuthStatusBanner";
+import Button from "../../src/components/common/Button";
+import IconTile from "../../src/components/common/IconTile";
+import PetMascot from "../../src/components/pet/PetMascot";
+import { PetLoading, useHasPet } from "../../src/components/pet/PetMoments";
+import { navigationThemeFor, useTheme } from "../../src/theme/theme";
+import { type } from "../../src/theme/tokens";
 
 const RootStack = createNativeStackNavigator();
 const AuthStackNav = createNativeStackNavigator();
 const AppStackNav = createNativeStackNavigator();
 
-function SplashScreen() {
+/** While the session wakes up: the sky of the hour, and the pet breathing if it is already known. */
+export function SplashScreen() {
+  const { sky } = useTheme();
   return (
-    <View style={styles.splash}>
-      <ActivityIndicator />
-      <Text style={styles.splashText}>Loading...</Text>
-    </View>
+    <LinearGradient colors={[sky.top, sky.mid, sky.horizon]} locations={[0, 0.55, 1]} style={styles.splash}>
+      <PetLoading size={120} />
+      <Text style={[type.h2, styles.splashTitle, { color: sky.text }]}>Waking the garden…</Text>
+    </LinearGradient>
   );
 }
 
@@ -32,19 +42,20 @@ function SplashScreen() {
  * Shown when the profile cannot be loaded and this device has no memory of whether the user already
  * has a pet. Sending them to pet setup here would make an existing user re-create their pet (R-04).
  */
-function UnreachableScreen({ onRetry, onSignOut, retrying }) {
+export function UnreachableScreen({ onRetry, onSignOut, retrying }) {
+  const { surface } = useTheme();
+  const hasPet = useHasPet();
   return (
-    <View style={styles.splash}>
-      <Text style={styles.unreachableTitle}>Can't reach your garden</Text>
-      <Text style={styles.unreachableBody}>
+    <View style={[styles.unreachable, { backgroundColor: surface.canvas }]}>
+      {hasPet ? <PetMascot size={120} mood="calm" /> : <IconTile icon="cloud-offline-outline" category="rest" size={72} round />}
+      <Text style={[type.title, styles.unreachableTitle, { color: surface.text }]} accessibilityRole="header">
+        Can't reach your garden
+      </Text>
+      <Text style={[type.callout, styles.unreachableBody, { color: surface.textSecondary }]}>
         We couldn't load your profile. Check your connection and try again; nothing has been lost.
       </Text>
-      <Pressable style={[styles.retryButton, retrying && styles.retryButtonDisabled]} onPress={onRetry} disabled={retrying}>
-        {retrying ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.retryButtonText}>Try again</Text>}
-      </Pressable>
-      <Pressable style={styles.signOutButton} onPress={onSignOut}>
-        <Text style={styles.signOutText}>Sign out</Text>
-      </Pressable>
+      <Button label="Try again" onPress={onRetry} loading={retrying} size="md" containerStyle={styles.retryButton} style={styles.retryInner} />
+      <Button label="Sign out" onPress={onSignOut} variant="quiet" size="md" containerStyle={styles.signOutButton} />
     </View>
   );
 }
@@ -88,6 +99,8 @@ export default function RootNavigator() {
     signOut,
   } = useAuth();
   const [retrying, setRetrying] = React.useState(false);
+  const theme = useTheme();
+  const navigationTheme = React.useMemo(() => navigationThemeFor(theme), [theme]);
   const hasUser = !!session?.user;
   const gate = deriveAppGate({
     hasUser,
@@ -130,9 +143,13 @@ export default function RootNavigator() {
     );
   }
 
+  const statusBar = initializing || gate === "splash" ? theme.sky.statusBar : theme.statusBar;
+
   return (
-    <View style={{ flex: 1 }}>
-      <NavigationContainer>{content}</NavigationContainer>
+    <View style={{ flex: 1, backgroundColor: theme.surface.canvas }}>
+      {/* one status bar for the whole app, on the paper of the hour; Home follows its sky while in front */}
+      <StatusBar style={statusBar} />
+      <NavigationContainer theme={navigationTheme}>{content}</NavigationContainer>
       <EnvWarningBanner />
       <NetworkBlockBanner />
       <AuthStatusBanner message={authServiceMessage} onDismiss={clearAuthServiceMessage} />
@@ -145,54 +162,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0f172a",
     paddingHorizontal: 28,
   },
-  splashText: {
-    marginTop: 10,
-    color: "rgba(226,232,240,0.9)",
-    fontSize: 13,
-    fontWeight: "600",
+  splashTitle: {
+    marginTop: 4,
+    textAlign: "center",
+  },
+  unreachable: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 28,
   },
   unreachableTitle: {
-    color: "#e2e8f0",
-    fontSize: 20,
-    fontWeight: "800",
+    marginTop: 18,
     textAlign: "center",
   },
   unreachableBody: {
     marginTop: 8,
-    color: "rgba(203,213,225,0.9)",
-    fontSize: 14,
-    lineHeight: 20,
     textAlign: "center",
+    maxWidth: 340,
   },
   retryButton: {
-    marginTop: 20,
-    minWidth: 160,
-    minHeight: 44,
-    borderRadius: 999,
-    backgroundColor: "#34d399",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 22,
+    marginTop: 22,
+    alignSelf: "center",
   },
-  retryButtonDisabled: {
-    opacity: 0.7,
-  },
-  retryButtonText: {
-    color: "#0f172a",
-    fontWeight: "800",
-    fontSize: 15,
+  retryInner: {
+    minWidth: 180,
   },
   signOutButton: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  signOutText: {
-    color: "rgba(148,163,184,0.9)",
-    fontSize: 13,
-    fontWeight: "600",
+    marginTop: 6,
+    alignSelf: "center",
   },
 });

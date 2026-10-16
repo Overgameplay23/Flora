@@ -1,10 +1,24 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { confirmAsync, notify } from "../utils/confirm";
-import { Feather } from "@expo/vector-icons";
 import { usePet } from "../hooks/usePet";
 import { useCycle } from "../hooks/useCycle";
-import PetPortrait from "../components/pet/PetPortrait";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Button from "../components/common/Button";
+import Chip from "../components/common/Chip";
+import IconTile from "../components/common/IconTile";
+import PressableScale from "../components/common/PressableScale";
+import StatStrip from "../components/common/StatStrip";
+import TextField from "../components/common/TextField";
+import { Eyebrow, Lead, ScreenTitle, SectionTitle } from "../components/common/Headings";
+import PetMascot from "../components/pet/PetMascot";
+import SpeechBubble from "../components/pet/SpeechBubble";
+import { PetLoading, useHasPet } from "../components/pet/PetMoments";
+import { useTheme } from "../theme/theme";
+import { brand, fonts, ink, radius, space, type } from "../theme/tokens";
+import { selection, tapSoft, warning } from "../utils/haptics";
 import {
   DayLog,
   Flow,
@@ -25,24 +39,46 @@ import { parseDateKey } from "../utils/dateKeys";
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const FLOWS: Flow[] = ["light", "medium", "heavy"];
 
+/** "mood swings" -> "Mood swings" (chip labels; the stored value stays as it is) */
+function capitalize(value: string) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+/** A token hex at a given opacity (predicted days on night paper, where the tint would glare). */
+function withAlpha(hex: string, alpha: number) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 /**
  * Optional cycle tracker. Everything stays on the device; the pet keeps the tone gentle. Turning it on
- * is an explicit choice on this screen, and deleting the data is one tap.
+ * is an explicit choice on this screen, and deleting the data is one tap. Colour: gentle-care pink
+ * (period days strong, expected days tint, today ringed in ink).
  */
 export default function CycleScreen() {
   const { userId, enabled, data, status, loading, today } = useCycle();
-  const { sources, look, displayName } = usePet();
+  const { displayName } = usePet();
+  const theme = useTheme();
+  const { surface, night } = theme;
+  const tone = theme.tone("cycle");
+  const hasPet = useHasPet();
+  const { width } = useWindowDimensions();
   const todayDate = parseDateKey(today) || new Date();
   const [view, setView] = useState({ year: todayDate.getFullYear(), month: todayDate.getMonth() });
   const [selected, setSelected] = useState(today);
   const [draft, setDraft] = useState<DayLog>({ date: today, flow: null, symptoms: [], note: "" });
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   useEffect(() => {
     const existing = dayLogFor(data, selected);
     setDraft({ date: selected, flow: existing?.flow ?? null, symptoms: existing?.symptoms ?? [], note: existing?.note ?? "" });
     setSavedNote(null);
+    setSaveFailed(false);
   }, [data, selected]);
 
   const weeks = useMemo(() => monthGrid(view.year, view.month), [view]);
@@ -50,27 +86,44 @@ export default function CycleScreen() {
   const selectedIsPeriod = isPeriodDay(data, selected);
   const selectedInFuture = selected > today;
 
+  // calendar colours on this paper
+  const periodFill = night ? tone.mid : tone.strong;
+  const periodText = night ? ink.primary : brand.cream;
+  const predictedFill = night ? withAlpha(tone.mid, 0.22) : tone.tint;
+
   const persist = async (next: typeof data) => {
-    if (!userId) return;
+    if (!userId) return false;
     setSaving(true);
+    setSaveFailed(false);
     try {
       await saveCycleData(userId, next);
+      return true;
+    } catch (error) {
+      console.warn("CYCLE_SAVE_FAILED", (error as any)?.message || String(error));
+      warning();
+      setSaveFailed(true);
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const togglePeriodDay = () => {
+  const togglePeriodDay = async () => {
     if (selectedInFuture) {
       notify("That day hasn't happened yet", "Log period days as they come; predictions handle the future.");
       return;
     }
-    void persist(selectedIsPeriod ? unlogPeriodDay(data, selected) : logPeriodDay(data, selected));
+    const marking = !selectedIsPeriod;
+    const ok = await persist(marking ? logPeriodDay(data, selected) : unlogPeriodDay(data, selected));
+    if (ok && marking) tapSoft();
   };
 
   const saveDay = async () => {
-    await persist(upsertDayLog(data, { ...draft, note: draft.note?.trim() || null }));
-    setSavedNote("Saved on this device.");
+    const ok = await persist(upsertDayLog(data, { ...draft, note: draft.note?.trim() || null }));
+    if (ok) {
+      tapSoft();
+      setSavedNote("Saved on this device.");
+    }
   };
 
   const toggleSymptom = (symptom: string) => {
@@ -78,6 +131,11 @@ export default function CycleScreen() {
       ...prev,
       symptoms: prev.symptoms?.includes(symptom) ? prev.symptoms.filter((s) => s !== symptom) : [...(prev.symptoms || []), symptom],
     }));
+  };
+
+  const pickDay = (date: string) => {
+    if (date !== selected) selection();
+    setSelected(date);
   };
 
   const turnOn = () => userId && setCycleEnabled(userId, true);
@@ -90,64 +148,100 @@ export default function CycleScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
-      </View>
+      <Screen scroll={false} centered>
+        <PetLoading />
+      </Screen>
     );
   }
 
+  // ---- off: what it is, and the promise that it stays here ------------------------------------------
   if (!enabled) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <Screen>
         <View style={styles.hero}>
-          <PetPortrait sources={sources} look={look} size={110} mood="calm" allowOriginal />
-          <Text style={styles.title}>Track your cycle with {displayName}</Text>
-          <Text style={styles.body}>
+          <PetMascot size={110} mood="calm" night={night} />
+          <ScreenTitle center style={styles.heroTitle}>
+            Track your cycle with {displayName}
+          </ScreenTitle>
+          <Lead center style={styles.heroBody}>
             Log period days and a few symptoms; {displayName} keeps track of where you are in your cycle and when the next one is likely.
-          </Text>
+          </Lead>
         </View>
-        <View style={styles.card}>
-          <Row icon="smartphone" text="Stays on this device. It is never uploaded or shared." />
-          <Row icon="trash-2" text="Delete everything in one tap, any time." />
-          <Row icon="info" text="Estimates only, based on your own dates. Not medical advice, and no fertility predictions." />
-        </View>
-        <Pressable style={styles.primary} onPress={turnOn} accessibilityRole="button">
-          <Text style={styles.primaryText}>Turn on cycle tracking</Text>
-        </Pressable>
-      </ScrollView>
+        <Card tone="cycle" style={styles.block}>
+          <PromiseRow icon="phone-portrait-outline" text="Stays on this device. It is never uploaded or shared." />
+          <PromiseRow icon="trash-outline" text="Delete everything in one tap, any time." />
+          <PromiseRow icon="information-circle-outline" text="Estimates only, based on your own dates. Not medical advice, and no fertility predictions." />
+        </Card>
+        <Button label="Turn on cycle tracking" onPress={turnOn} containerStyle={styles.primaryButton} />
+      </Screen>
     );
   }
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.statusCard}>
-        <PetPortrait sources={sources} look={look} size={84} mood={status.phase === "period" ? "calm" : "happy"} allowOriginal />
-        <View style={styles.statusBody}>
-          <Text style={styles.statusPhase}>{phaseLabel(status.phase)}</Text>
-          {status.cycleDay != null ? <Text style={styles.statusMeta}>Cycle day {status.cycleDay} of about {status.cycleLength}</Text> : null}
-          {status.nextPeriodStart ? (
-            <Text style={styles.statusMeta}>
-              Next period around {shortDate(status.nextPeriodStart)}
-              {status.daysUntilNextPeriod != null && status.daysUntilNextPeriod >= 0 ? ` · in ${status.daysUntilNextPeriod} ${status.daysUntilNextPeriod === 1 ? "day" : "days"}` : ""}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      <Text style={styles.petLine}>{phaseLine(status, displayName)}</Text>
+  // ---- on ----------------------------------------------------------------------------------------------
+  const line = phaseLine(status, displayName);
+  const bubbleWidth = Math.max(160, Math.min(280, width - space.gutter * 2 - 118));
 
-      <View style={styles.card}>
+  return (
+    <Screen keyboard>
+      {hasPet ? (
+        <View style={styles.petRow}>
+          <PetMascot size={96} mood={status.phase === "period" ? "calm" : "happy"} night={night} />
+          <SpeechBubble text={line} tail="left" night={night} maxWidth={bubbleWidth} style={styles.petBubble} />
+        </View>
+      ) : null}
+
+      <Card tone="cycle" style={hasPet ? styles.statusAfterPet : null}>
+        <View style={styles.statusRow}>
+          <IconTile icon="flower-outline" category="cycle" on="fill" size={44} />
+          <View style={styles.statusBody}>
+            <Text style={[type.h2, { color: surface.text }]} accessibilityRole="header">
+              {phaseLabel(status.phase)}
+            </Text>
+            {status.cycleDay != null ? (
+              <Text style={[type.meta, styles.statusMeta, { color: surface.textSecondary }]}>
+                Cycle day {status.cycleDay} of about {status.cycleLength}
+              </Text>
+            ) : null}
+            {status.nextPeriodStart ? (
+              <Text style={[type.meta, styles.statusMeta, { color: surface.textSecondary }]}>
+                Next period around {shortDate(status.nextPeriodStart)}
+                {status.daysUntilNextPeriod != null && status.daysUntilNextPeriod >= 0 ? ` · in ${status.daysUntilNextPeriod} ${status.daysUntilNextPeriod === 1 ? "day" : "days"}` : ""}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        {/* without a pet to say it, the line sits in the card */}
+        {!hasPet ? <Text style={[type.petVoice, styles.lineInCard, { color: surface.text }]}>{line}</Text> : null}
+      </Card>
+
+      {/* ---- the month ---- */}
+      <Card style={styles.block}>
         <View style={styles.monthRow}>
-          <Pressable onPress={() => setView((v) => shiftMonth(v.year, v.month, -1))} hitSlop={10} accessibilityRole="button" accessibilityLabel="Previous month">
-            <Feather name="chevron-left" size={20} color="#e2e8f0" />
-          </Pressable>
-          <Text style={styles.monthTitle}>{monthTitle(view.year, view.month)}</Text>
-          <Pressable onPress={() => setView((v) => shiftMonth(v.year, v.month, 1))} hitSlop={10} accessibilityRole="button" accessibilityLabel="Next month">
-            <Feather name="chevron-right" size={20} color="#e2e8f0" />
-          </Pressable>
+          <PressableScale
+            onPress={() => setView((v) => shiftMonth(v.year, v.month, -1))}
+            hitSlop={10}
+            pressedScale={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+            style={[styles.monthButton, { backgroundColor: surface.sunken }]}
+          >
+            <Ionicons name="chevron-back" size={18} color={surface.text} />
+          </PressableScale>
+          <Text style={[type.h3, { color: surface.text }]}>{monthTitle(view.year, view.month)}</Text>
+          <PressableScale
+            onPress={() => setView((v) => shiftMonth(v.year, v.month, 1))}
+            hitSlop={10}
+            pressedScale={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+            style={[styles.monthButton, { backgroundColor: surface.sunken }]}
+          >
+            <Ionicons name="chevron-forward" size={18} color={surface.text} />
+          </PressableScale>
         </View>
         <View style={styles.weekRow}>
           {WEEKDAYS.map((d) => (
-            <Text key={d} style={styles.weekday}>
+            <Text key={d} style={[type.micro, styles.weekday, { color: surface.textTertiary }]}>
               {d}
             </Text>
           ))}
@@ -160,209 +254,210 @@ export default function CycleScreen() {
               const isToday = cell.date === today;
               const isSelected = cell.date === selected;
               const logged = !!dayLogFor(data, cell.date);
+              const textColor = period ? periodText : cell.inMonth ? surface.text : surface.textTertiary;
               return (
-                <Pressable
+                <PressableScale
                   key={cell.date}
-                  onPress={() => setSelected(cell.date)}
-                  style={[styles.cell, period && styles.cellPeriod, isPredicted && styles.cellPredicted, isSelected && styles.cellSelected]}
+                  onPress={() => pickDay(cell.date)}
+                  pressedScale={0.9}
+                  containerStyle={styles.cellSlot}
+                  style={[styles.cellRing, { borderColor: isSelected ? tone.accent : "transparent" }]}
                   accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
                   accessibilityLabel={`${humanDate(cell.date)}${period ? ", period day" : isPredicted ? ", period expected" : ""}${isToday ? ", today" : ""}`}
                 >
-                  <Text style={[styles.cellText, !cell.inMonth && styles.cellTextMuted, period && styles.cellTextPeriod, isToday && styles.cellTextToday]}>{cell.day}</Text>
-                  {logged ? <View style={styles.loggedDot} /> : null}
-                </Pressable>
+                  <View
+                    style={[
+                      styles.cell,
+                      {
+                        backgroundColor: period ? periodFill : isPredicted ? predictedFill : "transparent",
+                        borderColor: isToday ? surface.text : "transparent",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.cellText,
+                        { color: textColor, fontFamily: period || isToday ? fonts.bodyHeavy : fonts.bodySemibold },
+                        !cell.inMonth && !period && styles.cellTextMuted,
+                      ]}
+                    >
+                      {cell.day}
+                    </Text>
+                    {logged ? <View style={[styles.loggedDot, { backgroundColor: period ? periodText : tone.accent }]} /> : null}
+                  </View>
+                </PressableScale>
               );
             })}
           </View>
         ))}
         <View style={styles.legend}>
-          <Legend swatch={styles.legendPeriod} label="Period" />
-          <Legend swatch={styles.legendPredicted} label="Expected" />
-          <Legend swatch={styles.legendLogged} label="Notes" />
+          <Legend label="Period">
+            <View style={[styles.legendSwatch, { backgroundColor: periodFill }]} />
+          </Legend>
+          <Legend label="Expected">
+            <View style={[styles.legendSwatch, { backgroundColor: predictedFill }]} />
+          </Legend>
+          <Legend label="Notes">
+            <View style={[styles.legendDot, { backgroundColor: tone.accent }]} />
+          </Legend>
+          <Legend label="Today">
+            <View style={[styles.legendSwatch, styles.legendRing, { borderColor: surface.text }]} />
+          </Legend>
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.dayTitle}>{humanDate(selected)}</Text>
-        <Pressable
-          style={[styles.periodToggle, selectedIsPeriod && styles.periodToggleOn]}
+      {/* ---- the selected day ---- */}
+      <Card style={styles.block}>
+        <Text style={[type.h3, { color: surface.text }]}>{humanDate(selected)}</Text>
+        <PressableScale
           onPress={togglePeriodDay}
           disabled={saving}
+          pressedScale={0.95}
           accessibilityRole="switch"
-          accessibilityState={{ checked: selectedIsPeriod }}
+          accessibilityState={{ checked: selectedIsPeriod, disabled: saving }}
+          containerStyle={styles.toggleSlot}
+          style={[styles.periodToggle, { backgroundColor: selectedIsPeriod ? periodFill : night ? surface.sunken : tone.tint }]}
         >
-          <Feather name={selectedIsPeriod ? "check-circle" : "circle"} size={18} color={selectedIsPeriod ? "#0f172a" : "#fbcfe8"} />
-          <Text style={[styles.periodToggleText, selectedIsPeriod && styles.periodToggleTextOn]}>{selectedIsPeriod ? "Period day" : "Mark as a period day"}</Text>
-        </Pressable>
+          <Ionicons name={selectedIsPeriod ? "checkmark-circle" : "ellipse-outline"} size={20} color={selectedIsPeriod ? periodText : tone.accent} />
+          <Text style={[styles.periodToggleText, { color: selectedIsPeriod ? periodText : surface.text }]}>{selectedIsPeriod ? "Period day" : "Mark as a period day"}</Text>
+        </PressableScale>
 
         {selectedIsPeriod ? (
-          <View style={styles.chipRow}>
-            {FLOWS.map((flow) => (
-              <Chip key={flow} label={flow} active={draft.flow === flow} onPress={() => setDraft((p) => ({ ...p, flow: p.flow === flow ? null : flow }))} />
-            ))}
-          </View>
+          <>
+            <Eyebrow style={styles.fieldLabel}>Flow</Eyebrow>
+            <View style={styles.chipRow}>
+              {FLOWS.map((flow) => (
+                <Chip
+                  key={flow}
+                  label={capitalize(flow)}
+                  category="cycle"
+                  selected={draft.flow === flow}
+                  onPress={() => setDraft((p) => ({ ...p, flow: p.flow === flow ? null : flow }))}
+                />
+              ))}
+            </View>
+          </>
         ) : null}
 
-        <Text style={styles.fieldLabel}>Symptoms</Text>
+        <Eyebrow style={styles.fieldLabel}>Symptoms</Eyebrow>
         <View style={styles.chipRow}>
           {SYMPTOMS.map((symptom) => (
-            <Chip key={symptom} label={symptom} active={!!draft.symptoms?.includes(symptom)} onPress={() => toggleSymptom(symptom)} />
+            <Chip key={symptom} label={capitalize(symptom)} category="cycle" selected={!!draft.symptoms?.includes(symptom)} onPress={() => toggleSymptom(symptom)} />
           ))}
         </View>
 
-        <Text style={styles.fieldLabel}>Note (optional)</Text>
-        <TextInput
+        <TextField
+          label="Note (optional)"
           value={draft.note || ""}
           onChangeText={(note) => setDraft((p) => ({ ...p, note }))}
           placeholder="Anything worth remembering"
-          placeholderTextColor="rgba(148,163,184,0.7)"
-          style={styles.input}
           multiline
           maxLength={280}
+          containerStyle={styles.noteField}
+          style={styles.noteInput}
         />
-        {savedNote ? <Text style={styles.saved}>{savedNote}</Text> : null}
-        <Pressable style={[styles.primary, saving && styles.disabled]} onPress={saveDay} disabled={saving} accessibilityRole="button">
-          <Text style={styles.primaryText}>{saving ? "Saving…" : "Save day"}</Text>
-        </Pressable>
-      </View>
+        {savedNote ? (
+          <View style={styles.savedRow}>
+            <Ionicons name="checkmark-circle" size={16} color={tone.accent} />
+            <Text style={[type.meta, { color: tone.accent }]}>{savedNote}</Text>
+          </View>
+        ) : null}
+        {saveFailed ? <Text style={[type.meta, styles.savedRow, { color: theme.alert }]}>Couldn't save that just now. Try again in a moment.</Text> : null}
+        <Button label="Save day" onPress={saveDay} loading={saving} containerStyle={styles.primaryButton} />
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.dayTitle}>Your averages</Text>
-        <Text style={styles.averages}>
-          Cycle about {status.cycleLength} days{status.sample > 0 ? ` (from ${status.sample} ${status.sample === 1 ? "cycle" : "cycles"})` : " (default until two cycles are logged)"} · period about {status.periodLength} days
-        </Text>
-        <Text style={styles.disclaimer}>
-          Estimates come only from the dates you log here and can be off by several days. They are not medical advice, and Luna makes no fertility predictions. Everything stays on this device.
-        </Text>
-      </View>
+      {/* ---- averages ---- */}
+      <SectionTitle>Your averages</SectionTitle>
+      <StatStrip
+        items={[
+          { value: status.cycleLength, label: "day cycle (about)", icon: "repeat-outline", category: "cycle" },
+          { value: status.periodLength, label: "day period (about)", icon: "water-outline", category: "cycle" },
+        ]}
+      />
+      <Text style={[type.meta, styles.averagesNote, { color: surface.textSecondary }]}>
+        {status.sample > 0
+          ? `Averaged from ${status.sample} logged ${status.sample === 1 ? "cycle" : "cycles"}.`
+          : "Defaults until two cycles are logged."}
+      </Text>
+      <Card variant="sunken" style={styles.disclaimer}>
+        <View style={styles.disclaimerRow}>
+          <Ionicons name="lock-closed-outline" size={16} color={surface.textSecondary} />
+          <Text style={[type.meta, styles.disclaimerText, { color: surface.textSecondary }]}>
+            Estimates come only from the dates you log here and can be off by several days. They are not medical advice, and Luna makes no fertility predictions. Everything stays on this device.
+          </Text>
+        </View>
+      </Card>
 
       <View style={styles.footerRow}>
-        <Pressable style={styles.linkButton} onPress={turnOff} accessibilityRole="button">
-          <Text style={styles.linkText}>Turn off tracking</Text>
-        </Pressable>
-        <Pressable style={styles.linkButton} onPress={deleteAll} accessibilityRole="button">
-          <Text style={[styles.linkText, styles.linkDanger]}>Delete all cycle data</Text>
-        </Pressable>
+        <Button label="Turn off tracking" onPress={turnOff} variant="quiet" size="sm" />
+        <Button label="Delete all cycle data" onPress={deleteAll} variant="danger" size="sm" />
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
 
-function Row({ icon, text }: { icon: any; text: string }) {
+function PromiseRow({ icon, text }: { icon: string; text: string }) {
+  const { surface } = useTheme();
   return (
-    <View style={styles.row}>
-      <Feather name={icon} size={16} color="#a7f3d0" />
-      <Text style={styles.rowText}>{text}</Text>
+    <View style={styles.promiseRow}>
+      <IconTile icon={icon} category="cycle" on="fill" size={36} />
+      <Text style={[type.callout, styles.promiseText, { color: surface.text }]}>{text}</Text>
     </View>
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable style={[styles.chip, active && styles.chipActive]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: active }}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function Legend({ swatch, label }: { swatch: any; label: string }) {
+function Legend({ label, children }: { label: string; children: React.ReactNode }) {
+  const { surface } = useTheme();
   return (
     <View style={styles.legendItem}>
-      <View style={[styles.legendSwatch, swatch]} />
-      <Text style={styles.legendText}>{label}</Text>
+      {children}
+      <Text style={[type.meta, { color: surface.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  content: { padding: 16, paddingBottom: 60 },
-  hero: { alignItems: "center", paddingVertical: 12 },
-  title: { marginTop: 8, color: "#f8fafc", fontSize: 22, fontWeight: "800", textAlign: "center" },
-  body: { marginTop: 8, color: "rgba(203,213,225,0.92)", fontSize: 14, lineHeight: 20, textAlign: "center" },
-  card: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-  },
-  row: { flexDirection: "row", alignItems: "flex-start", marginVertical: 6 },
-  rowText: { flex: 1, marginLeft: 10, color: "rgba(226,232,240,0.92)", fontSize: 13, lineHeight: 19 },
-  primary: { marginTop: 14, minHeight: 48, borderRadius: 999, backgroundColor: "#35d07f", alignItems: "center", justifyContent: "center" },
-  primaryText: { color: "#0f172a", fontSize: 15, fontWeight: "800" },
-  disabled: { opacity: 0.6 },
-  statusCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-  },
-  statusBody: { flex: 1, marginLeft: 12 },
-  statusPhase: { color: "#f8fafc", fontSize: 18, fontWeight: "800" },
-  statusMeta: { marginTop: 3, color: "rgba(203,213,225,0.9)", fontSize: 13 },
-  petLine: { marginTop: 10, marginHorizontal: 4, color: "#fbcfe8", fontSize: 13, lineHeight: 19, fontStyle: "italic" },
-  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
-  monthTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
+  hero: { alignItems: "center", paddingTop: 4, paddingBottom: 8 },
+  heroTitle: { marginTop: 12 },
+  heroBody: { marginTop: 8, paddingHorizontal: 4 },
+  block: { marginTop: 14 },
+  primaryButton: { marginTop: 18 },
+  promiseRow: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 6 },
+  promiseText: { flex: 1 },
+  petRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  petBubble: { marginTop: 10, flexShrink: 1 },
+  statusAfterPet: { marginTop: 6 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  statusBody: { flex: 1 },
+  statusMeta: { marginTop: 2 },
+  lineInCard: { marginTop: 12 },
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  monthButton: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   weekRow: { flexDirection: "row" },
-  weekday: { flex: 1, textAlign: "center", color: "rgba(148,163,184,0.85)", fontSize: 11, fontWeight: "700", paddingVertical: 4 },
-  cell: { flex: 1, aspectRatio: 1, margin: 2, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "transparent" },
-  cellPeriod: { backgroundColor: "#f472b6" },
-  cellPredicted: { borderColor: "rgba(244,114,182,0.7)", borderStyle: "dashed" },
-  cellSelected: { borderColor: "#35d07f", borderWidth: 2 },
-  cellText: { color: "#e2e8f0", fontSize: 13, fontWeight: "600" },
-  cellTextMuted: { color: "rgba(148,163,184,0.45)" },
-  cellTextPeriod: { color: "#0f172a", fontWeight: "800" },
-  cellTextToday: { textDecorationLine: "underline" },
-  loggedDot: { position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(226,232,240,0.7)" },
-  legend: { flexDirection: "row", flexWrap: "wrap", marginTop: 10 },
-  legendItem: { flexDirection: "row", alignItems: "center", marginRight: 14, marginTop: 4 },
-  legendSwatch: { width: 12, height: 12, borderRadius: 4, marginRight: 6 },
-  legendPeriod: { backgroundColor: "#f472b6" },
-  legendPredicted: { borderWidth: 1, borderColor: "rgba(244,114,182,0.8)", borderStyle: "dashed" },
-  legendLogged: { backgroundColor: "rgba(226,232,240,0.7)", borderRadius: 6 },
-  legendText: { color: "rgba(203,213,225,0.9)", fontSize: 11 },
-  dayTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
-  periodToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(244,114,182,0.6)",
-    alignSelf: "flex-start",
-  },
-  periodToggleOn: { backgroundColor: "#f472b6", borderColor: "#f472b6" },
-  periodToggleText: { marginLeft: 8, color: "#fbcfe8", fontSize: 14, fontWeight: "700" },
-  periodToggleTextOn: { color: "#0f172a" },
-  fieldLabel: { marginTop: 14, color: "rgba(148,163,184,0.95)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", marginTop: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "rgba(148,163,184,0.35)", marginRight: 6, marginBottom: 6 },
-  chipActive: { backgroundColor: "rgba(53,208,127,0.2)", borderColor: "#35d07f" },
-  chipText: { color: "#e2e8f0", fontSize: 13, fontWeight: "600", textTransform: "capitalize" },
-  chipTextActive: { color: "#a7f3d0" },
-  input: {
-    marginTop: 8,
-    minHeight: 60,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.4)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-    color: "#e2e8f0",
-    padding: 12,
-  },
-  saved: { marginTop: 8, color: "#a7f3d0", fontSize: 12, fontWeight: "600" },
-  averages: { marginTop: 6, color: "rgba(226,232,240,0.92)", fontSize: 13, lineHeight: 19 },
-  disclaimer: { marginTop: 10, color: "rgba(148,163,184,0.85)", fontSize: 12, lineHeight: 17 },
-  footerRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 18, paddingHorizontal: 6 },
-  linkButton: { paddingVertical: 8 },
-  linkText: { color: "rgba(203,213,225,0.95)", fontSize: 13, fontWeight: "700" },
-  linkDanger: { color: "#fca5a5" },
+  weekday: { flex: 1, textAlign: "center", paddingVertical: 4 },
+  cellSlot: { flex: 1 },
+  cellRing: { aspectRatio: 1, margin: 1, padding: 2, borderRadius: radius.tile, borderCurve: "continuous", borderWidth: 2 },
+  cell: { flex: 1, borderRadius: 12, borderCurve: "continuous", borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  cellText: { fontSize: 14 },
+  cellTextMuted: { opacity: 0.6 },
+  loggedDot: { position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: 2 },
+  legend: { flexDirection: "row", flexWrap: "wrap", marginTop: 12, gap: 14 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendSwatch: { width: 14, height: 14, borderRadius: 5 },
+  legendRing: { borderWidth: 1.5 },
+  legendDot: { width: 6, height: 6, borderRadius: 3, marginHorizontal: 4 },
+  toggleSlot: { alignSelf: "flex-start", marginTop: 12 },
+  periodToggle: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 16, borderRadius: radius.pill },
+  periodToggleText: { fontFamily: fonts.bodyBold, fontSize: 15 },
+  fieldLabel: { marginTop: 18, marginBottom: 8, marginLeft: 2 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  noteField: { marginTop: 18 },
+  noteInput: { minHeight: 80 },
+  savedRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, marginLeft: 4 },
+  averagesNote: { marginTop: 10, marginHorizontal: 6 },
+  disclaimer: { marginTop: 12 },
+  disclaimerRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  disclaimerText: { flex: 1 },
+  footerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 22 },
 });

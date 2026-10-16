@@ -326,6 +326,40 @@ export function AuthProvider({ children }) {
   );
 }
 
+/**
+ * Dev design previews only (src/screens/dev): a signed-in looking context with no session behind it, so
+ * screens render their layout with fixture data. Never used by the app itself.
+ */
+export function PreviewAuthProvider({ user, initialProfile = null, children }) {
+  const [profile, setProfile] = useState(initialProfile);
+  const [userStats, setUserStats] = useState(null);
+  const [petEmotionState, setPetEmotionState] = useState(null);
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        userStats,
+        petEmotionState,
+        session: user ? { user } : null,
+        initializing: false,
+        loading: false,
+        profileStatus: "ready",
+        cachedHasPet: true,
+        retryHydrate: async () => {},
+        authServiceMessage: null,
+        setProfile,
+        setUserStats,
+        setPetEmotionState,
+        clearAuthServiceMessage: () => {},
+        signOut: async () => {},
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
 export function useAuth() {
   return useContext(AuthContext);
 }

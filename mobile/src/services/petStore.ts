@@ -82,6 +82,8 @@ let snapshot: PetSnapshot = EMPTY;
 const listeners = new Set<Listener>();
 let inflight: Promise<PetSnapshot> | null = null;
 let inflightUserId: string | null = null;
+// dev design previews (src/screens/dev) pin a fixture pet; nothing loads over it while pinned
+let pinnedForPreview = false;
 
 function emit(next: Omit<PetSnapshot, "version">) {
   snapshot = { ...next, version: snapshot.version + 1 };
@@ -127,6 +129,7 @@ async function resolveMemorial(userId: string, pet: PetRecord | null): Promise<M
 
 /** Loads (or reloads) the pet row for a user. Concurrent calls for the same user share one request. */
 export function refreshPet(userId: string | null | undefined, profilePetPhotoUrl: string | null = null): Promise<PetSnapshot> {
+  if (pinnedForPreview) return Promise.resolve(snapshot);
   if (!userId) {
     clearPetStore();
     return Promise.resolve(snapshot);
@@ -243,6 +246,12 @@ export async function clearPetMemorial(userId: string) {
   await upsertPet(userId, { memorial_at: null, memorial_note: null }).catch((error) => {
     console.warn("MEMORIAL_CLEAR_REMOTE_FAILED", error?.message || String(error));
   });
+}
+
+/** Dev design previews only: shows a fixture pet and stops refreshes from replacing it. */
+export function pinPetForPreview(next: Omit<PetSnapshot, "version">) {
+  pinnedForPreview = true;
+  emit(next);
 }
 
 export function clearPetStore() {

@@ -1,24 +1,37 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
-import PetPortrait from "../components/pet/PetPortrait";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Button from "../components/common/Button";
+import IconTile from "../components/common/IconTile";
+import { Lead, ScreenTitle, SectionTitle } from "../components/common/Headings";
+import PetMascot from "../components/pet/PetMascot";
+import { PetEmptyState } from "../components/pet/PetMoments";
+import { useTheme } from "../theme/theme";
+import { fonts, type } from "../theme/tokens";
+import { tapSoft, warning } from "../utils/haptics";
 import { createPlayTask, findPlayTask, loadPlayStats, type PlayStats } from "../games/playStats";
 
 const GAMES = [
-  { id: "fetch" as const, route: "PlayFetch", title: "Fetch", blurb: "Flick the ball across the lawn. Eight throws, sixty seconds.", icon: "wind" as const },
-  { id: "bubbles" as const, route: "PlayBubbles", title: "Bubbles", blurb: "Tap them before they float away. Thirty seconds.", icon: "circle" as const },
+  { id: "fetch" as const, route: "PlayFetch", title: "Fetch", blurb: "Flick the ball across the lawn. Eight throws, sixty seconds.", icon: "tennisball-outline" },
+  { id: "bubbles" as const, route: "PlayBubbles", title: "Bubbles", blurb: "Tap them before they float away. Thirty seconds.", icon: "ellipse-outline" },
 ];
 
-/** The play hub: two games, best scores, and the option to make playtime a daily task. */
+/** The play hub: two games, best scores, and the option to make playtime a daily task. Colour: play gold. */
 export default function PlayScreen({ navigation }: any) {
   const { user } = useAuth();
-  const { sources, look, displayName, memorial } = usePet();
+  const { displayName, memorial } = usePet();
+  const theme = useTheme();
+  const { surface, night } = theme;
+  const tone = theme.tone("play");
   const [stats, setStats] = useState<PlayStats | null>(null);
   const [hasTask, setHasTask] = useState<boolean | null>(null);
   const [addingTask, setAddingTask] = useState(false);
+  const [addFailed, setAddFailed] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,11 +51,15 @@ export default function PlayScreen({ navigation }: any) {
   const addTask = async () => {
     if (!user?.id || addingTask) return;
     setAddingTask(true);
+    setAddFailed(false);
     try {
       await createPlayTask(user.id, displayName);
       setHasTask(true);
+      tapSoft();
     } catch (error) {
       console.warn("PLAY_TASK_CREATE_FAILED", (error as any)?.message || String(error));
+      warning();
+      setAddFailed(true);
     } finally {
       setAddingTask(false);
     }
@@ -50,102 +67,91 @@ export default function PlayScreen({ navigation }: any) {
 
   if (memorial) {
     return (
-      <View style={styles.screen}>
-        <View style={[styles.hero, { paddingTop: 40 }]}>
-          <PetPortrait sources={sources} look={look} size={110} mood="calm" allowOriginal resting />
-          <Text style={styles.title}>{displayName} is resting</Text>
-          <Text style={styles.subtitle}>The games are paused while the garden is a memorial. Memories and a quiet minute are on the Pet tab.</Text>
-        </View>
-      </View>
+      <Screen scroll={false} centered>
+        <PetEmptyState
+          title={`${displayName} is resting`}
+          body="The games are paused while the garden is a memorial. Memories and a quiet minute are on the Pet tab."
+          size={120}
+        />
+      </Screen>
     );
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <Screen>
       <View style={styles.hero}>
-        <PetPortrait sources={sources} look={look} size={110} mood="excited" allowOriginal />
-        <Text style={styles.title}>Play with {displayName}</Text>
-        <Text style={styles.subtitle}>
+        <PetMascot size={110} mood="excited" night={night} />
+        <ScreenTitle center style={styles.title}>
+          Play with {displayName}
+        </ScreenTitle>
+        <Lead center style={styles.subtitle}>
           {stats?.sessionsToday
             ? `${stats.sessionsToday} ${stats.sessionsToday === 1 ? "game" : "games"} today. ${displayName} is thrilled.`
             : `A few minutes of play is good for both of you.`}
-        </Text>
+        </Lead>
       </View>
 
       {GAMES.map((game) => (
-        <Pressable key={game.id} style={styles.card} onPress={() => navigation.navigate(game.route)} accessibilityRole="button" accessibilityLabel={`Play ${game.title}`}>
-          <View style={styles.cardIcon}>
-            <Feather name={game.icon} size={20} color="#0f172a" />
+        <Card key={game.id} tone="play" onPress={() => navigation.navigate(game.route)} accessibilityLabel={`Play ${game.title}`} style={styles.gameCard}>
+          <View style={styles.gameRow}>
+            <IconTile icon={game.icon} category="play" on="fill" size={52} />
+            <View style={styles.gameBody}>
+              <Text style={[type.h3, { color: surface.text }]}>{game.title}</Text>
+              <Text style={[type.meta, styles.gameBlurb, { color: surface.textSecondary }]}>{game.blurb}</Text>
+              <Text style={[type.meta, styles.gameBest, { color: tone.accent }]}>{stats?.best[game.id] ? `Best ${stats.best[game.id]}` : "Not played yet"}</Text>
+            </View>
+            <View style={[styles.playBadge, { backgroundColor: tone.tileOnFill }]}>
+              <Ionicons name="play" size={16} color={tone.accent} style={styles.playGlyph} />
+            </View>
           </View>
-          <View style={styles.cardBody}>
-            <Text style={styles.cardTitle}>{game.title}</Text>
-            <Text style={styles.cardBlurb}>{game.blurb}</Text>
-            <Text style={styles.cardBest}>{stats?.best[game.id] ? `Best ${stats.best[game.id]}` : "Not played yet"}</Text>
-          </View>
-          <Feather name="play" size={20} color="#35d07f" />
-        </Pressable>
+        </Card>
       ))}
 
-      <View style={styles.taskCard}>
-        <Text style={styles.taskTitle}>Playtime and the garden</Text>
-        {hasTask === null && user?.id ? (
-          <ActivityIndicator color="#35d07f" style={{ alignSelf: "flex-start", marginTop: 8 }} />
-        ) : hasTask ? (
-          <Text style={styles.taskText}>"Play with {displayName}" is one of your daily tasks. Finishing a game completes it and earns points for the garden.</Text>
-        ) : (
-          <View>
-            <Text style={styles.taskText}>Make playtime one of your daily tasks and every game earns points for the garden.</Text>
-            <Pressable style={[styles.taskButton, addingTask && styles.disabled]} onPress={addTask} disabled={addingTask} accessibilityRole="button">
-              <Text style={styles.taskButtonText}>{addingTask ? "Adding…" : `Add "Play with ${displayName}"`}</Text>
-            </Pressable>
+      <SectionTitle>Playtime and the garden</SectionTitle>
+      <Card>
+        <View style={styles.taskRow}>
+          <IconTile icon="flower-outline" category="play" size={40} />
+          <View style={styles.taskBody}>
+            {hasTask === null && user?.id ? (
+              <ActivityIndicator color={tone.accent} style={styles.taskLoading} />
+            ) : hasTask ? (
+              <Text style={[type.callout, { color: surface.text }]}>"Play with {displayName}" is one of your daily tasks. Finishing a game completes it and earns points for the garden.</Text>
+            ) : (
+              <View>
+                <Text style={[type.callout, { color: surface.text }]}>Make playtime one of your daily tasks and every game earns points for the garden.</Text>
+                <Button
+                  label={addingTask ? "Adding…" : `Add "Play with ${displayName}"`}
+                  icon="add-circle-outline"
+                  variant="secondary"
+                  size="sm"
+                  onPress={addTask}
+                  disabled={addingTask}
+                  containerStyle={styles.taskButton}
+                />
+                {addFailed ? <Text style={[type.meta, styles.taskError, { color: theme.alert }]}>Couldn't add the task right now.</Text> : null}
+              </View>
+            )}
           </View>
-        )}
-      </View>
-    </ScrollView>
+        </View>
+      </Card>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  content: { padding: 16, paddingBottom: 60 },
-  hero: { alignItems: "center", paddingVertical: 12 },
-  title: { marginTop: 8, color: "#f8fafc", fontSize: 24, fontWeight: "800" },
-  subtitle: { marginTop: 6, color: "rgba(203,213,225,0.9)", fontSize: 14, textAlign: "center", lineHeight: 20, paddingHorizontal: 12 },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-  },
-  cardIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#35d07f", alignItems: "center", justifyContent: "center", marginRight: 12 },
-  cardBody: { flex: 1 },
-  cardTitle: { color: "#f8fafc", fontSize: 17, fontWeight: "800" },
-  cardBlurb: { marginTop: 2, color: "rgba(203,213,225,0.9)", fontSize: 13, lineHeight: 18 },
-  cardBest: { marginTop: 6, color: "#a7f3d0", fontSize: 12, fontWeight: "700" },
-  taskCard: {
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-  },
-  taskTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "800" },
-  taskText: { marginTop: 6, color: "rgba(203,213,225,0.9)", fontSize: 13, lineHeight: 19 },
-  taskButton: {
-    alignSelf: "flex-start",
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.6)",
-    backgroundColor: "rgba(16,185,129,0.15)",
-  },
-  taskButtonText: { color: "#a7f3d0", fontSize: 13, fontWeight: "700" },
-  disabled: { opacity: 0.6 },
+  hero: { alignItems: "center", paddingTop: 4, paddingBottom: 6 },
+  title: { marginTop: 10 },
+  subtitle: { marginTop: 6, paddingHorizontal: 12 },
+  gameCard: { marginTop: 12 },
+  gameRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  gameBody: { flex: 1 },
+  gameBlurb: { marginTop: 2 },
+  gameBest: { marginTop: 6, fontFamily: fonts.bodyBold },
+  playBadge: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  playGlyph: { marginLeft: 2 },
+  taskRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  taskBody: { flex: 1 },
+  taskLoading: { alignSelf: "flex-start", marginTop: 10 },
+  taskButton: { marginTop: 12 },
+  taskError: { marginTop: 8 },
 });

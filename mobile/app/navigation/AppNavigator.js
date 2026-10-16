@@ -27,25 +27,30 @@ import GardenScreen from '../screens/GardenScreen';
 import NetworkDebugScreen from '../../src/screens/NetworkDebugScreen';
 import DiagnosticsScreen from '../../src/screens/DiagnosticsScreen';
 import {
-  finchTabBarActiveTint,
-  finchTabBarInactiveTint,
   finchTabBarItemStyle,
   finchTabBarLabelStyle,
-  finchTabBarStyle,
   renderFinchTabIcon,
+  tabBarThemeFor,
 } from '../../src/components/finchHome/FinchTabBarStyles';
 import PetTabIcon from '../../src/components/pet/PetTabIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/theme/theme';
+import { fonts } from '../../src/theme/tokens';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function MainTabs() {
+const TAB_NAMES = ["Home", "Garden", "Pet", "Profile"];
+
+function MainTabs({ route: tabsRoute }) {
+  const { surface } = useTheme();
+  const bar = tabBarThemeFor(surface);
+  const initialTab = TAB_NAMES.includes(tabsRoute?.params?.tab) ? tabsRoute.params.tab : "Home";
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName={initialTab}
       tabBar={(props) => (
-        <SafeAreaView edges={["bottom"]} style={{ backgroundColor: finchTabBarStyle.backgroundColor }}>
+        <SafeAreaView edges={["bottom"]} style={{ backgroundColor: bar.style.backgroundColor }}>
           <BottomTabBar {...props} />
         </SafeAreaView>
       )}
@@ -59,13 +64,14 @@ function MainTabs() {
         const iconName = iconMap[route.name] || "circle";
         return {
           headerShown: false,
-          tabBarStyle: finchTabBarStyle,
+          sceneStyle: { backgroundColor: surface.canvas },
+          tabBarStyle: bar.style,
           tabBarLabelStyle: finchTabBarLabelStyle,
           tabBarItemStyle: finchTabBarItemStyle,
-          tabBarActiveTintColor: finchTabBarActiveTint,
-          tabBarInactiveTintColor: finchTabBarInactiveTint,
+          tabBarActiveTintColor: bar.active,
+          tabBarInactiveTintColor: bar.inactive,
           tabBarIcon: ({ focused }) =>
-            route.name === "Pet" ? <PetTabIcon focused={focused} /> : renderFinchTabIcon(iconName, focused),
+            route.name === "Pet" ? <PetTabIcon focused={focused} /> : renderFinchTabIcon(iconName, focused, surface),
         };
       }}
     >
@@ -77,16 +83,35 @@ function MainTabs() {
   );
 }
 
-export default function AppNavigator() {
+/**
+ * Native-stack headers on the paper of the hour: canvas background, no hairline, the title in Fraunces and a
+ * bare back chevron.
+ */
+export function stackScreenOptions(surface) {
+  return {
+    headerShown: false,
+    headerStyle: { backgroundColor: surface.canvas },
+    headerTintColor: surface.text,
+    headerTitleStyle: { fontFamily: fonts.display, fontSize: 19, color: surface.text },
+    headerShadowVisible: false,
+    headerBackButtonDisplayMode: "minimal",
+    contentStyle: { backgroundColor: surface.canvas },
+  };
+}
+
+/** `initialRoute` is for the dev design previews only: it opens a stack screen or a tab directly. */
+export default function AppNavigator({ initialRoute = null }) {
+  const { surface } = useTheme();
+  const opensTab = !initialRoute || TAB_NAMES.includes(initialRoute);
   return (
-    <Stack.Navigator initialRouteName="MainTabs" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MainTabs" component={MainTabs} />
+    <Stack.Navigator initialRouteName={opensTab ? "MainTabs" : initialRoute} screenOptions={stackScreenOptions(surface)}>
+      <Stack.Screen name="MainTabs" component={MainTabs} initialParams={opensTab && initialRoute ? { tab: initialRoute } : undefined} />
       <Stack.Screen name="CheckIn" component={CheckInScreen} options={{ title: "Daily Check-In", headerShown: true }} />
       <Stack.Screen name="Habits" component={HabitsTodayScreen} options={{ title: "Habits Today", headerShown: true }} />
       <Stack.Screen name="GardenProgress" component={GardenProgressScreen} options={{ title: "Garden Progress", headerShown: true }} />
       <Stack.Screen name="Tasks" component={DailyTasksScreen} options={{ title: "Daily Tasks", headerShown: true }} />
       <Stack.Screen name="Journal" component={JournalScreen} options={{ title: "Journal", headerShown: true }} />
-      <Stack.Screen name="Breathing" component={BreathingScreen} options={{ title: "1-minute breathing", headerShown: true, presentation: "modal" }} />
+      <Stack.Screen name="Breathing" component={BreathingScreen} options={{ title: "Breathe", headerShown: false, presentation: "modal" }} />
       <Stack.Screen name="WeeklyReflection" component={WeeklyReflectionScreen} options={{ title: "Our week", headerShown: true }} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} initialParams={{ mode: "replace" }} />
       <Stack.Screen name="PetSetup" component={PetSetupScreen} options={{ title: "Pet Setup", headerShown: true }} />

@@ -34,6 +34,16 @@ export function selection() {
   run(() => Haptics.selectionAsync());
 }
 
+/**
+ * A breathing phase begins, so it can be followed with eyes closed: a light tap to breathe in, a tick to
+ * hold, a soft tap to breathe out.
+ */
+export function breathCue(phase: "in" | "hold" | "out") {
+  if (phase === "in") run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
+  else if (phase === "hold") run(() => Haptics.selectionAsync());
+  else run(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft));
+}
+
 /** Something could not be saved. */
 export function warning() {
   run(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));

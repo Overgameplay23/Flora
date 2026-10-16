@@ -1,10 +1,11 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { brand, fonts, ink, surfaces } from "../../theme/tokens";
+import { brand, fonts, ink, surfaces, type Surface } from "../../theme/tokens";
 
 // Warm paper bar (src/theme/tokens.ts), the ink deepening on the active tab with a small bloom dot under it.
 // Heights add up: icon 26 + indicator 9 + label 14 + paddings = 78, so the label is never clipped (R-61).
+// The bar follows the paper of the hour (light by day, night paper at night) through tabBarThemeFor().
 export const finchTabBarStyle = {
   backgroundColor: surfaces.light.paper,
   borderTopColor: surfaces.light.hairline,
@@ -28,11 +29,22 @@ export const finchTabBarItemStyle = {
 export const finchTabBarActiveTint = ink.primary;
 export const finchTabBarInactiveTint = ink.tertiary;
 
-export function renderFinchTabIcon(iconName: string, focused: boolean) {
+/** The bar's colours on a given paper. */
+export function tabBarThemeFor(surface: Surface) {
+  return {
+    style: { ...finchTabBarStyle, backgroundColor: surface.paper, borderTopColor: surface.hairline },
+    active: surface.text,
+    inactive: surface.textTertiary,
+    dot: surface.isNight ? brand.bloomNight : brand.bloom,
+  };
+}
+
+export function renderFinchTabIcon(iconName: string, focused: boolean, surface: Surface = surfaces.light) {
+  const bar = tabBarThemeFor(surface);
   return (
     <View style={styles.iconWrap}>
-      <Feather name={iconName as any} size={20} color={focused ? finchTabBarActiveTint : finchTabBarInactiveTint} />
-      <View style={[styles.indicator, focused && styles.indicatorActive]} />
+      <Feather name={iconName as any} size={20} color={focused ? bar.active : bar.inactive} />
+      <View style={[styles.indicator, focused && { backgroundColor: bar.dot }]} />
     </View>
   );
 }
@@ -49,8 +61,5 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "transparent",
     marginTop: 3,
-  },
-  indicatorActive: {
-    backgroundColor: brand.bloom,
   },
 });

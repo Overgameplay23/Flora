@@ -1,18 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Modal,
-  TextInput,
-  useWindowDimensions,
-} from "react-native";
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { confirmAsync, notify } from "../../src/utils/confirm";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { patchPetLocally, setPetNameLocally } from "../../src/services/petStore";
@@ -21,6 +12,19 @@ import { savePetName, upsertPet, upsertPetResult } from "../../src/services/petS
 import { stylizePet } from "../../src/services/petStylize";
 import { sanitizeLegacyPetUrl } from "../../src/utils/petImages";
 import GardenStage from "../../src/components/garden/GardenStage";
+import SceneOverlay from "../../src/components/garden/SceneOverlay";
+import Card from "../../src/components/common/Card";
+import Button from "../../src/components/common/Button";
+import IconTile from "../../src/components/common/IconTile";
+import Sheet from "../../src/components/common/Sheet";
+import StatStrip from "../../src/components/common/StatStrip";
+import TextField from "../../src/components/common/TextField";
+import PressableScale from "../../src/components/common/PressableScale";
+import { PetLoading } from "../../src/components/pet/PetMoments";
+import { useSceneStatusBar } from "../../src/hooks/useSceneStatusBar";
+import { useTheme, useThemeHour } from "../../src/theme/theme";
+import { fonts, ink, radius, surfaces, type } from "../../src/theme/tokens";
+import { tapLight, warning } from "../../src/utils/haptics";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isAdopted } from "../../src/domain/shelter";
@@ -46,22 +50,25 @@ function buildProcessingError(error) {
   return trimmed.length > 160 ? trimmed.slice(0, 160) : trimmed;
 }
 
-function ActionTile({ icon, label, hint, onPress, tone = "default", disabled }) {
+function ActionTile({ icon, category, label, hint, onPress, disabled }) {
+  const { surface } = useTheme();
   return (
-    <Pressable
-      style={[styles.tile, tone === "primary" && styles.tilePrimary, disabled && styles.tileDisabled]}
+    <Card
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
+      containerStyle={styles.tileSlot}
+      style={[styles.tile, disabled && styles.disabled]}
     >
-      <View style={[styles.tileIcon, tone === "primary" && styles.tileIconPrimary]}>
-        <Feather name={icon} size={18} color={tone === "primary" ? "#0f172a" : "#e2e8f0"} />
-      </View>
-      <Text style={[styles.tileLabel, tone === "primary" && styles.tileLabelPrimary]}>{label}</Text>
-      {hint ? <Text style={[styles.tileHint, tone === "primary" && styles.tileHintPrimary]}>{hint}</Text> : null}
-    </Pressable>
+      <IconTile icon={icon} category={category} size={40} />
+      <Text style={[type.bodyStrong, styles.tileLabel, { color: surface.text }]}>{label}</Text>
+      {hint ? (
+        <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={2}>
+          {hint}
+        </Text>
+      ) : null}
+    </Card>
   );
 }
 
@@ -73,6 +80,13 @@ export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const appTheme = useTheme();
+  const { surface, sky } = appTheme;
+  const hour = useThemeHour();
+  const overSceneNight = sky.statusBar === "light";
+  const overScene = overSceneNight ? surfaces.night : surfaces.light;
+  useSceneStatusBar(sky.statusBar);
   const { pet, sources, look, species, name, displayName, memorial, status, hasAnyImage, hasProcessedImage, processingStatus, refresh } = usePet();
   const inMemorial = !!memorial;
   const place = sanctuaryCopy(sanctuaryFor(species));
@@ -136,7 +150,7 @@ export default function PetScreen() {
   const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? userStats?.streak ?? 0);
   const isProcessing = processingStatus === "processing";
   const isError = processingStatus === "error";
-  const sceneHeight = Math.round(Math.min(360, Math.max(260, width * 0.78)));
+  const sceneHeight = Math.round(Math.min(460, Math.max(340, width * 0.95)));
 
   const handlePetTheDog = useCallback(() => {
     if (inMemorial) {
@@ -150,6 +164,7 @@ export default function PetScreen() {
     setReaction("love");
     setPetCount((count) => count + 1);
     playDing();
+    tapLight();
     if (user?.id) {
       // Legacy "state" column; harmless, kept so older data readers still see activity.
       upsertPet(user.id, { state: "happy" }).catch(() => {});
@@ -214,6 +229,7 @@ export default function PetScreen() {
       const safeMessage = buildProcessingError(error);
       await upsertPet(user.id, { processing_status: "error", processing_error: safeMessage }).catch(() => {});
       patchPetLocally(user.id, { processing_status: "error", processing_error: safeMessage });
+      warning();
       // an all-opaque result repoints the row at the photo (petStylize.js); reload so this session's
       // cached locators cannot open the overwritten white-backed files later
       await refresh().catch(() => {});
@@ -244,371 +260,242 @@ export default function PetScreen() {
 
   if (status === "loading" && !pet) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
+      <View style={[styles.center, { backgroundColor: surface.canvas, paddingTop: insets.top }]}>
+        <PetLoading />
       </View>
     );
   }
 
+  const plantsGrowing = scenePlants.filter((plant) => plant.level > 0).length;
+
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: surface.canvas }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.sceneWrap}>
-          <GardenStage
-            height={sceneHeight}
-            variant="pet"
-            petWander
-            petImageSources={sources}
-            petLook={look}
-            plants={scenePlants}
-            allowOriginal
-            petMood={mood}
-            petReaction={reaction}
-            onPetReactionEnd={() => setReaction(null)}
-            onPetPress={handlePetTheDog}
-            petResting={inMemorial}
-            petScale={1.05}
-            accessibilityLabel={`${displayName} in the ${place.place}. ${moodSentence(mood, displayName, species)}`}
-          >
-            <View style={styles.sceneTop} pointerEvents="box-none">
-              <View style={styles.nameRow}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {name || "Your pet"}
-                </Text>
-                <Pressable style={styles.renameButton} onPress={openRename} hitSlop={8} accessibilityRole="button" accessibilityLabel="Rename pet">
-                  <Feather name="edit-2" size={14} color="#e2e8f0" />
-                </Pressable>
+        <GardenStage
+          height={sceneHeight}
+          variant="pet"
+          hour={hour}
+          petWander
+          petImageSources={sources}
+          petLook={look}
+          plants={scenePlants}
+          allowOriginal
+          petMood={mood}
+          petReaction={reaction}
+          onPetReactionEnd={() => setReaction(null)}
+          onPetPress={handlePetTheDog}
+          petResting={inMemorial}
+          petScale={1.05}
+          accessibilityLabel={`${displayName} in the ${place.place}. ${moodSentence(mood, displayName, species)}`}
+        >
+          <SceneOverlay
+            sky={sky}
+            topInset={insets.top}
+            title={name || "Your pet"}
+            subtitle={inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName, species)}
+            titleAccessory={
+              <PressableScale
+                onPress={openRename}
+                hitSlop={8}
+                pressedScale={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="Rename pet"
+                style={[styles.renameButton, { backgroundColor: overScene.paperOverScene, boxShadow: overScene.shadow }]}
+              >
+                <Ionicons name="pencil" size={14} color={overScene.text} />
+              </PressableScale>
+            }
+          />
+          <View style={styles.sceneBottom} pointerEvents="none">
+            <View style={[styles.hintPill, { backgroundColor: overScene.paperOverScene, boxShadow: overScene.shadow }]}>
+              <Ionicons name={inMemorial ? "moon" : "heart"} size={13} color={overSceneNight ? appTheme.tone("connection").mid : appTheme.tone("connection").strong} />
+              <Text style={[type.meta, styles.hintText, { color: overScene.text }]}>{petHint}</Text>
+            </View>
+          </View>
+        </GardenStage>
+
+        <View style={[styles.sheet, { backgroundColor: surface.canvas }]}>
+          <StatStrip
+            items={[
+              { value: streak, label: streak === 1 ? "day in a row" : "days in a row", icon: "flame-outline", category: "energy" },
+              { value: together ?? "—", label: together === 1 ? "day together" : "days together", icon: "heart-outline", category: "connection" },
+              { value: plantsGrowing, label: place.plantsStat, icon: "leaf-outline", category: "body" },
+            ]}
+          />
+
+          {isProcessing ? (
+            <Card tone="calm" style={styles.noticeCard}>
+              <View style={styles.noticeRow}>
+                <View style={[styles.noticeSpinner, { backgroundColor: appTheme.tone("calm").tileOnFill }]}>
+                  <ActivityIndicator color={appTheme.tone("calm").accent} />
+                </View>
+                <View style={styles.noticeBody}>
+                  <Text style={[type.bodyStrong, { color: surface.text }]}>Painting {displayName}…</Text>
+                  <Text style={[type.meta, styles.noticeText, { color: surface.textSecondary }]}>The photo is being turned into a portrait. This can take a minute.</Text>
+                </View>
               </View>
-              <Text style={styles.moodLine}>{inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName, species)}</Text>
-            </View>
-            <View style={styles.sceneBottom} pointerEvents="none">
-              <View style={styles.hintPill}>
-                <Feather name="heart" size={12} color="#f9a8d4" />
-                <Text style={styles.hintText}>{petHint}</Text>
+            </Card>
+          ) : isError ? (
+            <Card tone="connection" style={styles.noticeCard}>
+              <View style={styles.noticeRow}>
+                <IconTile icon="alert-circle-outline" category="connection" on="fill" size={40} />
+                <View style={styles.noticeBody}>
+                  <Text style={[type.bodyStrong, { color: surface.text }]}>The portrait didn't finish</Text>
+                  <Text style={[type.meta, styles.noticeText, { color: surface.textSecondary }]}>{pet?.processing_error || "Something went wrong while painting."}</Text>
+                  <Button label={retrying ? "Retrying…" : "Try painting again"} icon="color-palette-outline" size="sm" loading={retrying} onPress={handleRetryStylize} containerStyle={styles.noticeButton} />
+                </View>
               </View>
-            </View>
-          </GardenStage>
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>{streak === 1 ? "day in a row" : "days in a row"}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{together ?? "—"}</Text>
-            <Text style={styles.statLabel}>{together === 1 ? "day together" : "days together"}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>{scenePlants.filter((plant) => plant.level > 0).length}</Text>
-            <Text style={styles.statLabel}>{place.plantsStat}</Text>
-          </View>
-        </View>
-
-        {isProcessing ? (
-          <View style={styles.noticeCard}>
-            <ActivityIndicator color="#35d07f" />
-            <View style={styles.noticeBody}>
-              <Text style={styles.noticeTitle}>Painting {displayName}…</Text>
-              <Text style={styles.noticeText}>The photo is being turned into a portrait. This can take a minute.</Text>
-            </View>
-          </View>
-        ) : isError ? (
-          <View style={[styles.noticeCard, styles.noticeCardError]}>
-            <Feather name="alert-circle" size={18} color="#fca5a5" />
-            <View style={styles.noticeBody}>
-              <Text style={styles.noticeTitle}>The portrait didn't finish</Text>
-              <Text style={styles.noticeText}>{pet?.processing_error || "Something went wrong while painting."}</Text>
-              <Pressable style={[styles.noticeButton, retrying && styles.tileDisabled]} onPress={handleRetryStylize} disabled={retrying}>
-                <Text style={styles.noticeButtonText}>{retrying ? "Retrying…" : "Try painting again"}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : hasAnyImage && !hasProcessedImage ? (
-          <View style={styles.noticeCard}>
-            <Feather name="image" size={18} color="#a7f3d0" />
-            <View style={styles.noticeBody}>
-              <Text style={styles.noticeTitle}>Showing the photo for now</Text>
-              <Text style={styles.noticeText}>{displayName}'s painted portrait isn't ready yet. You can retry any time.</Text>
-              <Pressable style={[styles.noticeButton, retrying && styles.tileDisabled]} onPress={handleRetryStylize} disabled={retrying}>
-                <Text style={styles.noticeButtonText}>{retrying ? "Painting…" : "Paint the portrait"}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
-
-        {inMemorial ? (
-          <Pressable style={styles.memorialButton} onPress={() => navigation.navigate("Memorial")} accessibilityRole="button" accessibilityLabel="Memories">
-            <View style={styles.playIcon}>
-              <Feather name="book-open" size={20} color="#0f172a" />
-            </View>
-            <View style={styles.playBody}>
-              <Text style={styles.playTitle}>Memories of {displayName}</Text>
-              <Text style={styles.playHint}>Write one down, or sit quietly for a minute</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#0f172a" />
-          </Pressable>
-        ) : (
-        <Pressable style={styles.playButton} onPress={() => navigation.navigate("Play")} accessibilityRole="button" accessibilityLabel={`Play with ${displayName}`}>
-          <View style={styles.playIcon}>
-            <Feather name="play" size={20} color="#0f172a" />
-          </View>
-          <View style={styles.playBody}>
-            <Text style={styles.playTitle}>Play with {displayName}</Text>
-            <Text style={styles.playHint}>Fetch · Bubbles</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="#0f172a" />
-        </Pressable>
-        )}
-
-        <View style={styles.tiles}>
-          {inMemorial ? (
-            <ActionTile icon="wind" label="Quiet minute" hint="One minute of breathing" onPress={() => navigation.navigate("Breathing")} />
-          ) : (
-            <ActionTile icon="book-open" label="Journal" hint={`${displayName} asks a question`} onPress={() => navigation.navigate("Journal")} />
-          )}
-          {talkOn && !inMemorial ? (
-            <ActionTile icon="message-circle" label="Talk" hint={`A few words with ${displayName}`} onPress={() => navigation.navigate("PetTalk")} />
+            </Card>
+          ) : hasAnyImage && !hasProcessedImage ? (
+            <Card tone="play" style={styles.noticeCard}>
+              <View style={styles.noticeRow}>
+                <IconTile icon="image-outline" category="play" on="fill" size={40} />
+                <View style={styles.noticeBody}>
+                  <Text style={[type.bodyStrong, { color: surface.text }]}>Showing the photo for now</Text>
+                  <Text style={[type.meta, styles.noticeText, { color: surface.textSecondary }]}>{displayName}'s painted portrait isn't ready yet. You can retry any time.</Text>
+                  <Button label={retrying ? "Painting…" : "Paint the portrait"} icon="color-palette-outline" size="sm" loading={retrying} onPress={handleRetryStylize} containerStyle={styles.noticeButton} />
+                </View>
+              </View>
+            </Card>
           ) : null}
-          <ActionTile icon="sun" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
-          <ActionTile icon="feather" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
-          {isAdopted(look) ? null : (
-            <ActionTile icon="camera" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
+
+          {inMemorial ? (
+            <Card tone="calm" onPress={() => navigation.navigate("Memorial")} accessibilityLabel="Memories" style={styles.bigCard}>
+              <View style={styles.bigRow}>
+                <IconTile icon="book-outline" category="calm" on="fill" size={52} />
+                <View style={styles.bigBody}>
+                  <Text style={[type.h3, { color: surface.text }]}>Memories of {displayName}</Text>
+                  <Text style={[type.meta, { color: surface.textSecondary }]}>Write one down, or sit quietly for a minute</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={appTheme.tone("calm").accent} />
+              </View>
+            </Card>
+          ) : (
+            <Card tone="play" onPress={() => navigation.navigate("Play")} accessibilityLabel={`Play with ${displayName}`} style={styles.bigCard}>
+              <View style={styles.bigRow}>
+                <IconTile icon="tennisball-outline" category="play" on="fill" size={52} />
+                <View style={styles.bigBody}>
+                  <Text style={[type.h3, { color: surface.text }]}>Play with {displayName}</Text>
+                  <Text style={[type.meta, { color: surface.textSecondary }]}>Fetch · Bubbles</Text>
+                </View>
+                <View style={[styles.bigGo, { backgroundColor: appTheme.bloom }]}>
+                  <Ionicons name="play" size={18} color={ink.primary} />
+                </View>
+              </View>
+            </Card>
           )}
-          <ActionTile icon="edit-3" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
+
+          <View style={styles.tiles}>
+            {inMemorial ? (
+              <ActionTile icon="leaf-outline" category="calm" label="Quiet minute" hint={`Breathe slowly with ${displayName}`} onPress={() => navigation.navigate("Breathing")} />
+            ) : (
+              <>
+                <ActionTile icon="book-outline" category="connection" label="Journal" hint={`${displayName} asks a question`} onPress={() => navigation.navigate("Journal")} />
+                <ActionTile icon="leaf-outline" category="calm" label="Breathe together" hint="One slow minute" onPress={() => navigation.navigate("Breathing")} />
+              </>
+            )}
+            {talkOn && !inMemorial ? (
+              <ActionTile icon="chatbubble-ellipses-outline" category="calm" label="Talk" hint={`A few words with ${displayName}`} onPress={() => navigation.navigate("PetTalk")} />
+            ) : null}
+            <ActionTile icon="sunny-outline" category="energy" label="Check in" hint="How are you today?" onPress={() => navigation.navigate("CheckIn")} />
+            <ActionTile icon="color-palette-outline" category="focus" label={look ? "Change look" : "Choose look"} hint={look ? `${look.species === "cat" ? "Cat" : "Dog"} · colours, ears, markings` : "Dog or cat"} onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
+            {isAdopted(look) ? null : (
+              <ActionTile icon="camera-outline" category="play" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
+            )}
+            <ActionTile icon="create-outline" category="rest" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
+          </View>
         </View>
       </ScrollView>
 
-      <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={() => (savingName ? null : setRenameOpen(false))}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{name ? "Rename your pet" : "Name your pet"}</Text>
-            <TextInput
-              value={nameDraft}
-              onChangeText={(text) => {
-                setNameDraft(text);
-                if (nameError) setNameError("");
-              }}
-              placeholder="Enter a name"
-              placeholderTextColor="rgba(148,163,184,0.9)"
-              autoCapitalize="words"
-              maxLength={PET_NAME_MAX_CHARS}
-              editable={!savingName}
-              style={styles.modalInput}
-              autoFocus
-            />
-            {nameError ? <Text style={styles.modalError}>{nameError}</Text> : null}
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancel} onPress={() => setRenameOpen(false)} disabled={savingName}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalSave, savingName && styles.tileDisabled]} onPress={handleSaveName} disabled={savingName}>
-                <Text style={styles.modalSaveText}>{savingName ? "Saving…" : "Save"}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <Sheet
+        visible={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        locked={savingName}
+        title={name ? "Rename your pet" : "Name your pet"}
+        subtitle="A name they'll hear every day."
+        pet={{ mood: "happy", size: 72 }}
+        footer={
+          <>
+            <Button label="Save" onPress={handleSaveName} loading={savingName} />
+            <Button label="Cancel" variant="quiet" size="md" onPress={() => setRenameOpen(false)} disabled={savingName} containerStyle={styles.cancel} />
+          </>
+        }
+      >
+        <TextField
+          value={nameDraft}
+          onChangeText={(text) => {
+            setNameDraft(text);
+            if (nameError) setNameError("");
+          }}
+          placeholder="Enter a name"
+          autoCapitalize="words"
+          maxLength={PET_NAME_MAX_CHARS}
+          editable={!savingName}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleSaveName}
+          accessibilityLabel="Pet name"
+          error={!!nameError}
+          note={nameError || null}
+        />
+      </Sheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
+  screen: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { paddingBottom: 110 },
-  sceneWrap: {
-    overflow: "hidden",
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-  },
-  sceneTop: {
-    position: "absolute",
-    top: 14,
-    left: 16,
-    right: 16,
-  },
-  nameRow: { flexDirection: "row", alignItems: "center" },
-  name: {
-    color: "#ffffff",
-    fontSize: 30,
-    fontWeight: "800",
-    textShadowColor: "rgba(15,23,42,0.65)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-    maxWidth: "80%",
-  },
   renameButton: {
-    marginLeft: 10,
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(15,23,42,0.55)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-  },
-  moodLine: {
-    marginTop: 4,
-    color: "rgba(255,255,255,0.92)",
-    fontSize: 14,
-    fontWeight: "600",
-    textShadowColor: "rgba(15,23,42,0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   sceneBottom: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 14,
+    bottom: 44,
     alignItems: "center",
   },
   hintPill: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,23,42,0.62)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    paddingVertical: 7,
+    borderRadius: radius.pill,
   },
-  hintText: { marginLeft: 6, color: "#f8fafc", fontSize: 12, fontWeight: "600" },
-  statsRow: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    marginTop: 14,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    paddingVertical: 12,
+  hintText: { marginLeft: 6, fontFamily: fonts.bodyBold },
+  sheet: {
+    marginTop: -30,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    borderCurve: "continuous",
+    paddingTop: 22,
+    paddingHorizontal: 20,
   },
-  stat: { flex: 1, alignItems: "center" },
-  statValue: { color: "#e2e8f0", fontSize: 20, fontWeight: "800" },
-  statLabel: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 11, fontWeight: "600" },
-  noticeCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-  },
-  noticeCardError: { borderColor: "rgba(248,113,113,0.45)" },
+  noticeCard: { marginTop: 12 },
+  noticeRow: { flexDirection: "row", alignItems: "flex-start" },
+  noticeSpinner: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   noticeBody: { flex: 1, marginLeft: 12 },
-  noticeTitle: { color: "#e2e8f0", fontSize: 14, fontWeight: "700" },
-  noticeText: { marginTop: 3, color: "rgba(203,213,225,0.9)", fontSize: 12, lineHeight: 17 },
-  noticeButton: {
-    alignSelf: "flex-start",
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(52,211,153,0.18)",
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.6)",
-  },
-  noticeButtonText: { color: "#a7f3d0", fontSize: 12, fontWeight: "700" },
-  memorialButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#fbcfe8",
-  },
-  playButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#35d07f",
-  },
-  playIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(15,23,42,0.16)", alignItems: "center", justifyContent: "center", marginRight: 12 },
-  playBody: { flex: 1 },
-  playTitle: { color: "#0f172a", fontSize: 17, fontWeight: "800" },
-  playHint: { marginTop: 2, color: "rgba(15,23,42,0.75)", fontSize: 12, fontWeight: "600" },
+  noticeText: { marginTop: 2 },
+  noticeButton: { marginTop: 10 },
+  bigCard: { marginTop: 12 },
+  bigRow: { flexDirection: "row", alignItems: "center" },
+  bigBody: { flex: 1, marginHorizontal: 12 },
+  bigGo: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   tiles: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginHorizontal: 16,
     marginTop: 12,
   },
-  tile: {
-    width: "48.5%",
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    minHeight: 96,
-  },
-  tilePrimary: { backgroundColor: "#35d07f", borderColor: "#35d07f" },
-  tileDisabled: { opacity: 0.6 },
-  tileIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(148,163,184,0.18)",
-  },
-  tileIconPrimary: { backgroundColor: "rgba(15,23,42,0.16)" },
-  tileLabel: { marginTop: 10, color: "#e2e8f0", fontSize: 15, fontWeight: "700" },
-  tileLabelPrimary: { color: "#0f172a" },
-  tileHint: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 11 },
-  tileHintPrimary: { color: "rgba(15,23,42,0.75)" },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(2,6,23,0.78)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-  modalCard: {
-    width: "100%",
-    maxWidth: 420,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    backgroundColor: "#0f172a",
-    padding: 16,
-  },
-  modalTitle: { color: "#e2e8f0", fontSize: 20, fontWeight: "800" },
-  modalInput: {
-    marginTop: 12,
-    minHeight: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.45)",
-    backgroundColor: "rgba(15,23,42,0.55)",
-    color: "#e2e8f0",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  modalError: { marginTop: 8, color: "#fca5a5", fontSize: 12, fontWeight: "600" },
-  modalActions: { flexDirection: "row", justifyContent: "flex-end", marginTop: 14 },
-  modalCancel: { paddingHorizontal: 14, paddingVertical: 10, marginRight: 6 },
-  modalCancelText: { color: "rgba(148,163,184,0.95)", fontWeight: "700" },
-  modalSave: {
-    minWidth: 96,
-    minHeight: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#16a34a",
-  },
-  modalSaveText: { color: "#ffffff", fontSize: 15, fontWeight: "800" },
+  tileSlot: { width: "48.5%", marginBottom: 10 },
+  tile: { minHeight: 112 },
+  tileLabel: { marginTop: 10 },
+  disabled: { opacity: 0.6 },
+  cancel: { alignSelf: "center" },
 });

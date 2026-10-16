@@ -1,6 +1,11 @@
 import React, { useState } from "react";
-import { View, TextInput, Button, StyleSheet, Text } from "react-native";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
+import AuthLayout from "../components/auth/AuthLayout";
+import TextField from "../components/common/TextField";
+import Button from "../components/common/Button";
+import { useTheme } from "../theme/theme";
+import { fonts, type } from "../theme/tokens";
 
 function getAuthErrorDetails(error) {
   const status = typeof error?.status === "number" ? error.status : undefined;
@@ -18,6 +23,8 @@ export default function SignupScreen({ navigation }) {
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
   const [emailHasError, setEmailHasError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const theme = useTheme();
 
   function handleEmailChange(nextEmail) {
     setEmail(nextEmail);
@@ -50,6 +57,7 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
+    setBusy(true);
     try {
       const { error } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -71,6 +79,8 @@ export default function SignupScreen({ navigation }) {
         setErr("Unable to create account. Please try again.");
       }
       return;
+    } finally {
+      setBusy(false);
     }
 
     // Profile row is created by a database trigger after signup.
@@ -78,43 +88,41 @@ export default function SignupScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign Up</Text>
-      <TextInput
-        style={[styles.input, emailHasError && styles.inputError]}
-        placeholder="Email"
+    <AuthLayout title="Make a home for your pet" subtitle="Your real dog or cat, painted into a garden that grows with you.">
+      <TextField
+        label="Email"
+        placeholder="you@example.com"
         autoCapitalize="none"
+        autoComplete="email"
+        keyboardType="email-address"
+        textContentType="emailAddress"
         onChangeText={handleEmailChange}
         value={email}
+        error={emailHasError}
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
+      <TextField
+        label="Password"
+        placeholder="Choose a password"
         secureTextEntry
+        autoComplete="new-password"
+        textContentType="newPassword"
         onChangeText={setPwd}
         value={pwd}
+        returnKeyType="go"
+        onSubmitEditing={handleSignup}
       />
-      {err ? <Text style={styles.err}>{err}</Text> : null}
-      <Button title="Create Account" onPress={handleSignup} />
-              <Text onPress={() => navigation.goBack()} style={styles.link}>
-                {"<- Back to login"}      </Text>
-    </View>
+      {err ? <Text style={[type.meta, { color: theme.alert }]} accessibilityLiveRegion="polite">{err}</Text> : null}
+      <Button label="Create account" onPress={handleSignup} loading={busy} containerStyle={styles.cta} />
+      <Pressable onPress={() => navigation.goBack()} hitSlop={8} accessibilityRole="link" style={styles.link}>
+        <Text style={[type.callout, { color: theme.surface.textSecondary }]}>
+          Already have an account? <Text style={{ color: theme.link, fontFamily: fonts.bodyBold }}>Sign in</Text>
+        </Text>
+      </Pressable>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  title: { fontSize: 32, marginBottom: 20, textAlign: "center" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  inputError: {
-    borderColor: "red",
-  },
-  err: { color: "red", marginBottom: 8 },
-  link: { marginTop: 16, color: "#0a84ff", textAlign: "center" },
+  cta: { marginTop: 6 },
+  link: { alignSelf: "center", marginTop: 8, paddingVertical: 6 },
 });

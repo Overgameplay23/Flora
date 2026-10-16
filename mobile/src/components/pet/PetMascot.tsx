@@ -16,6 +16,8 @@ type PetMascotProps = {
   onReactionEnd?: () => void;
   onPress?: () => void;
   showShadow?: boolean;
+  /** show the unpainted upload when that is all there is (it counts as "a pet to draw" below) */
+  allowOriginal?: boolean;
   night?: boolean;
   /** overrides for previews; normally the signed-in user's pet is used */
   sources?: PetImageSources | null;
@@ -36,6 +38,7 @@ export default function PetMascot({
   onReactionEnd,
   onPress,
   showShadow = true,
+  allowOriginal = true,
   night = false,
   sources,
   look,
@@ -59,6 +62,7 @@ export default function PetMascot({
         onReactionEnd={onReactionEnd}
         onPress={onPress}
         showShadow={showShadow}
+        allowOriginal={allowOriginal}
         emptyLabel=""
         accessibilityLabel={`${pet.displayName}`}
       />

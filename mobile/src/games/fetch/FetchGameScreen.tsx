@@ -350,6 +350,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 12,
     borderRadius: 16,
-    backgroundColor: "rgba(15,23,42,0.22)",
+    // a warm ground shadow (the same brown as surface.shadow), not a slate one
+    backgroundColor: "rgba(60,40,30,0.24)",
   },
 });

@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { createPlayTask, findPlayTask, recordPlaySession, type GameId } from "./playStats";
 import { completeTaskWithResilience } from "../services/taskCompletion";
+import Button from "../components/common/Button";
+import IconTile from "../components/common/IconTile";
+import PressableScale from "../components/common/PressableScale";
+import PetMascot from "../components/pet/PetMascot";
+import type { PetReaction } from "../components/pet/PetPortrait";
+import { useTheme } from "../theme/theme";
+import { fonts, radius, type } from "../theme/tokens";
+import { success, warning } from "../utils/haptics";
 
 type GameEndCardProps = {
   game: GameId;
@@ -16,14 +23,22 @@ type GameEndCardProps = {
 
 type Outcome = { bestBeaten: boolean; best: number; taskCompleted: boolean; pointsAwarded: number; hasTask: boolean };
 
+// The same soft plum scrim as the kit's Sheet (src/components/common/Sheet.tsx); there is no token for it yet.
+const SCRIM = "rgba(32,24,40,0.42)";
+
 /**
  * The end of a round: records the session once, shows the score against the best, and offers to make
- * playtime a daily task (points for the garden through complete_task) when the person has none.
+ * playtime a daily task (points for the garden through complete_task) when the person has none. A paper
+ * sheet over the lawn with the pet celebrating; the success haptic only when a play task gets completed.
  */
 export default function GameEndCard({ game, userId, petName, score, summary, onPlayAgain, onDone }: GameEndCardProps) {
+  const theme = useTheme();
+  const { surface, night } = theme;
+  const tone = theme.tone("play");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [addingTask, setAddingTask] = useState(false);
-  const [taskMessage, setTaskMessage] = useState<string | null>(null);
+  const [taskMessage, setTaskMessage] = useState<{ text: string; failed: boolean } | null>(null);
+  const [reaction, setReaction] = useState<PetReaction | null>("cheer");
 
   useEffect(() => {
     let alive = true;
@@ -43,6 +58,10 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
           pointsAwarded: result.pointsAwarded,
           hasTask,
         });
+        if (result.taskCompleted) {
+          success();
+          setReaction("love");
+        }
       }
     })();
     return () => {
@@ -58,47 +77,62 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
     try {
       const task = await createPlayTask(userId, petName);
       const mutation = await completeTaskWithResilience({ taskId: task.id, eventMeta: { category: "play", points: null } });
+      const completed = mutation.state === "success";
       const points = mutation.state === "success" ? mutation.result.points_awarded : 0;
-      setTaskMessage(points > 0 ? `Added. Today's playtime earned +${points} pts for the garden.` : "Added. It will count from tomorrow.");
+      setTaskMessage({ text: points > 0 ? `Added. Today's playtime earned +${points} pts for the garden.` : "Added. It will count from tomorrow.", failed: false });
       setOutcome((prev) => (prev ? { ...prev, hasTask: true, taskCompleted: true, pointsAwarded: points } : prev));
+      if (completed) {
+        success();
+        setReaction("love");
+      }
     } catch (error) {
       console.warn("PLAY_TASK_CREATE_FAILED", (error as any)?.message || String(error));
-      setTaskMessage("Couldn't add the task right now.");
+      warning();
+      setTaskMessage({ text: "Couldn't add the task right now.", failed: true });
     } finally {
       setAddingTask(false);
     }
   };
 
   return (
-    <View style={styles.backdrop} pointerEvents="box-none">
-      <View style={styles.card} accessibilityLiveRegion="polite">
-        <Text style={styles.title}>{outcome?.bestBeaten ? "New best!" : "Good game"}</Text>
-        <Text style={styles.score}>{score}</Text>
-        <Text style={styles.summary}>{summary}</Text>
+    <View style={[styles.backdrop, { backgroundColor: SCRIM }]} pointerEvents="box-none">
+      <View style={[styles.card, { backgroundColor: surface.paper, boxShadow: surface.shadowRaised }]} accessibilityLiveRegion="polite">
+        <PetMascot size={92} mood="excited" reaction={reaction} onReactionEnd={() => setReaction(null)} night={night} showShadow={false} />
+        <Text style={[type.title, styles.title, { color: surface.text }]} accessibilityRole="header">
+          {outcome?.bestBeaten ? "New best!" : "Good game"}
+        </Text>
+        <Text style={[styles.score, { color: tone.accent }]}>{score}</Text>
+        <Text style={[type.callout, styles.summary, { color: surface.textSecondary }]}>{summary}</Text>
         {outcome ? (
-          <Text style={styles.meta}>
+          <Text style={[type.meta, styles.meta, { color: surface.textTertiary }]}>
             Best {outcome.best}
             {outcome.taskCompleted && outcome.pointsAwarded > 0 ? ` · +${outcome.pointsAwarded} pts for the garden` : ""}
           </Text>
         ) : (
-          <ActivityIndicator color="#35d07f" style={{ marginTop: 8 }} />
+          <ActivityIndicator color={tone.accent} style={styles.meta} />
         )}
 
         {outcome && !outcome.hasTask && userId ? (
-          <Pressable style={[styles.taskButton, addingTask && styles.disabled]} onPress={addPlayTask} disabled={addingTask} accessibilityRole="button">
-            <Feather name="plus-circle" size={16} color="#a7f3d0" />
-            <Text style={styles.taskButtonText}>{addingTask ? "Adding…" : `Make "Play with ${petName}" a daily task`}</Text>
-          </Pressable>
+          <PressableScale
+            onPress={addPlayTask}
+            disabled={addingTask}
+            pressedScale={0.97}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: addingTask, busy: addingTask }}
+            containerStyle={styles.offerSlot}
+            style={[styles.offer, { backgroundColor: theme.night ? surface.sunken : tone.tint }, addingTask && styles.disabled]}
+          >
+            <IconTile icon="add-circle-outline" category="play" on="fill" size={34} />
+            <Text style={[type.callout, styles.offerText, { color: surface.text }]}>{addingTask ? "Adding…" : `Make "Play with ${petName}" a daily task`}</Text>
+          </PressableScale>
         ) : null}
-        {taskMessage ? <Text style={styles.taskMessage}>{taskMessage}</Text> : null}
+        {taskMessage ? (
+          <Text style={[type.meta, styles.taskMessage, { color: taskMessage.failed ? theme.alert : surface.textSecondary }]}>{taskMessage.text}</Text>
+        ) : null}
 
         <View style={styles.actions}>
-          <Pressable style={styles.secondary} onPress={onDone} accessibilityRole="button">
-            <Text style={styles.secondaryText}>Done</Text>
-          </Pressable>
-          <Pressable style={styles.primary} onPress={onPlayAgain} accessibilityRole="button">
-            <Text style={styles.primaryText}>Play again</Text>
-          </Pressable>
+          <Button label="Done" variant="secondary" size="md" block onPress={onDone} containerStyle={styles.action} />
+          <Button label="Play again" variant="primary" size="md" block onPress={onPlayAgain} containerStyle={styles.action} />
         </View>
       </View>
     </View>
@@ -110,56 +144,27 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(2,6,23,0.45)",
     paddingHorizontal: 20,
   },
   card: {
     width: "100%",
     maxWidth: 420,
-    borderRadius: 22,
-    padding: 20,
-    backgroundColor: "#0f172a",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.3)",
+    borderRadius: radius.sheet,
+    borderCurve: "continuous",
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 20,
     alignItems: "center",
   },
-  title: { color: "#f8fafc", fontSize: 22, fontWeight: "800" },
-  score: { color: "#35d07f", fontSize: 48, fontWeight: "900", marginTop: 4 },
-  summary: { marginTop: 6, color: "rgba(226,232,240,0.92)", fontSize: 14, lineHeight: 20, textAlign: "center" },
-  meta: { marginTop: 10, color: "rgba(148,163,184,0.95)", fontSize: 12, fontWeight: "700" },
-  taskButton: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.6)",
-    backgroundColor: "rgba(16,185,129,0.15)",
-  },
-  taskButtonText: { marginLeft: 8, color: "#a7f3d0", fontSize: 13, fontWeight: "700" },
-  taskMessage: { marginTop: 8, color: "#fde68a", fontSize: 12, fontWeight: "600", textAlign: "center" },
-  actions: { flexDirection: "row", marginTop: 18, alignSelf: "stretch" },
-  primary: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 999,
-    backgroundColor: "#35d07f",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 8,
-  },
-  primaryText: { color: "#0f172a", fontSize: 15, fontWeight: "800" },
-  secondary: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryText: { color: "#e2e8f0", fontSize: 15, fontWeight: "700" },
+  title: { marginTop: 8, textAlign: "center" },
+  score: { fontFamily: fonts.display, fontSize: 52, lineHeight: 60, marginTop: 2 },
+  summary: { marginTop: 4, textAlign: "center" },
+  meta: { marginTop: 10 },
+  offerSlot: { alignSelf: "stretch", marginTop: 16 },
+  offer: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radius.row, borderCurve: "continuous" },
+  offerText: { flex: 1, fontFamily: fonts.bodyBold },
+  taskMessage: { marginTop: 10, textAlign: "center" },
+  actions: { flexDirection: "row", gap: 10, marginTop: 20, alignSelf: "stretch" },
+  action: { flex: 1 },
   disabled: { opacity: 0.6 },
 });

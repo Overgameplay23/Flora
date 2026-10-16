@@ -1,18 +1,21 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  SafeAreaView,
-  FlatList,
-  ActivityIndicator,
-  StyleSheet,
-  Modal,
-  TextInput,
-  ScrollView,
-} from "react-native";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { notify } from "../utils/confirm";
 import { useAuth } from "../contexts/AuthContext";
+import { usePet } from "../hooks/usePet";
+import type { PetReaction } from "../components/pet/PetPortrait";
+import PetMascot from "../components/pet/PetMascot";
+import SpeechBubble from "../components/pet/SpeechBubble";
+import { PetEmptyState, PetLoading, useHasPet } from "../components/pet/PetMoments";
+import Screen from "../components/common/Screen";
+import Button from "../components/common/Button";
+import Sheet from "../components/common/Sheet";
+import TextField from "../components/common/TextField";
+import PressableScale from "../components/common/PressableScale";
+import { useTheme } from "../theme/theme";
+import { brand, ink, radius, springs, type } from "../theme/tokens";
+import { success, tapSoft, warning } from "../utils/haptics";
 import {
   fetchHabitsWithCompletions,
   fetchTodayCheckIn,
@@ -23,8 +26,75 @@ import {
 } from "../services/dailyLoop";
 import { getHabits, resetHabits, saveHabits } from "../services/habitsService";
 
+/** Habits are body care (docs/design-system.md: colour has meaning). */
+const HABIT_CATEGORY = "body";
+
+type HabitRowProps = {
+  title: string;
+  done: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+};
+
+/** One habit on its sage card: a round check that pops when ticked, quieter once done. */
+function HabitRow({ title, done, disabled, onToggle }: HabitRowProps) {
+  const theme = useTheme();
+  const { surface } = theme;
+  const tone = theme.tone(HABIT_CATEGORY);
+  const pop = useRef(new Animated.Value(done ? 1 : 0)).current;
+  const wasDone = useRef(done);
+  useEffect(() => {
+    if (done && !wasDone.current) {
+      pop.setValue(0.4);
+      Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...springs.bouncy }).start();
+    } else if (!done) {
+      pop.setValue(0);
+    }
+    wasDone.current = done;
+  }, [done, pop]);
+  const checkScale = pop.interpolate({ inputRange: [0, 0.4, 1], outputRange: [1, 0.8, 1] });
+
+  return (
+    <PressableScale
+      onPress={onToggle}
+      disabled={disabled}
+      pressedScale={0.98}
+      accessibilityRole="checkbox"
+      accessibilityLabel={title}
+      accessibilityState={{ checked: done, disabled }}
+      containerStyle={styles.rowSlot}
+      style={[styles.habitRow, { backgroundColor: tone.fill, boxShadow: surface.shadow, opacity: done ? 0.62 : 1 }]}
+    >
+      <Animated.View
+        style={[
+          styles.check,
+          {
+            borderColor: tone.accent,
+            backgroundColor: done ? tone.accent : theme.night ? "transparent" : tone.tileOnFill,
+            transform: [{ scale: checkScale }],
+          },
+        ]}
+      >
+        {done ? <Ionicons name="checkmark" size={20} color={theme.night ? ink.primary : brand.cream} /> : null}
+      </Animated.View>
+      <Text style={[type.bodyStrong, styles.habitTitle, { color: surface.text }, done && styles.habitTitleDone]}>{title}</Text>
+    </PressableScale>
+  );
+}
+
+/** What the pet says over the list; first person, never counting what is left. */
+function habitsLine(done: number, total: number) {
+  if (total > 0 && done >= total) return "All done for today. I'm proud of you.";
+  if (done === 0) return "Any one of these is plenty. I'll be right here.";
+  return "That counts. The rest can wait if it needs to.";
+}
+
 export default function HabitsTodayScreen() {
   const { user, userStats, setUserStats } = useAuth();
+  const { memorial } = usePet();
+  const hasPet = useHasPet();
+  const theme = useTheme();
+  const { surface } = theme;
   const [habits, setHabits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,9 +102,13 @@ export default function HabitsTodayScreen() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorDraft, setEditorDraft] = useState<string[]>([]);
   const [editorSaving, setEditorSaving] = useState(false);
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
+  const tickedThisVisit = useRef(false);
+  const celebratedAllDone = useRef(false);
 
   const dateKey = useMemo(() => todayKey(), []);
   const completedCount = habits.filter((h) => h.completed).length;
+  const allDone = habits.length > 0 && completedCount === habits.length;
 
   useEffect(() => {
     const load = async () => {
@@ -56,13 +130,32 @@ export default function HabitsTodayScreen() {
     load();
   }, [user?.id, dateKey]);
 
+  // every habit ticked in this visit: one bigger moment, once
+  useEffect(() => {
+    if (!allDone || celebratedAllDone.current || !tickedThisVisit.current) return;
+    celebratedAllDone.current = true;
+    success();
+    if (!memorial) setPetReaction("love");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDone]);
+
   const toggleHabit = async (habitId: number, completed: boolean) => {
     if (!user?.id || saving) return;
     setSaving(true);
     setErrorMessage("");
+    const previousHabits = habits;
     try {
       const nextHabits = habits.map((h) => (h.id === habitId ? { ...h, completed } : h));
       setHabits(nextHabits);
+      const willBeAllDone = nextHabits.length > 0 && nextHabits.every((h) => h.completed);
+      if (completed) {
+        tickedThisVisit.current = true;
+        // the last tick gets the success pulse instead (effect above)
+        if (!willBeAllDone) {
+          tapSoft();
+          if (!memorial) setPetReaction("cheer");
+        }
+      }
       await setHabitCompletion(user.id, habitId, completed, dateKey);
 
       const checkIn = await fetchTodayCheckIn(user.id, dateKey);
@@ -79,6 +172,9 @@ export default function HabitsTodayScreen() {
       setUserStats?.(stats);
     } catch (error) {
       console.error("HABITS_TOGGLE_ERROR", error);
+      // never leave a tick showing that was not saved
+      setHabits(previousHabits);
+      warning();
       setErrorMessage("Could not update habit. Please try again.");
       notify("Error", "Could not update that habit. Please try again.");
     } finally {
@@ -123,6 +219,7 @@ export default function HabitsTodayScreen() {
       setEditorOpen(false);
     } catch (error) {
       console.error("HABITS_SAVE_ERROR", error);
+      warning();
       setErrorMessage("Could not save habit names.");
       notify("Error", "Could not save habit names. Please try again.");
     } finally {
@@ -141,6 +238,7 @@ export default function HabitsTodayScreen() {
       await applyLocalHabitTitles();
     } catch (error) {
       console.error("HABITS_RESET_ERROR", error);
+      warning();
       setErrorMessage("Could not reset habits.");
       notify("Error", "Could not reset habits. Please try again.");
     } finally {
@@ -150,192 +248,120 @@ export default function HabitsTodayScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator />
-      </SafeAreaView>
+      <Screen scroll={false} centered>
+        <PetLoading />
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Habits today</Text>
-        <Pressable style={styles.editButton} onPress={openEditor} disabled={saving || loading}>
-          <Text style={styles.editButtonText}>Edit habits</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.subtitle}>
-        {completedCount} of {habits.length} done today
-      </Text>
-
-      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
-
-      <FlatList
-        data={habits}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => toggleHabit(item.id, !item.completed)}
-            style={[styles.habitRow, item.completed && styles.habitRowDone]}
-            disabled={saving}
-          >
-            <View style={[styles.checkbox, item.completed && styles.checkboxDone]} />
-            <Text style={[styles.habitTitle, item.completed && styles.habitTitleDone]}>{item.title}</Text>
-          </Pressable>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>No habits yet.</Text>}
-        contentContainerStyle={{ paddingVertical: 12 }}
-      />
-
-      <Modal visible={editorOpen} transparent animationType="fade" onRequestClose={closeEditor}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Edit habits</Text>
-            <Text style={styles.modalSubtitle}>Keep habit names short and clear.</Text>
-            <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalScrollContent}>
-              {editorDraft.map((habitTitle, index) => (
-                <View key={`habit-editor-${index}`} style={styles.inputWrap}>
-                  <Text style={styles.inputLabel}>Habit {index + 1}</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={habitTitle}
-                    onChangeText={(value) => updateDraftTitle(index, value)}
-                    placeholder="Habit name"
-                    placeholderTextColor="rgba(148,163,184,0.7)"
-                    editable={!editorSaving}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Pressable style={[styles.modalActionButton, styles.modalCancelButton]} onPress={closeEditor} disabled={editorSaving}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalActionButton, styles.modalResetButton]} onPress={handleResetHabits} disabled={editorSaving}>
-                <Text style={styles.modalResetText}>Reset</Text>
-              </Pressable>
-              <Pressable style={[styles.modalActionButton, styles.modalSaveButton]} onPress={handleSaveHabits} disabled={editorSaving}>
-                <Text style={styles.modalSaveText}>{editorSaving ? "Saving..." : "Save"}</Text>
-              </Pressable>
-            </View>
-          </View>
+    <Screen bottomPad={48}>
+      {hasPet && habits.length > 0 ? (
+        <View style={styles.petRow}>
+          <PetMascot
+            size={72}
+            mood={allDone ? "happy" : "calm"}
+            reaction={petReaction}
+            onReactionEnd={() => setPetReaction(null)}
+            showShadow={false}
+          />
+          {memorial ? null : (
+            <SpeechBubble text={habitsLine(completedCount, habits.length)} tail="left" night={theme.night} style={styles.petBubble} />
+          )}
         </View>
-      </Modal>
-    </SafeAreaView>
+      ) : null}
+
+      <View style={styles.summaryRow}>
+        <Text style={[type.callout, styles.summary, { color: surface.textSecondary }]}>
+          {completedCount} of {habits.length} done today
+        </Text>
+        <Button label="Edit habits" icon="create-outline" variant="secondary" size="sm" onPress={openEditor} disabled={saving || loading} />
+      </View>
+
+      {errorMessage ? <Text style={[type.meta, styles.error, { color: theme.alert }]}>{errorMessage}</Text> : null}
+
+      {habits.length === 0 ? (
+        <PetEmptyState title="No habits yet." mood="calm" style={styles.empty} />
+      ) : (
+        habits.map((item) => (
+          <HabitRow
+            key={String(item.id)}
+            title={item.title}
+            done={!!item.completed}
+            disabled={saving}
+            onToggle={() => toggleHabit(item.id, !item.completed)}
+          />
+        ))
+      )}
+
+      <Sheet
+        visible={editorOpen}
+        onClose={closeEditor}
+        title="Edit habits"
+        subtitle="Keep habit names short and clear."
+        pet={{ mood: "calm", size: 64 }}
+        locked={editorSaving}
+        footer={
+          <>
+            <Button label="Save" onPress={handleSaveHabits} loading={editorSaving} />
+            <View style={styles.sheetRow}>
+              <Button label="Reset" variant="secondary" size="md" block onPress={handleResetHabits} disabled={editorSaving} containerStyle={styles.sheetButton} />
+              <Button label="Cancel" variant="quiet" size="md" block onPress={closeEditor} disabled={editorSaving} containerStyle={styles.sheetButton} />
+            </View>
+          </>
+        }
+      >
+        {editorDraft.map((habitTitle, index) => (
+          <TextField
+            key={`habit-editor-${index}`}
+            label={`Habit ${index + 1}`}
+            value={habitTitle}
+            onChangeText={(value) => updateDraftTitle(index, value)}
+            placeholder="Habit name"
+            editable={!editorSaving}
+            containerStyle={styles.field}
+          />
+        ))}
+      </Sheet>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f172a", paddingHorizontal: 16, paddingTop: 16 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  headerRow: {
+  petRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+  petBubble: { flexShrink: 1, marginLeft: 12 },
+  summaryRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 14,
   },
-  title: { fontSize: 20, fontWeight: "700", color: "#e2e8f0" },
-  editButton: {
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "rgba(15,23,42,0.7)",
-  },
-  editButtonText: { color: "rgba(226,232,240,0.9)", fontSize: 12, fontWeight: "600" },
-  subtitle: { fontSize: 12, color: "rgba(148,163,184,0.85)", marginTop: 4, marginBottom: 12 },
-  error: { color: "#fecdd3", marginBottom: 10 },
+  summary: { flex: 1, marginLeft: 4 },
+  error: { marginBottom: 10, marginLeft: 4 },
+  empty: { marginTop: 12 },
+  rowSlot: { marginBottom: 10 },
   habitRow: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 64,
     paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(15,23,42,0.6)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.2)",
-    marginBottom: 8,
+    paddingHorizontal: 14,
+    borderRadius: radius.row,
+    borderCurve: "continuous",
   },
-  habitRowDone: {
-    backgroundColor: "rgba(16,185,129,0.1)",
-    borderColor: "rgba(16,185,129,0.45)",
-  },
-  habitTitle: { color: "#e2e8f0", fontSize: 15 },
-  habitTitleDone: { color: "#a7f3d0", textDecorationLine: "line-through" },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+  check: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 2,
-    borderColor: "rgba(148,163,184,0.6)",
-    marginRight: 12,
-  },
-  checkboxDone: {
-    borderColor: "#34d399",
-    backgroundColor: "rgba(52,211,153,0.25)",
-  },
-  empty: { color: "rgba(148,163,184,0.8)", textAlign: "center", marginTop: 20 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(2,6,23,0.65)",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
+    marginRight: 14,
   },
-  modalCard: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "80%",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.3)",
-    backgroundColor: "#0f172a",
-    padding: 16,
-  },
-  modalTitle: { color: "#e2e8f0", fontSize: 18, fontWeight: "700" },
-  modalSubtitle: { color: "rgba(148,163,184,0.9)", fontSize: 12, marginTop: 4, marginBottom: 10 },
-  modalScroll: { maxHeight: 320 },
-  modalScrollContent: { paddingBottom: 8 },
-  inputWrap: { marginBottom: 10 },
-  inputLabel: { color: "#cbd5e1", fontSize: 12, marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    color: "#e2e8f0",
-    backgroundColor: "rgba(15,23,42,0.7)",
-  },
-  modalActions: {
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  modalActionButton: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    minWidth: 78,
-    alignItems: "center",
-  },
-  modalCancelButton: {
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.4)",
-    backgroundColor: "rgba(30,41,59,0.7)",
-  },
-  modalCancelText: { color: "#e2e8f0", fontSize: 12, fontWeight: "600" },
-  modalResetButton: {
-    borderWidth: 1,
-    borderColor: "rgba(94,234,212,0.35)",
-    backgroundColor: "rgba(13,148,136,0.2)",
-  },
-  modalResetText: { color: "#99f6e4", fontSize: 12, fontWeight: "600" },
-  modalSaveButton: {
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.55)",
-    backgroundColor: "rgba(16,185,129,0.25)",
-  },
-  modalSaveText: { color: "#a7f3d0", fontSize: 12, fontWeight: "700" },
+  habitTitle: { flex: 1 },
+  habitTitleDone: { textDecorationLine: "line-through" },
+  sheetRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  sheetButton: { flex: 1 },
+  field: { marginBottom: 12 },
 });

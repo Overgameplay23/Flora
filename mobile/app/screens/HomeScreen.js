@@ -37,6 +37,7 @@ import { playDing } from "../../src/utils/sfx";
 import { notify } from "../../src/utils/confirm";
 import * as haptics from "../../src/utils/haptics";
 import { brand, fonts, ink, radius, skyFor, surfaces, type } from "../../src/theme/tokens";
+import { useTheme } from "../../src/theme/theme";
 
 // Home: the pet's sanctuary and today's care. Layout and look live in src/components/home/HomeView.tsx
 // (pure, also rendered by the design preview); this screen owns the data, the plan, completions and the
@@ -103,6 +104,7 @@ export default function HomeScreen() {
   const petDisplayName = normalizePetName(petName) || "Your pet";
   const phase = dayPhase(hour);
   const sky = skyFor(phase);
+  const appStatusBar = useTheme().statusBar;
 
   const [energy, setEnergy] = useState(null);
   const [focusOpen, setFocusOpen] = useState(false);
@@ -352,13 +354,13 @@ export default function HomeScreen() {
       firstFocus.current = false;
     }, [loadSideData, refreshPet])
   );
-  // the status bar follows the sky while Home is in front, and goes back to the default (stack screens have
-  // light headers) when leaving; kept apart so an hour change does not re-run the refresh above
+  // the status bar follows the sky while Home is in front, and goes back to the app-wide one (the paper of
+  // the hour, set in RootNavigator) when leaving; kept apart so an hour change does not re-run the refresh above
   useFocusEffect(
     useCallback(() => {
       setStatusBarStyle(sky.statusBar);
-      return () => setStatusBarStyle("auto");
-    }, [sky.statusBar])
+      return () => setStatusBarStyle(appStatusBar);
+    }, [sky.statusBar, appStatusBar])
   );
 
   // ---- Graceful Hibernation: after days away, a warm welcome once per visit, no backlog ---------------

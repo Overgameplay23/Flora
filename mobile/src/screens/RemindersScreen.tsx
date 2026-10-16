@@ -1,13 +1,22 @@
 // Reminders in the pet's voice: opt-in, a morning hello, an evening check-in nudge, a Sunday recap.
 // Local notifications only; rebuilt for the next week every time the app opens, so they run out
-// on their own if the person stops opening the app (no nagging, no backlog).
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+// on their own if the person stops opening the app (no nagging, no backlog). Colour: rest blue.
+import React, { useCallback, useMemo, useState } from "react";
+import { Linking, Platform, StyleProp, StyleSheet, Switch, Text, View, ViewStyle } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
-import PetPortrait from "../components/pet/PetPortrait";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Chip from "../components/common/Chip";
+import IconTile from "../components/common/IconTile";
+import { ListGroup, ListRow } from "../components/common/ListGroup";
+import { Eyebrow } from "../components/common/Headings";
+import PetMascot from "../components/pet/PetMascot";
+import { PetLoading } from "../components/pet/PetMoments";
+import { useTheme } from "../theme/theme";
+import { brand, fonts, type } from "../theme/tokens";
+import { selection } from "../utils/haptics";
 import {
   DEFAULT_REMINDERS,
   EVENING_TIMES,
@@ -32,9 +41,66 @@ function sameTime(a: ReminderTime, b: ReminderTime) {
   return a.hour === b.hour && a.minute === b.minute;
 }
 
+/** React Native's Switch in the screen's rest blue on warm paper. */
+function RestSwitch({ value, disabled, onValueChange, accessibilityLabel }: { value: boolean; disabled?: boolean; onValueChange: (value: boolean) => void; accessibilityLabel: string }) {
+  const theme = useTheme();
+  const { surface } = theme;
+  const tone = theme.tone("rest");
+  return (
+    <Switch
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => {
+        selection();
+        onValueChange(next);
+      }}
+      trackColor={{ false: surface.track, true: tone.accent }}
+      thumbColor={brand.cream}
+      ios_backgroundColor={surface.track}
+      accessibilityLabel={accessibilityLabel}
+    />
+  );
+}
+
+/** One kind of reminder: an icon, what it is, its switch, and (optionally) the times to pick from. */
+function ScheduleCard({
+  icon,
+  label,
+  hint,
+  muted,
+  children,
+  control,
+  style,
+}: {
+  icon: string;
+  label: string;
+  hint: string;
+  muted: boolean;
+  control: React.ReactNode;
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { surface } = useTheme();
+  return (
+    <Card style={[styles.block, muted && styles.cardMuted, style]}>
+      <View style={styles.rowBetween}>
+        <IconTile icon={icon} category="rest" size={36} />
+        <View style={styles.rowText}>
+          <Text style={[type.callout, { color: surface.text, fontFamily: fonts.bodyBold }]}>{label}</Text>
+          <Text style={[type.meta, styles.rowHint, { color: surface.textSecondary }]}>{hint}</Text>
+        </View>
+        {control}
+      </View>
+      {children}
+    </Card>
+  );
+}
+
 export default function RemindersScreen() {
   const { user, profile } = useAuth();
-  const { sources, look, displayName, species, memorial } = usePet();
+  const { displayName, species, memorial } = usePet();
+  const theme = useTheme();
+  const { surface, night } = theme;
   const [settings, setSettings] = useState<ReminderSettings>(DEFAULT_REMINDERS);
   const [permission, setPermission] = useState<PermissionState>(remindersSupported ? "undetermined" : "unsupported");
   const [loading, setLoading] = useState(true);
@@ -84,231 +150,192 @@ export default function RemindersScreen() {
     return plan.slice(0, 2);
   }, [checkedInToday, displayName, memorial, settings, species]);
 
-  useEffect(() => {
-    // nothing else to do here; kept so the linter sees the preview dependency chain
-  }, [preview]);
-
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
-      </View>
+      <Screen scroll={false} centered>
+        <PetLoading />
+      </Screen>
     );
   }
 
   const on = settings.enabled && permission === "granted";
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.hero}>
-        <PetPortrait sources={sources} look={look} size={72} mood={on ? "happy" : "calm"} resting={!!memorial} allowOriginal emptyLabel="Pet" style={styles.heroPet} />
+    <Screen>
+      <Card tone="rest" style={styles.hero}>
+        <PetMascot size={72} mood={on ? "happy" : "calm"} night={night} showShadow={false} />
         <View style={styles.heroBody}>
-          <Text style={styles.heroTitle}>{displayName} can say good morning</Text>
-          <Text style={styles.heroLine}>A hello in the morning, a gentle nudge at night, a look back on Sundays. Nothing counts down, nothing scolds.</Text>
+          <Text style={[type.h3, { color: surface.text }]} accessibilityRole="header">
+            {displayName} can say good morning
+          </Text>
+          <Text style={[type.meta, styles.heroLine, { color: surface.textSecondary }]}>
+            A hello in the morning, a gentle nudge at night, a look back on Sundays. Nothing counts down, nothing scolds.
+          </Text>
         </View>
-      </View>
+      </Card>
 
       {!remindersSupported ? (
-        <View style={styles.note}>
-          <Feather name="smartphone" size={16} color="#86efac" />
-          <Text style={styles.noteText}>Reminders arrive on your phone. Open Luna there to set them up.</Text>
-        </View>
+        <Card variant="sunken" style={styles.block}>
+          <View style={styles.noteRow}>
+            <IconTile icon="phone-portrait-outline" category="rest" size={32} />
+            <Text style={[type.callout, styles.noteText, { color: surface.text }]}>Reminders arrive on your phone. Open Luna there to set them up.</Text>
+          </View>
+        </Card>
       ) : memorial ? (
-        <View style={styles.note}>
-          <Feather name="moon" size={16} color="#c4b5fd" />
-          <Text style={styles.noteText}>Reminders are paused while you remember {displayName}. Your settings are kept.</Text>
-        </View>
+        <Card variant="sunken" style={styles.block}>
+          <View style={styles.noteRow}>
+            <IconTile icon="moon-outline" category="calm" size={32} />
+            <Text style={[type.callout, styles.noteText, { color: surface.text }]}>Reminders are paused while you remember {displayName}. Your settings are kept.</Text>
+          </View>
+        </Card>
       ) : null}
 
-      <View style={styles.card}>
-        <View style={styles.rowBetween}>
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>Reminders</Text>
-            <Text style={styles.rowHint}>{on ? "On" : permission === "denied" ? "Off · allowed in your phone's settings" : "Off"}</Text>
-          </View>
-          <Switch
-            value={on}
-            disabled={!remindersSupported || saving}
-            onValueChange={(value) => (value ? turnOn() : persist({ ...settings, enabled: false }))}
-            trackColor={{ false: "rgba(148,163,184,0.3)", true: "#35d07f" }}
-            thumbColor="#f8fafc"
-            accessibilityLabel="Reminders"
-          />
-        </View>
+      <ListGroup style={styles.block}>
+        <ListRow
+          icon="notifications-outline"
+          category="rest"
+          label="Reminders"
+          hint={on ? "On" : permission === "denied" ? "Off · allowed in your phone's settings" : "Off"}
+          right={
+            <RestSwitch
+              value={on}
+              disabled={!remindersSupported || saving}
+              onValueChange={(value) => (value ? turnOn() : persist({ ...settings, enabled: false }))}
+              accessibilityLabel="Reminders"
+            />
+          }
+        />
         {permission === "denied" && remindersSupported ? (
-          <Pressable style={styles.linkButton} onPress={() => Linking.openSettings().catch(() => {})} accessibilityRole="button">
-            <Text style={styles.linkText}>Open phone settings</Text>
-          </Pressable>
+          <ListRow icon="settings-outline" category="rest" label="Open phone settings" onPress={() => Linking.openSettings().catch(() => {})} />
         ) : null}
-      </View>
+      </ListGroup>
 
-      <View style={[styles.card, !on && styles.cardMuted]}>
-        <View style={styles.rowBetween}>
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>Morning hello</Text>
-            <Text style={styles.rowHint}>{displayName} says good morning</Text>
-          </View>
-          <Switch
+      <Eyebrow style={styles.eyebrow}>When</Eyebrow>
+      <ScheduleCard
+        icon="sunny-outline"
+        label="Morning hello"
+        hint={`${displayName} says good morning`}
+        muted={!on}
+        style={styles.firstSchedule}
+        control={
+          <RestSwitch
             value={settings.morning.enabled}
             disabled={!on || saving}
             onValueChange={(value) => persist({ ...settings, morning: { ...settings.morning, enabled: value } })}
-            trackColor={{ false: "rgba(148,163,184,0.3)", true: "#35d07f" }}
-            thumbColor="#f8fafc"
             accessibilityLabel="Morning hello"
           />
-        </View>
+        }
+      >
         <View style={styles.chips}>
-          {MORNING_TIMES.map((t) => {
-            const active = sameTime(t, settings.morning.time);
-            return (
-              <Pressable
-                key={formatTime(t)}
-                style={[styles.chip, active && styles.chipActive]}
-                disabled={!on || !settings.morning.enabled || saving}
-                onPress={() => persist({ ...settings, morning: { ...settings.morning, time: t } })}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`Morning at ${formatTime(t)}`}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{formatTime(t)}</Text>
-              </Pressable>
-            );
-          })}
+          {MORNING_TIMES.map((t) => (
+            <Chip
+              key={formatTime(t)}
+              label={formatTime(t)}
+              category="rest"
+              selected={sameTime(t, settings.morning.time)}
+              disabled={!on || !settings.morning.enabled || saving}
+              onPress={() => persist({ ...settings, morning: { ...settings.morning, time: t } })}
+              accessibilityLabel={`Morning at ${formatTime(t)}`}
+            />
+          ))}
         </View>
-      </View>
+      </ScheduleCard>
 
-      <View style={[styles.card, !on && styles.cardMuted]}>
-        <View style={styles.rowBetween}>
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>Evening check-in</Text>
-            <Text style={styles.rowHint}>Only on days you haven't checked in yet</Text>
-          </View>
-          <Switch
+      <ScheduleCard
+        icon="cloudy-night-outline"
+        label="Evening check-in"
+        hint="Only on days you haven't checked in yet"
+        muted={!on}
+        control={
+          <RestSwitch
             value={settings.evening.enabled}
             disabled={!on || saving}
             onValueChange={(value) => persist({ ...settings, evening: { ...settings.evening, enabled: value } })}
-            trackColor={{ false: "rgba(148,163,184,0.3)", true: "#35d07f" }}
-            thumbColor="#f8fafc"
             accessibilityLabel="Evening check-in"
           />
-        </View>
+        }
+      >
         <View style={styles.chips}>
-          {EVENING_TIMES.map((t) => {
-            const active = sameTime(t, settings.evening.time);
-            return (
-              <Pressable
-                key={formatTime(t)}
-                style={[styles.chip, active && styles.chipActive]}
-                disabled={!on || !settings.evening.enabled || saving}
-                onPress={() => persist({ ...settings, evening: { ...settings.evening, time: t } })}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={`Evening at ${formatTime(t)}`}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{formatTime(t)}</Text>
-              </Pressable>
-            );
-          })}
+          {EVENING_TIMES.map((t) => (
+            <Chip
+              key={formatTime(t)}
+              label={formatTime(t)}
+              category="rest"
+              selected={sameTime(t, settings.evening.time)}
+              disabled={!on || !settings.evening.enabled || saving}
+              onPress={() => persist({ ...settings, evening: { ...settings.evening, time: t } })}
+              accessibilityLabel={`Evening at ${formatTime(t)}`}
+            />
+          ))}
         </View>
-      </View>
+      </ScheduleCard>
 
-      <View style={[styles.card, !on && styles.cardMuted]}>
-        <View style={styles.rowBetween}>
-          <View style={styles.rowText}>
-            <Text style={styles.rowLabel}>Sunday recap</Text>
-            <Text style={styles.rowHint}>"{displayName} put together your week", at {formatTime(settings.weekly.time)}</Text>
-          </View>
-          <Switch
+      <ScheduleCard
+        icon="calendar-outline"
+        label="Sunday recap"
+        hint={`"${displayName} put together your week", at ${formatTime(settings.weekly.time)}`}
+        muted={!on}
+        control={
+          <RestSwitch
             value={settings.weekly.enabled}
             disabled={!on || saving}
             onValueChange={(value) => persist({ ...settings, weekly: { ...settings.weekly, enabled: value } })}
-            trackColor={{ false: "rgba(148,163,184,0.3)", true: "#35d07f" }}
-            thumbColor="#f8fafc"
             accessibilityLabel="Sunday recap"
           />
-        </View>
-      </View>
+        }
+      />
 
       {preview.length > 0 ? (
-        <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>Next up{on ? "" : ", once reminders are on"}</Text>
-          {preview.map((item) => (
-            <View key={item.id} style={styles.previewRow}>
-              <Text style={styles.previewWhen}>
-                {item.fireAt.toLocaleDateString(undefined, { weekday: "short" })} {formatTime({ hour: item.fireAt.getHours(), minute: item.fireAt.getMinutes() })}
-              </Text>
-              <View style={styles.bubble}>
-                <Text style={styles.bubbleFrom}>{item.title}</Text>
-                <Text style={styles.bubbleText}>{item.body}</Text>
+        <View>
+          <Eyebrow style={styles.eyebrow}>Next up{on ? "" : ", once reminders are on"}</Eyebrow>
+          {preview.map((item, index) => (
+            <Card key={item.id} style={[styles.previewCard, index > 0 && styles.previewGap]}>
+              <View style={styles.previewRow}>
+                <IconTile icon="notifications-outline" category="rest" size={32} />
+                <View style={styles.previewBody}>
+                  <View style={styles.previewHead}>
+                    <Text style={[type.callout, styles.previewTitle, { color: surface.text }]} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={[type.meta, { color: surface.textTertiary }]}>
+                      {item.fireAt.toLocaleDateString(undefined, { weekday: "short" })} {formatTime({ hour: item.fireAt.getHours(), minute: item.fireAt.getMinutes() })}
+                    </Text>
+                  </View>
+                  <Text style={[type.callout, styles.previewText, { color: surface.textSecondary }]}>{item.body}</Text>
+                </View>
               </View>
-            </View>
+            </Card>
           ))}
         </View>
       ) : null}
 
-      <Text style={styles.foot}>
+      <Text style={[type.meta, styles.foot, { color: surface.textTertiary }]}>
         Reminders are set on this {Platform.OS === "web" ? "device" : "phone"} for the week ahead and refreshed each time you open Luna. If you stop opening the app, they stop too.
       </Text>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  content: { padding: 16, paddingBottom: 40 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  hero: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 20,
-    padding: 14,
-    backgroundColor: "rgba(53,208,127,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.28)",
-    marginBottom: 12,
-  },
-  heroPet: { marginRight: 12 },
+  hero: { flexDirection: "row", alignItems: "center", gap: 14 },
   heroBody: { flex: 1 },
-  heroTitle: { color: "#f8fafc", fontSize: 17, fontWeight: "800" },
-  heroLine: { marginTop: 4, color: "rgba(226,232,240,0.9)", fontSize: 13, lineHeight: 19 },
-  note: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    padding: 12,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    marginBottom: 12,
-  },
-  noteText: { flex: 1, color: "rgba(226,232,240,0.9)", fontSize: 13, lineHeight: 18 },
-  card: {
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    padding: 14,
-    marginBottom: 12,
-  },
+  heroLine: { marginTop: 4 },
+  block: { marginTop: 12 },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  noteText: { flex: 1 },
+  eyebrow: { marginTop: 24, marginBottom: 8, marginLeft: 6 },
+  firstSchedule: { marginTop: 0 },
   cardMuted: { opacity: 0.55 },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  rowBetween: { flexDirection: "row", alignItems: "center", gap: 12 },
   rowText: { flex: 1 },
-  rowLabel: { color: "#e2e8f0", fontSize: 15, fontWeight: "700" },
-  rowHint: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 12, lineHeight: 16 },
-  linkButton: { marginTop: 10, alignSelf: "flex-start" },
-  linkText: { color: "#86efac", fontSize: 13, fontWeight: "700" },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "rgba(148,163,184,0.3)", backgroundColor: "rgba(148,163,184,0.08)" },
-  chipActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.18)" },
-  chipText: { color: "rgba(226,232,240,0.9)", fontSize: 13, fontWeight: "600" },
-  chipTextActive: { color: "#a7f3d0" },
-  previewCard: { marginTop: 4, marginBottom: 12 },
-  previewTitle: { color: "rgba(148,163,184,0.9)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 },
-  previewRow: { marginBottom: 10 },
-  previewWhen: { color: "rgba(148,163,184,0.8)", fontSize: 11, marginBottom: 4, marginLeft: 6 },
-  bubble: { alignSelf: "flex-start", maxWidth: "92%", borderRadius: 16, borderTopLeftRadius: 6, padding: 12, backgroundColor: "rgba(53,208,127,0.12)", borderWidth: 1, borderColor: "rgba(53,208,127,0.25)" },
-  bubbleFrom: { color: "#86efac", fontSize: 12, fontWeight: "700", marginBottom: 2 },
-  bubbleText: { color: "#f8fafc", fontSize: 14, lineHeight: 20 },
-  foot: { color: "rgba(148,163,184,0.75)", fontSize: 12, lineHeight: 17, textAlign: "center", paddingHorizontal: 8 },
+  rowHint: { marginTop: 1 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+  previewCard: { paddingVertical: 12 },
+  previewGap: { marginTop: 10 },
+  previewRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  previewBody: { flex: 1 },
+  previewHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 },
+  previewTitle: { flex: 1, fontFamily: fonts.bodyBold },
+  previewText: { marginTop: 2 },
+  foot: { marginTop: 22, textAlign: "center", paddingHorizontal: 8 },
 });

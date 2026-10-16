@@ -1,17 +1,29 @@
 // Every task for today in one list, in the garden's own visual language. The rows are the same
 // cards as Home; the copy avoids "improve your mood" bargaining (product strategy report).
-import { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { notify } from "../utils/confirm";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
-import PetPortrait from "../components/pet/PetPortrait";
+import type { PetReaction } from "../components/pet/PetPortrait";
+import PetMascot from "../components/pet/PetMascot";
+import { PetEmptyState, PetLoading } from "../components/pet/PetMoments";
+import CareToast from "../components/home/CareToast";
 import FinchTaskCard from "../components/finchHome/FinchTaskCard";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Button from "../components/common/Button";
+import { useTheme } from "../theme/theme";
+import { categories, type } from "../theme/tokens";
 import { playDing } from "../utils/sfx";
+import { success, tapSoft, warning } from "../utils/haptics";
 import { completeTaskWithResilience, completionDateKey } from "../services/taskCompletion";
 import { getTaskPoints } from "../domain/taskPoints";
+import { careDoneLine } from "../domain/homeDialogue";
+import { catalogById, catalogIdForTitle } from "../domain/plan";
 import { isPlayTask } from "../games/playStatsLogic";
 
 type Task = {
@@ -23,16 +35,42 @@ type Task = {
   points?: number | null;
 };
 
-const ICONS = ["droplet", "book", "feather", "sun", "wind", "heart"];
+/** Outline glyphs for tasks that are not in the plan catalog, in turn down the list. */
+const ICONS = ["water-outline", "book-outline", "create-outline", "sunny-outline", "leaf-outline", "heart-outline"];
+
+const CARE_CATEGORIES = new Set(Object.keys(categories));
+
+/**
+ * How a task row looks: its own care category when it has one, else the plan catalog's (matched by title),
+ * else body; the catalog's glyph and minutes when the title is one of its tasks.
+ */
+function lookFor(task: Task, index: number, petName: string) {
+  const catalogId = catalogIdForTitle(task.title, petName);
+  const entry = catalogId ? catalogById(catalogId) : undefined;
+  const play = isPlayTask(task.title);
+  const own = task.category && CARE_CATEGORIES.has(task.category) ? task.category : null;
+  return {
+    category: own ?? entry?.category ?? (play ? "play" : "body"),
+    icon: entry?.icon ?? (play ? "game-controller-outline" : ICONS[index % ICONS.length]),
+    minutes: entry?.minutes ?? null,
+  };
+}
 
 export default function DailyTasksScreen() {
   const { user } = useAuth();
   const { sources, look, displayName, memorial } = usePet();
+  const theme = useTheme();
+  const { surface } = theme;
+  const insets = useSafeAreaInsets();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingTaskIds, setCompletingTaskIds] = useState<Record<string, boolean>>({});
   const [completingAll, setCompletingAll] = useState(false);
   const [taskMutationNoticeById, setTaskMutationNoticeById] = useState<Record<string, { type: "error" | "queued"; message: string }>>({});
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const completedThisSession = useRef(false);
+  const celebratedAllDone = useRef(false);
 
   const fetchTasks = useCallback(async () => {
     if (!user?.id) {
@@ -85,6 +123,15 @@ export default function DailyTasksScreen() {
     }, [fetchTasks])
   );
 
+  /** A tick landed: a soft tap, and the pet notices (cheer + a line in the toast). */
+  const celebrate = useCallback(() => {
+    completedThisSession.current = true;
+    tapSoft();
+    if (memorial) return;
+    setPetReaction("cheer");
+    setToast({ id: Date.now(), text: careDoneLine(displayName, 0, Date.now() / 1000) });
+  }, [displayName, memorial]);
+
   const toggleTask = async (id: number | string, options?: { retry?: boolean }) => {
     const retry = !!options?.retry;
     const task = tasks.find((t) => t.id === id);
@@ -113,9 +160,12 @@ export default function DailyTasksScreen() {
         return;
       }
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: true } : t)));
-      if (mutation.result.inserted) playDing();
-      else notify("Already done today", "That one is already in the garden.");
+      if (mutation.result.inserted) {
+        playDing();
+        celebrate();
+      } else notify("Already done today", "That one is already in the garden.");
     } catch (error) {
+      warning();
       setTaskMutationNoticeById((prev) => ({ ...prev, [key]: { type: "error", message: "Couldn't save. Tap to retry." } }));
       console.error("TASK_COMPLETE_ERROR", error);
     } finally {
@@ -147,9 +197,13 @@ export default function DailyTasksScreen() {
         setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: true } : t)));
         if (mutation.result.inserted) insertedCount += 1;
       }
-      if (insertedCount > 0) playDing();
+      if (insertedCount > 0) {
+        playDing();
+        celebrate();
+      }
     } catch (error) {
       console.error("TASK_COMPLETE_ALL_ERROR", error);
+      warning();
       setTaskMutationNoticeById((prev) => ({ ...prev, __all__: { type: "error", message: "Couldn't save everything. Tap a task to retry." } }));
     } finally {
       setCompletingAll(false);
@@ -160,102 +214,105 @@ export default function DailyTasksScreen() {
   const allDone = tasks.length > 0 && doneCount === tasks.length;
   const remaining = tasks.length - doneCount;
 
+  // the whole list done in this visit: one bigger moment (success, the pet's love, a warmer line)
+  useEffect(() => {
+    if (!allDone || celebratedAllDone.current || !completedThisSession.current) return undefined;
+    celebratedAllDone.current = true;
+    const id = setTimeout(() => {
+      success();
+      if (memorial) return;
+      setPetReaction("love");
+      setToast({ id: Date.now(), text: `All done. ${displayName} is so proud of you.` });
+    }, 1200);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDone]);
+
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
-      </View>
+      <Screen scroll={false} centered>
+        <PetLoading />
+      </Screen>
     );
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.hero}>
-        <PetPortrait sources={sources} look={look} size={64} mood={allDone ? "happy" : "calm"} resting={!!memorial} allowOriginal emptyLabel="Pet" style={styles.heroPet} />
-        <View style={styles.heroBody}>
-          <Text style={styles.heroTitle}>Today with {displayName}</Text>
-          <Text style={styles.heroLine}>
-            {tasks.length === 0
-              ? "Nothing on the list yet."
-              : allDone
-                ? "All done. Nothing more is expected today."
-                : `${doneCount} of ${tasks.length} done. Do what fits, in any order.`}
-          </Text>
-        </View>
-      </View>
-
-      {taskMutationNoticeById.__all__?.type === "error" ? <Text style={styles.errorLine}>{taskMutationNoticeById.__all__.message}</Text> : null}
-
-      {tasks.length === 0 ? (
-        <Text style={styles.empty}>No tasks yet. Edit your habits from Home to add some.</Text>
-      ) : (
-        tasks.map((task, index) => {
-          const key = String(task.id);
-          const notice = taskMutationNoticeById[key];
-          const isSaving = !!completingTaskIds[key];
-          return (
-            <View key={key} style={styles.row}>
-              <FinchTaskCard
-                title={task.title}
-                reward={`${getTaskPoints({ title: task.title, category: task.category, points: task.points, difficulty: task.difficulty == null ? null : String(task.difficulty) })} pts`}
-                icon={isPlayTask(task.title) ? "play" : ICONS[index % ICONS.length]}
-                completed={task.done}
-                saving={isSaving}
-                disabled={task.done || isSaving || completingAll}
-                onToggle={() => toggleTask(task.id)}
-              />
-              {notice?.type === "error" ? (
-                <Pressable onPress={() => toggleTask(task.id, { retry: true })}>
-                  <Text style={styles.errorLine}>{notice.message}</Text>
-                </Pressable>
-              ) : null}
-              {notice?.type === "queued" ? <Text style={styles.queuedLine}>{notice.message}</Text> : null}
+    <View style={styles.fill}>
+      <Screen bottomPad={96}>
+        {tasks.length === 0 ? (
+          <PetEmptyState title="No tasks yet" body="Edit your habits from Home to add some." mood="calm" style={styles.empty} />
+        ) : (
+          <Card style={styles.hero}>
+            <PetMascot
+              size={76}
+              mood={allDone ? "happy" : "calm"}
+              reaction={petReaction}
+              onReactionEnd={() => setPetReaction(null)}
+              showShadow={false}
+              style={styles.heroPet}
+            />
+            <View style={styles.heroBody}>
+              <Text style={[type.h2, { color: surface.text }]} accessibilityRole="header">
+                Today with {displayName}
+              </Text>
+              <Text style={[type.callout, styles.heroLine, { color: surface.textSecondary }]}>
+                {allDone ? "All done. Nothing more is expected today." : `${doneCount} of ${tasks.length} done. Do what fits, in any order.`}
+              </Text>
             </View>
-          );
-        })
-      )}
+          </Card>
+        )}
 
-      {remaining > 1 && !memorial ? (
-        <Pressable style={[styles.allButton, completingAll && styles.allButtonBusy]} onPress={completeAll} disabled={completingAll} accessibilityRole="button" accessibilityLabel="Mark the rest done">
-          <Text style={styles.allButtonText}>{completingAll ? "Saving…" : `Mark the other ${remaining} done`}</Text>
-        </Pressable>
-      ) : null}
-    </ScrollView>
+        {taskMutationNoticeById.__all__?.type === "error" ? (
+          <Text style={[type.meta, styles.allError, { color: theme.alert }]}>{taskMutationNoticeById.__all__.message}</Text>
+        ) : null}
+
+        {tasks.map((task, index) => {
+          const key = String(task.id);
+          const notice = taskMutationNoticeById[key] ?? null;
+          const isSaving = !!completingTaskIds[key];
+          const care = lookFor(task, index, displayName);
+          return (
+            <FinchTaskCard
+              key={key}
+              title={task.title}
+              reward={`${getTaskPoints({ title: task.title, category: task.category, points: task.points, difficulty: task.difficulty == null ? null : String(task.difficulty) })} pts`}
+              icon={care.icon}
+              category={care.category}
+              minutes={care.minutes}
+              completed={task.done}
+              saving={isSaving}
+              disabled={task.done || isSaving || completingAll}
+              notice={notice}
+              onToggle={() => toggleTask(task.id)}
+              onRetry={() => toggleTask(task.id, { retry: true })}
+            />
+          );
+        })}
+
+        {remaining > 1 && !memorial ? (
+          <Button
+            label={`Mark the other ${remaining} done`}
+            variant="secondary"
+            size="md"
+            onPress={completeAll}
+            loading={completingAll}
+            accessibilityLabel="Mark the rest done"
+            containerStyle={styles.allButton}
+          />
+        ) : null}
+      </Screen>
+      <CareToast toast={toast} bottom={insets.bottom + 16} petSources={sources} petLook={look} night={theme.night} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  content: { padding: 16, paddingBottom: 40 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  hero: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 20,
-    padding: 14,
-    backgroundColor: "rgba(53,208,127,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.28)",
-    marginBottom: 14,
-  },
-  heroPet: { marginRight: 12 },
+  fill: { flex: 1 },
+  hero: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  heroPet: { marginRight: 14 },
   heroBody: { flex: 1 },
-  heroTitle: { color: "#f8fafc", fontSize: 17, fontWeight: "800" },
-  heroLine: { marginTop: 4, color: "rgba(226,232,240,0.9)", fontSize: 14, lineHeight: 20 },
-  row: { marginBottom: 2 },
-  errorLine: { color: "#fca5a5", marginTop: 4, marginBottom: 8, fontSize: 12, textDecorationLine: "underline" },
-  queuedLine: { color: "#fcd34d", marginTop: 4, marginBottom: 8, fontSize: 12 },
-  empty: { color: "rgba(148,163,184,0.85)", fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 24 },
-  allButton: {
-    marginTop: 18,
-    alignSelf: "center",
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.6)",
-    backgroundColor: "rgba(53,208,127,0.14)",
-  },
-  allButtonBusy: { opacity: 0.6 },
-  allButtonText: { color: "#86efac", fontWeight: "700", fontSize: 14 },
+  heroLine: { marginTop: 4 },
+  allError: { marginBottom: 10, marginLeft: 4 },
+  empty: { marginTop: 24 },
+  allButton: { marginTop: 14, alignSelf: "center" },
 });

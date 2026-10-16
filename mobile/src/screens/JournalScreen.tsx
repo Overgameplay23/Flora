@@ -1,12 +1,24 @@
 // Journal: a few private lines, started by the pet's daily question if the person wants a start.
 // Kept on the device and mirrored to the account when the table exists. No AI reads it.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
-import PetPortrait from "../components/pet/PetPortrait";
+import type { PetReaction } from "../components/pet/PetPortrait";
+import PetMascot from "../components/pet/PetMascot";
+import { PetLoading, useHasPet } from "../components/pet/PetMoments";
+import CareToast from "../components/home/CareToast";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Button from "../components/common/Button";
+import TextField from "../components/common/TextField";
+import IconTile from "../components/common/IconTile";
+import { Eyebrow } from "../components/common/Headings";
+import { useTheme } from "../theme/theme";
+import { type } from "../theme/tokens";
+import { tapSoft, warning } from "../utils/haptics";
 import { confirmAsync } from "../utils/confirm";
 import { deleteJournalEntry, loadJournal, subscribeJournal, writeJournalEntry } from "../services/journalStore";
 import { JOURNAL_MAX, groupByDay, journalIntro, journalPrivacyLine, type JournalEntry } from "../domain/journal";
@@ -14,16 +26,35 @@ import { reflectionPrompt } from "../domain/reflection";
 import { memorialPrompt } from "../domain/memorial";
 import { getLocalDateKey } from "../utils/dateKeys";
 
+/** The journal's colour, as on its row in Profile. */
+const JOURNAL_CATEGORY = "focus";
+
 export default function JournalScreen() {
   const { user } = useAuth();
   const { sources, look, displayName, memorial } = usePet();
+  const hasPet = useHasPet();
+  const theme = useTheme();
+  const { surface } = theme;
+  const tone = theme.tone(JOURNAL_CATEGORY);
+  const insets = useSafeAreaInsets();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [usePrompt, setUsePrompt] = useState(true);
   const [saving, setSaving] = useState(false);
   const [kept, setKept] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [today, setToday] = useState(getLocalDateKey());
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const keptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (keptTimer.current) clearTimeout(keptTimer.current);
+    },
+    []
+  );
 
   const prompt = useMemo(() => (memorial ? memorialPrompt(displayName) : reflectionPrompt(today, displayName)), [displayName, memorial, today]);
 
@@ -50,12 +81,24 @@ export default function JournalScreen() {
   const keep = async () => {
     if (!user?.id || saving || !draft.trim()) return;
     setSaving(true);
+    setSaveError("");
     try {
       const next = await writeJournalEntry(user.id, draft, usePrompt ? prompt : null);
       setEntries(next);
       setDraft("");
       setKept(true);
-      setTimeout(() => setKept(false), 2200);
+      // the pet notices, without reading: a soft tap, a little reaction, a line in the toast
+      tapSoft();
+      if (!memorial) {
+        setPetReaction("love");
+        setToast({ id: Date.now(), text: `Kept. ${displayName} is glad you wrote that down.` });
+      }
+      if (keptTimer.current) clearTimeout(keptTimer.current);
+      keptTimer.current = setTimeout(() => setKept(false), 2200);
+    } catch (error: any) {
+      console.error("JOURNAL_SAVE_ERROR", error?.message || String(error));
+      warning();
+      setSaveError("Couldn't keep that just now. Your words are still here, so try again in a moment.");
     } finally {
       setSaving(false);
     }
@@ -72,107 +115,125 @@ export default function JournalScreen() {
   const canKeep = draft.trim().length > 0 && !saving;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <Pressable
-        style={[styles.promptCard, !usePrompt && styles.promptCardOff]}
-        onPress={() => setUsePrompt((v) => !v)}
-        accessibilityRole="button"
-        accessibilityLabel={usePrompt ? "Write freely instead" : "Use today's question"}
-      >
-        <PetPortrait sources={sources} look={look} size={64} mood="calm" resting={!!memorial} allowOriginal emptyLabel="Pet" style={styles.promptPet} />
-        <View style={styles.promptBody}>
-          <Text style={styles.promptIntro}>{journalIntro(displayName)}</Text>
-          <Text style={[styles.promptText, !usePrompt && styles.promptTextOff]}>{prompt}</Text>
-          <Text style={styles.promptToggle}>{usePrompt ? "Tap to write freely instead" : "Tap to use today's question"}</Text>
-        </View>
-      </Pressable>
-
-      <View style={styles.editor}>
-        <TextInput
-          style={styles.input}
-          multiline
-          value={draft}
-          onChangeText={(t) => setDraft(t.slice(0, JOURNAL_MAX))}
-          placeholder={usePrompt ? "A few lines is plenty." : "Whatever's on your mind."}
-          placeholderTextColor="rgba(148,163,184,0.7)"
-          accessibilityLabel="Journal entry"
-          textAlignVertical="top"
-        />
-        <View style={styles.editorFooter}>
-          <Text style={styles.privacy}>{journalPrivacyLine(displayName)}</Text>
-          <Pressable style={[styles.keepButton, !canKeep && styles.keepButtonOff]} onPress={keep} disabled={!canKeep} accessibilityRole="button" accessibilityLabel="Keep this">
-            {saving ? <ActivityIndicator color="#0f172a" /> : <Feather name={kept ? "check" : "bookmark"} size={16} color="#0f172a" />}
-            <Text style={styles.keepText}>{kept ? "Kept" : "Keep this"}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color="#35d07f" style={styles.loading} />
-      ) : days.length === 0 ? (
-        <Text style={styles.empty}>Nothing here yet. Start with today's question, or write whatever's on your mind.</Text>
-      ) : (
-        days.map((day) => (
-          <View key={day.date} style={styles.day}>
-            <Text style={styles.dayLabel}>{day.label}</Text>
-            {day.entries.map((entry) => (
-              <Pressable key={entry.id} style={styles.entry} onLongPress={() => remove(entry)} delayLongPress={450} accessibilityLabel={`Entry: ${entry.text.slice(0, 60)}`} accessibilityHint="Long press to remove">
-                {entry.prompt ? <Text style={styles.entryPrompt}>{entry.prompt}</Text> : null}
-                <Text style={styles.entryText}>{entry.text}</Text>
-              </Pressable>
-            ))}
+    <View style={styles.fill}>
+      <Screen keyboard bottomPad={56}>
+        <Card
+          tone={JOURNAL_CATEGORY}
+          onPress={() => setUsePrompt((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={usePrompt ? "Write freely instead" : "Use today's question"}
+          style={styles.promptCard}
+        >
+          {hasPet ? (
+            <PetMascot
+              size={68}
+              mood="calm"
+              reaction={petReaction}
+              onReactionEnd={() => setPetReaction(null)}
+              showShadow={false}
+              style={styles.promptPet}
+            />
+          ) : (
+            <IconTile icon="create-outline" category={JOURNAL_CATEGORY} on="fill" size={52} style={styles.promptPet} />
+          )}
+          <View style={styles.promptBody}>
+            <Eyebrow color={tone.accent}>{journalIntro(displayName)}</Eyebrow>
+            <Text
+              style={[
+                type.h2,
+                styles.promptText,
+                { color: usePrompt ? surface.text : surface.textTertiary },
+                !usePrompt && styles.promptTextOff,
+              ]}
+            >
+              {prompt}
+            </Text>
+            <Text style={[type.meta, styles.promptToggle, { color: surface.textSecondary }]}>
+              {usePrompt ? "Tap to write freely instead" : "Tap to use today's question"}
+            </Text>
           </View>
-        ))
-      )}
-    </ScrollView>
+        </Card>
+
+        <Card style={styles.editor}>
+          <TextField
+            multiline
+            value={draft}
+            onChangeText={(t) => {
+              setDraft(t.slice(0, JOURNAL_MAX));
+              if (saveError) setSaveError("");
+            }}
+            placeholder={usePrompt ? "A few lines is plenty." : "Whatever's on your mind."}
+            accessibilityLabel="Journal entry"
+            error={!!saveError}
+            note={saveError || null}
+            style={styles.input}
+          />
+          <View style={styles.editorFooter}>
+            <Text style={[type.meta, styles.privacy, { color: surface.textTertiary }]}>{journalPrivacyLine(displayName)}</Text>
+            <Button
+              label={kept ? "Kept" : "Keep this"}
+              icon={kept ? "checkmark" : "bookmark-outline"}
+              size="sm"
+              onPress={keep}
+              loading={saving}
+              disabled={!canKeep && !kept}
+              accessibilityLabel="Keep this"
+            />
+          </View>
+        </Card>
+
+        {loading ? (
+          <PetLoading size={64} style={styles.loading} />
+        ) : days.length === 0 ? (
+          // the pet is already on this page, asking the question above, so the empty state stays a quiet note
+          <Card variant="sunken" style={styles.empty}>
+            <Text style={[type.h3, { color: surface.text }]}>Nothing here yet</Text>
+            <Text style={[type.callout, styles.emptyBody, { color: surface.textSecondary }]}>
+              Start with today's question, or write whatever's on your mind.
+            </Text>
+          </Card>
+        ) : (
+          days.map((day) => (
+            <View key={day.date} style={styles.day}>
+              <Eyebrow style={styles.dayLabel}>{day.label}</Eyebrow>
+              {day.entries.map((entry) => (
+                <Card
+                  key={entry.id}
+                  onLongPress={() => remove(entry)}
+                  accessibilityLabel={`Entry: ${entry.text.slice(0, 60)}`}
+                  accessibilityHint="Long press to remove"
+                  style={styles.entry}
+                >
+                  {entry.prompt ? <Text style={[type.meta, styles.entryPrompt, { color: tone.accent }]}>{entry.prompt}</Text> : null}
+                  <Text style={[type.body, { color: surface.text }]}>{entry.text}</Text>
+                </Card>
+              ))}
+            </View>
+          ))
+        )}
+      </Screen>
+      <CareToast toast={toast} bottom={insets.bottom + 16} petSources={sources} petLook={look} night={theme.night} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  content: { padding: 16, paddingBottom: 48 },
-  promptCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 20,
-    padding: 14,
-    backgroundColor: "rgba(53,208,127,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.28)",
-  },
-  promptCardOff: { backgroundColor: "rgba(18,24,38,0.95)", borderColor: "rgba(148,163,184,0.22)" },
-  promptPet: { marginRight: 12 },
+  fill: { flex: 1 },
+  promptCard: { flexDirection: "row", alignItems: "center" },
+  promptPet: { marginRight: 14 },
   promptBody: { flex: 1 },
-  promptIntro: { color: "#86efac", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
-  promptText: { marginTop: 4, color: "#f8fafc", fontSize: 17, fontWeight: "700", lineHeight: 23 },
-  promptTextOff: { color: "rgba(148,163,184,0.7)", textDecorationLine: "line-through", fontWeight: "600" },
-  promptToggle: { marginTop: 6, color: "rgba(148,163,184,0.85)", fontSize: 12 },
-  editor: {
-    marginTop: 12,
-    borderRadius: 18,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    padding: 14,
-  },
-  input: { minHeight: 140, color: "#f8fafc", fontSize: 16, lineHeight: 23, padding: 0 },
+  promptText: { marginTop: 4 },
+  promptTextOff: { textDecorationLine: "line-through" },
+  promptToggle: { marginTop: 8 },
+  editor: { marginTop: 12 },
+  input: { minHeight: 150 },
   editorFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, gap: 12 },
-  privacy: { flex: 1, color: "rgba(148,163,184,0.75)", fontSize: 12, lineHeight: 16 },
-  keepButton: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#35d07f", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999 },
-  keepButtonOff: { opacity: 0.45 },
-  keepText: { color: "#0f172a", fontWeight: "800", fontSize: 14 },
-  loading: { marginTop: 24 },
-  empty: { marginTop: 28, color: "rgba(148,163,184,0.85)", fontSize: 14, lineHeight: 20, textAlign: "center", paddingHorizontal: 12 },
-  day: { marginTop: 22 },
-  dayLabel: { color: "rgba(148,163,184,0.9)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 },
-  entry: {
-    borderRadius: 16,
-    backgroundColor: "rgba(18,24,38,0.95)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.16)",
-    padding: 14,
-    marginBottom: 8,
-  },
-  entryPrompt: { color: "#86efac", fontSize: 12, fontWeight: "600", marginBottom: 6 },
-  entryText: { color: "#e2e8f0", fontSize: 15, lineHeight: 22 },
+  privacy: { flex: 1 },
+  loading: { marginTop: 12 },
+  empty: { marginTop: 24, alignItems: "center", paddingVertical: 20 },
+  emptyBody: { marginTop: 4, textAlign: "center" },
+  day: { marginTop: 24 },
+  dayLabel: { marginBottom: 8, marginLeft: 4 },
+  entry: { marginBottom: 10 },
+  entryPrompt: { marginBottom: 6 },
 });

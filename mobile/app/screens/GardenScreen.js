@@ -1,15 +1,26 @@
 import React, { useMemo, useState } from "react";
-import { SafeAreaView, View, Text, ActivityIndicator, StyleSheet, Pressable, FlatList } from "react-native";
+import { View, Text, StyleSheet, Pressable, FlatList, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { notify } from "../../src/utils/confirm";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { getGardenProgress } from "../../src/services/dailyLoop";
 import { fetchCatalog, fetchGardenPoints, fetchUserPlants, upgradePlant } from "../../src/services/garden";
-import GardenScene from "../../src/components/GardenScene";
+import GardenStage from "../../src/components/garden/GardenStage";
+import SceneOverlay, { SceneChip } from "../../src/components/garden/SceneOverlay";
 import PlantGlyph from "../../src/components/garden/PlantGlyph";
+import Button from "../../src/components/common/Button";
+import Chip from "../../src/components/common/Chip";
+import { SectionTitle } from "../../src/components/common/Headings";
+import { PetEmptyState, PetLoading } from "../../src/components/pet/PetMoments";
 import { plantStageForLevel } from "../../src/domain/gardenScene";
 import { sanctuaryCopy, sanctuaryFor, stageWord } from "../../src/domain/sanctuary";
+import { useSceneStatusBar } from "../../src/hooks/useSceneStatusBar";
+import { useTheme, useThemeHour } from "../../src/theme/theme";
+import { brand, fonts, radius, type } from "../../src/theme/tokens";
+import { tapSoft, warning } from "../../src/utils/haptics";
 
 function toSafeInt(value, fallback = 0) {
   const numeric = Number(value);
@@ -26,28 +37,36 @@ function toUpgradeCost(plant, level) {
   return Math.ceil(baseCost * Math.pow(safeMultiplier, exponent));
 }
 
-const RARITY_COLORS = {
-  uncommon: { bg: "rgba(103,232,249,0.14)", fg: "#a5f3fc" },
-  rare: { bg: "rgba(165,180,252,0.16)", fg: "#c7d2fe" },
-  epic: { bg: "rgba(249,168,212,0.16)", fg: "#fbcfe8" },
-};
+// rarity reads as a colour family, not a loot tier: teal, lavender, rose
+const RARITY_CATEGORY = { uncommon: "focus", rare: "calm", epic: "connection" };
 
 /**
  * The Garden tab: the sanctuary (garden for dogs, window nook for cats) and the plants that grow in it.
- * Points from small things go into growing them; nothing here counts down or punishes.
+ * Sprouts from small things go into growing them; nothing here counts down or punishes. The painted scene
+ * runs full-bleed under the status bar, with a warm paper sheet over its lower edge, as on Home.
  */
 export default function GardenScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { sources: petSources, name: petName, look: petLook, species, refresh: refreshPet } = usePet();
+  const { sources: petSources, name: petName, look: petLook, species, memorial, refresh: refreshPet } = usePet();
   const theme = sanctuaryFor(species);
   const copy = sanctuaryCopy(theme);
+  const appTheme = useTheme();
+  const { surface, sky } = appTheme;
+  const hour = useThemeHour();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const sceneHeight = Math.round(Math.min(440, Math.max(320, height * 0.44)));
+  const cardWidth = Math.floor((Math.min(width, 640) - 40 - 12) / 2);
+  const overSceneNight = sky.statusBar === "light";
+  useSceneStatusBar(sky.statusBar);
   const [loading, setLoading] = useState(true);
   const [progressCount, setProgressCount] = useState(0);
   const [catalogRows, setCatalogRows] = useState([]);
   const [userPlantsRows, setUserPlantsRows] = useState([]);
   const [pointsSummary, setPointsSummary] = useState({ remainingPoints: 0, earnedPoints: 0, spentPoints: 0 });
   const [upgradingPlantId, setUpgradingPlantId] = useState(null);
+  const [reaction, setReaction] = useState(null);
 
   const loadPet = React.useCallback(async () => {
     if (!user?.id) {
@@ -148,8 +167,12 @@ export default function GardenScreen() {
           remainingPoints: toSafeInt(result?.remainingPoints, prev?.remainingPoints || 0),
         }));
         await loadGardenUpgradeData();
+        // the pet notices the garden growing
+        tapSoft();
+        setReaction("cheer");
       } catch (error) {
         console.error("GARDEN_UPGRADE_ERROR", { message: error?.message || String(error), plantId: plant?.id });
+        warning();
         notify("That didn't take", error?.message || "Could not grow this plant just now.");
       } finally {
         setUpgradingPlantId(null);
@@ -160,17 +183,18 @@ export default function GardenScreen() {
 
   const remainingPoints = toSafeInt(pointsSummary?.remainingPoints, 0);
   const growing = plants.filter((plant) => plant.owned).length;
+  const plantLabel = (count) => (count === 1 ? copy.plantWord : `${copy.plantWord}s`);
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator color="#35d07f" />
-      </SafeAreaView>
+      <View style={[styles.center, { backgroundColor: surface.canvas, paddingTop: insets.top }]}>
+        <PetLoading label={copy.tabTitle} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.root, { backgroundColor: surface.canvas }]}>
       <FlatList
         data={plants}
         keyExtractor={(item) => String(item.id)}
@@ -180,26 +204,52 @@ export default function GardenScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <View style={styles.header}>
-              <Text style={styles.title}>{copy.tabTitle}</Text>
-              <Text style={styles.subtitle}>{copy.tabSubtitle}</Text>
-            </View>
-            <GardenScene petImageSources={petSources} petLook={petLook} plants={scenePlants} petName={petName || null} />
-            <View style={styles.pointsCard}>
-              <View style={styles.pointsMain}>
-                <Text style={styles.pointsValue}>{remainingPoints}</Text>
-                <View style={styles.pointsBody}>
-                  <Text style={styles.pointsTitle}>points to spend</Text>
-                  <Text style={styles.pointsMeta}>
-                    {toSafeInt(pointsSummary?.earnedPoints, 0)} earned · {growing} {growing === 1 ? copy.plantWord : `${copy.plantWord}s`} growing
+            <GardenStage
+              height={sceneHeight}
+              variant="garden"
+              theme={theme}
+              hour={hour}
+              petImageSources={petSources}
+              petLook={petLook}
+              plants={scenePlants}
+              petResting={!!memorial}
+              petWander
+              petReaction={reaction}
+              onPetReactionEnd={() => setReaction(null)}
+              accessibilityLabel={`${petName || "Your pet"} ${memorial ? "resting in" : "in"} the ${copy.place}. ${
+                growing === 0 ? "Nothing is planted yet." : `${growing} ${plantLabel(growing)} growing.`
+              }`}
+            >
+              <SceneOverlay
+                sky={sky}
+                topInset={insets.top}
+                title={copy.tabTitle}
+                subtitle={copy.tabSubtitle}
+                right={<SceneChip icon="leaf" iconColor={brand.sprout} iconTint={brand.sproutTint} value={String(remainingPoints)} label="Sprouts" night={overSceneNight} />}
+              />
+            </GardenStage>
+
+            <View style={[styles.sheet, { backgroundColor: surface.canvas }]}>
+              <View style={[styles.sproutsCard, { backgroundColor: surface.isNight ? surface.paper : brand.sproutTint, boxShadow: surface.shadow }]}>
+                <View style={[styles.sproutsIcon, { backgroundColor: surface.isNight ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.75)" }]}>
+                  <Ionicons name="leaf" size={24} color={surface.isNight ? appTheme.tone("body").mid : brand.sprout} />
+                </View>
+                <View style={styles.sproutsBody}>
+                  <Text style={[styles.sproutsValue, { color: surface.text }]}>
+                    {remainingPoints} <Text style={[type.bodyStrong, { color: surface.text }]}>Sprouts to spend</Text>
                   </Text>
+                  <Text style={[type.meta, { color: surface.textSecondary }]}>
+                    {toSafeInt(pointsSummary?.earnedPoints, 0)} earned from small things · {growing} {plantLabel(growing)} growing
+                  </Text>
+                  {progressCount > 0 ? (
+                    <Pressable style={styles.progressLink} onPress={() => navigation.navigate("GardenProgress")} hitSlop={8} accessibilityRole="link">
+                      <Text style={[type.meta, { color: appTheme.link, fontFamily: fonts.bodyBold }]}>Earlier unlocks ({progressCount})</Text>
+                      <Ionicons name="chevron-forward" size={14} color={appTheme.link} />
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
-              {progressCount > 0 ? (
-                <Pressable style={styles.progressLink} onPress={() => navigation.navigate("GardenProgress")} hitSlop={6} accessibilityRole="button">
-                  <Text style={styles.progressLinkText}>Earlier unlocks ({progressCount}) ›</Text>
-                </Pressable>
-              ) : null}
+              {plants.length > 0 ? <SectionTitle>{theme === "nook" ? "Pots for the sill" : "Plants for the garden"}</SectionTitle> : null}
             </View>
           </>
         }
@@ -208,107 +258,124 @@ export default function GardenScreen() {
           const affordable = item.isMax || remainingPoints >= item.nextCost;
           const buttonDisabled = !!upgradingPlantId || item.isMax || !affordable;
           const verb = item.owned ? copy.growVerb : copy.plantVerb;
-          const buttonLabel = item.isMax ? "Fully grown" : busy ? "Growing…" : `${verb} · ${item.nextCost} pts`;
           const rarity = String(item.rarity || "common").toLowerCase();
-          const rarityStyle = RARITY_COLORS[rarity];
+          const rarityCategory = RARITY_CATEGORY[rarity];
+          const tone = appTheme.tone("body");
           return (
-            <View style={[styles.plantCard, item.isMax && styles.plantCardMax]}>
-              <View style={styles.plantTop}>
-                <PlantGlyph stage={item.stage} potted={theme === "nook"} width={44} height={66} />
-                <View style={styles.plantHead}>
-                  <Text style={styles.plantName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.plantStage}>{stageWord(item.stage, theme)}</Text>
-                  {rarityStyle ? (
-                    <View style={[styles.rarityPill, { backgroundColor: rarityStyle.bg }]}>
-                      <Text style={[styles.rarityText, { color: rarityStyle.fg }]}>{rarity}</Text>
-                    </View>
-                  ) : null}
-                </View>
+            <View style={[styles.plantCard, { width: cardWidth, backgroundColor: item.owned ? tone.fill : surface.paper, boxShadow: surface.shadow }]}>
+              <View style={[styles.plantWell, { backgroundColor: item.owned ? tone.tileOnFill : surface.sunken }]}>
+                <PlantGlyph stage={item.stage} potted={theme === "nook"} width={48} height={72} />
+                {item.isMax ? (
+                  <View style={[styles.maxBadge, { backgroundColor: surface.isNight ? tone.mid : tone.strong }]}>
+                    <Ionicons name="checkmark" size={14} color={surface.isNight ? surface.canvas : brand.cream} />
+                  </View>
+                ) : null}
               </View>
+              <Text style={[type.bodyStrong, styles.plantName, { color: surface.text }]} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={[type.meta, { color: surface.textSecondary }]}>{stageWord(item.stage, theme)}</Text>
+              {rarityCategory ? <Chip label={rarity.charAt(0).toUpperCase() + rarity.slice(1)} category={rarityCategory} selected style={styles.rarity} /> : null}
               <View style={styles.dots} accessible accessibilityLabel={`Level ${item.level} of ${item.maxLevel}`}>
                 {Array.from({ length: item.maxLevel }).map((_, index) => (
-                  <View key={index} style={[styles.dot, index < item.level && styles.dotOn]} />
+                  <View key={index} style={[styles.dot, { backgroundColor: index < item.level ? (surface.isNight ? tone.mid : brand.sprout) : surface.track }]} />
                 ))}
               </View>
-              <Pressable
-                style={[styles.growButton, item.isMax ? styles.growButtonMax : item.owned ? styles.growButtonOwned : styles.growButtonNew, buttonDisabled && !item.isMax ? styles.growButtonDisabled : null]}
-                disabled={buttonDisabled}
-                onPress={() => handleUpgrade(item)}
-                accessibilityRole="button"
-                accessibilityLabel={`${buttonLabel} ${item.name}`}
-              >
-                <Text style={[styles.growButtonText, item.isMax && styles.growButtonTextMax]}>{buttonLabel}</Text>
-              </Pressable>
-              {!item.isMax && !affordable ? <Text style={styles.needMore}>{item.nextCost - remainingPoints} more to go</Text> : null}
+              {item.isMax ? (
+                <Text style={[type.meta, styles.fullyGrown, { color: tone.accent }]}>Fully grown</Text>
+              ) : (
+                <Button
+                  label={busy ? "Growing…" : `${verb} · ${item.nextCost}`}
+                  icon={busy ? undefined : "leaf"}
+                  size="sm"
+                  variant={item.owned ? "secondary" : "primary"}
+                  block
+                  disabled={buttonDisabled}
+                  loading={busy}
+                  onPress={() => handleUpgrade(item)}
+                  accessibilityLabel={`${verb} ${item.name} for ${item.nextCost} Sprouts`}
+                  containerStyle={styles.growButton}
+                />
+              )}
+              {!item.isMax && !affordable ? (
+                <Text style={[type.meta, styles.needMore, { color: surface.textTertiary }]}>{item.nextCost - remainingPoints} more Sprouts to go</Text>
+              ) : null}
             </View>
           );
         }}
-        ListEmptyComponent={<Text style={styles.emptyText}>No plants configured yet.</Text>}
+        ListEmptyComponent={
+          <PetEmptyState
+            title={`Nothing to ${copy.plantVerb.toLowerCase()} yet`}
+            body="The seed shelf is empty right now. Come back after a little care and there will be something to grow."
+            mood="calm"
+            size={96}
+          />
+        }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f1420", paddingHorizontal: 16 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  header: { marginTop: 6, marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: "800", color: "#f8fafc" },
-  subtitle: { marginTop: 3, fontSize: 13, color: "rgba(148,163,184,0.9)" },
-  listContent: { paddingBottom: 90, paddingTop: 6 },
-  pointsCard: {
-    marginTop: 12,
-    marginBottom: 14,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.28)",
-    backgroundColor: "rgba(53,208,127,0.10)",
+  root: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  listContent: { paddingBottom: 100 },
+  sheet: {
+    marginTop: -30,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
+    borderCurve: "continuous",
+    paddingTop: 22,
+    paddingHorizontal: 20,
   },
-  pointsMain: { flexDirection: "row", alignItems: "center" },
-  pointsValue: { color: "#f8fafc", fontSize: 32, fontWeight: "800", marginRight: 12, minWidth: 48 },
-  pointsBody: { flex: 1 },
-  pointsTitle: { color: "#e2e8f0", fontSize: 15, fontWeight: "700" },
-  pointsMeta: { color: "rgba(148,163,184,0.9)", fontSize: 12, marginTop: 2 },
-  progressLink: { marginTop: 10, alignSelf: "flex-start", paddingVertical: 2 },
-  progressLinkText: { color: "#86efac", fontSize: 12, fontWeight: "600" },
-  gridRow: { justifyContent: "space-between" },
-  plantCard: {
-    width: "48.5%",
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    backgroundColor: "rgba(18,24,38,0.95)",
+  sproutsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: radius.card,
+    borderCurve: "continuous",
   },
-  plantCardMax: { borderColor: "rgba(53,208,127,0.35)" },
-  plantTop: { flexDirection: "row", alignItems: "center" },
-  plantHead: { flex: 1, marginLeft: 8 },
-  plantName: { color: "#f8fafc", fontSize: 15, fontWeight: "700" },
-  plantStage: { marginTop: 2, color: "rgba(148,163,184,0.9)", fontSize: 12 },
-  rarityPill: { alignSelf: "flex-start", marginTop: 6, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  rarityText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  dots: { flexDirection: "row", gap: 5, marginTop: 10 },
-  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "rgba(148,163,184,0.22)" },
-  dotOn: { backgroundColor: "#35d07f" },
-  growButton: {
-    marginTop: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
+  sproutsIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.tile,
+    borderCurve: "continuous",
     alignItems: "center",
     justifyContent: "center",
   },
-  growButtonOwned: { borderColor: "rgba(53,208,127,0.6)", backgroundColor: "rgba(53,208,127,0.16)" },
-  growButtonNew: { borderColor: "rgba(148,163,184,0.35)", backgroundColor: "rgba(148,163,184,0.12)" },
-  growButtonMax: { borderColor: "transparent", backgroundColor: "transparent" },
-  growButtonDisabled: { opacity: 0.45 },
-  growButtonText: { color: "#e2e8f0", fontSize: 12, fontWeight: "700" },
-  growButtonTextMax: { color: "#86efac" },
-  needMore: { marginTop: 6, color: "rgba(148,163,184,0.75)", fontSize: 11, textAlign: "center" },
-  emptyText: { color: "rgba(148,163,184,0.85)", marginTop: 20, textAlign: "center" },
+  sproutsBody: { flex: 1, marginLeft: 14 },
+  sproutsValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32 },
+  progressLink: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 6, alignSelf: "flex-start" },
+  gridRow: { justifyContent: "space-between", paddingHorizontal: 20, maxWidth: 640, width: "100%", alignSelf: "center" },
+  plantCard: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: radius.card,
+    borderCurve: "continuous",
+  },
+  plantWell: {
+    height: 92,
+    borderRadius: radius.tile,
+    borderCurve: "continuous",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 6,
+  },
+  maxBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  plantName: { marginTop: 10 },
+  rarity: { alignSelf: "flex-start", marginTop: 6, minHeight: 24, paddingHorizontal: 9 },
+  dots: { flexDirection: "row", gap: 5, marginTop: 10 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
+  growButton: { marginTop: 12 },
+  fullyGrown: { marginTop: 12, fontFamily: fonts.bodyBold },
+  needMore: { marginTop: 6, textAlign: "center" },
 });

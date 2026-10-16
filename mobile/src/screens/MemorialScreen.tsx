@@ -1,15 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { confirmAsync } from "../utils/confirm";
 import { sanctuaryCopy, sanctuaryFor } from "../domain/sanctuary";
 import { useFocusEffect } from "@react-navigation/native";
-import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
 import { supabase } from "../lib/supabase";
 import GardenStage from "../components/garden/GardenStage";
 import PetRig from "../components/pet/vector/PetRig";
 import BreathingModal from "../components/checkin/BreathingModal";
+import Screen from "../components/common/Screen";
+import Card from "../components/common/Card";
+import Button from "../components/common/Button";
+import IconTile from "../components/common/IconTile";
+import PressableScale from "../components/common/PressableScale";
+import TextField from "../components/common/TextField";
+import { ListGroup } from "../components/common/ListGroup";
+import { Lead, ScreenTitle, SectionTitle } from "../components/common/Headings";
+import PetMascot from "../components/pet/PetMascot";
+import { PetLoading } from "../components/pet/PetMoments";
+import { useTheme, useThemeHour } from "../theme/theme";
+import { fonts, radius, space, type } from "../theme/tokens";
 import { clearPetMemorial, savePetMemorial } from "../services/petStore";
 import { archiveMemorial, deleteMemory, loadArchive, loadMemories, subscribeMemories, writeMemory, type MemorialArchiveEntry } from "../services/memoryStore";
 import { loadPlayStats } from "../games/playStats";
@@ -21,11 +34,14 @@ import { humanDate } from "../domain/calendar";
  * Rainbow Bridge memorial mode. Before it is on: a careful explanation and a confirmation. While it is
  * on: the pet rests in a quiet garden, the daily loop is paused elsewhere in the app, and this screen
  * keeps memories and milestones. It can be undone, and a new companion can move in later while the
- * memorial is kept on this device.
+ * memorial is kept on this device. Colour: calm lavender, with plum for the one deliberate action.
  */
 export default function MemorialScreen({ navigation, route }: any) {
   const { user, profile } = useAuth();
   const { sources, look, name, displayName, memorial, refresh } = usePet();
+  const theme = useTheme();
+  const { surface, sky, night } = theme;
+  const hour = useThemeHour();
   const place = sanctuaryCopy(sanctuaryFor(look?.species)).place;
   const { height } = useWindowDimensions();
   const archiveIndex: number | null = typeof route?.params?.archiveIndex === "number" ? route.params.archiveIndex : null;
@@ -163,204 +179,235 @@ export default function MemorialScreen({ navigation, route }: any) {
     const entry = archive[archiveIndex];
     if (!entry) {
       return (
-        <View style={styles.center}>
-          <ActivityIndicator color="#35d07f" />
-        </View>
+        <Screen scroll={false} centered>
+          <PetLoading />
+        </Screen>
       );
     }
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.restingCard}>
-          {entry.look ? <PetRig look={entry.look} size={140} resting /> : null}
-          <Text style={styles.title}>Remembering {entry.petName}</Text>
-          <Text style={styles.meta}>Since {humanDate(entry.memorial.since)}</Text>
-          {entry.memorial.note ? <Text style={styles.note}>"{entry.memorial.note}"</Text> : null}
-        </View>
-        <Text style={styles.sectionTitle}>Memories</Text>
-        {entry.memories.length === 0 ? <Text style={styles.empty}>No memories were written.</Text> : null}
+      <Screen>
+        <Card tone="calm" style={styles.restingCard}>
+          {entry.look ? <PetRig look={entry.look} size={140} resting /> : <IconTile icon="heart-outline" category="calm" on="fill" size={56} round />}
+          <ScreenTitle center style={styles.restingTitle}>
+            Remembering {entry.petName}
+          </ScreenTitle>
+          <Text style={[type.meta, styles.restingMeta, { color: surface.textSecondary }]}>Since {humanDate(entry.memorial.since)}</Text>
+          {entry.memorial.note ? <Text style={[type.body, styles.quote, { color: surface.text }]}>"{entry.memorial.note}"</Text> : null}
+        </Card>
+        <SectionTitle>Memories</SectionTitle>
+        {entry.memories.length === 0 ? <Lead>No memories were written.</Lead> : null}
         {entry.memories.map((m) => (
-          <View key={m.id} style={styles.memoryCard}>
-            <Text style={styles.memoryText}>{m.text}</Text>
-            <Text style={styles.memoryDate}>{humanDate(m.date)}</Text>
-          </View>
+          <MemoryCard key={m.id} memory={m} />
         ))}
-      </ScrollView>
+      </Screen>
     );
   }
 
   // ---- before the memorial: explain, then confirm ------------------------------------------------------
   if (!memorial) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>If {displayName} has passed away</Text>
-        <Text style={styles.body}>We're so sorry. Luna can turn the {place} into a quiet place to remember them.</Text>
-        <View style={styles.card}>
-          <Row icon="moon" text={`${displayName} rests in the ${place}. Cheering, prompts and daily tasks pause.`} />
-          <Row icon="book-open" text="You keep their name and look, and can write memories here whenever you like." />
-          <Row icon="rotate-ccw" text="You can undo this any time, and later welcome a new companion while keeping the memorial." />
+      <Screen keyboard>
+        <View style={styles.introHero}>
+          <PetMascot size={96} mood="calm" night={night} />
+          <ScreenTitle center style={styles.introTitle}>
+            If {displayName} has passed away
+          </ScreenTitle>
+          <Lead center style={styles.introBody}>
+            We're so sorry. Luna can turn the {place} into a quiet place to remember them.
+          </Lead>
         </View>
-        <Text style={styles.fieldLabel}>When did they pass? (optional)</Text>
-        <TextInput
+        <Card tone="calm" style={styles.block}>
+          <CalmRow icon="moon-outline" text={`${displayName} rests in the ${place}. Cheering, prompts and daily tasks pause.`} />
+          <CalmRow icon="book-outline" text="You keep their name and look, and can write memories here whenever you like." />
+          <CalmRow icon="arrow-undo-outline" text="You can undo this any time, and later welcome a new companion while keeping the memorial." />
+        </Card>
+        <TextField
+          label="When did they pass? (optional)"
           value={dateDraft}
           onChangeText={setDateDraft}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor="rgba(148,163,184,0.7)"
-          style={styles.input}
           autoCapitalize="none"
           accessibilityLabel="Date"
+          containerStyle={styles.field}
         />
-        <Text style={styles.fieldLabel}>A line for them (optional)</Text>
-        <TextInput
+        <TextField
+          label="A line for them (optional)"
           value={noteDraft}
           onChangeText={setNoteDraft}
           placeholder={`Something about ${displayName}`}
-          placeholderTextColor="rgba(148,163,184,0.7)"
-          style={[styles.input, styles.inputMulti]}
           multiline
           maxLength={MEMORIAL_NOTE_MAX}
           accessibilityLabel="A line for them"
+          containerStyle={styles.field}
+          style={styles.multiline}
         />
-        <Pressable style={[styles.primary, saving && styles.disabled]} onPress={confirmMemorial} disabled={saving} accessibilityRole="button">
-          {saving ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryText}>Remember {displayName}</Text>}
-        </Pressable>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()} accessibilityRole="button">
-          <Text style={styles.secondaryText}>Not now</Text>
-        </Pressable>
+        <Button label={`Remember ${displayName}`} variant="plum" onPress={confirmMemorial} loading={saving} containerStyle={styles.plumButton} />
+        <Button label="Not now" variant="quiet" size="md" onPress={() => navigation.goBack()} containerStyle={styles.notNow} />
         {archive.length > 0 ? (
           <View>
-            <Text style={styles.sectionTitle}>Remembered</Text>
-            {archive.map((entry, index) => (
-              <Pressable key={`${entry.petName}-${index}`} style={styles.archiveRow} onPress={() => navigation.push("Memorial", { archiveIndex: index })} accessibilityRole="button">
-                {entry.look ? <PetRig look={entry.look} size={44} resting reducedMotion /> : <Feather name="heart" size={18} color="#fbcfe8" />}
-                <Text style={styles.archiveText}>Remembering {entry.petName}</Text>
-                <Feather name="chevron-right" size={16} color="rgba(148,163,184,0.8)" />
-              </Pressable>
-            ))}
+            <SectionTitle>Remembered</SectionTitle>
+            <ListGroup>
+              {archive.map((entry, index) => (
+                <PressableScale
+                  key={`${entry.petName}-${index}`}
+                  onPress={() => navigation.push("Memorial", { archiveIndex: index })}
+                  pressedScale={0.98}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remembering ${entry.petName}`}
+                  style={styles.archiveRow}
+                >
+                  {entry.look ? <PetRig look={entry.look} size={44} resting reducedMotion /> : <IconTile icon="heart-outline" category="calm" size={36} />}
+                  <Text style={[type.callout, styles.archiveText, { color: surface.text }]}>Remembering {entry.petName}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={surface.textTertiary} />
+                </PressableScale>
+              ))}
+            </ListGroup>
           </View>
         ) : null}
-      </ScrollView>
+      </Screen>
     );
   }
 
   // ---- the memorial ----------------------------------------------------------------------------------
   const greeting = memorialGreeting(displayName);
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.contentFlush} keyboardShouldPersistTaps="handled">
+    <Screen padded={false} keyboard bottomPad={60}>
       <View style={styles.sceneWrap}>
         {/* the painted portrait when there is one (as on the Pet tab), resting; the rig stands in otherwise */}
-        <GardenStage height={sceneHeight} variant="pet" petImageSources={sources} petLook={look} petResting petScale={1.05} accessibilityLabel={`${displayName} resting in a quiet garden`}>
+        <GardenStage
+          height={sceneHeight}
+          variant="pet"
+          hour={hour}
+          petImageSources={sources}
+          petLook={look}
+          petResting
+          petScale={1.05}
+          accessibilityLabel={`${displayName} resting in a quiet garden`}
+        >
+          {/* a soft veil from the top, in the sky's own colour, keeps the title readable (as on Home) */}
+          <LinearGradient pointerEvents="none" colors={sky.veil} style={styles.veil} />
           <View style={styles.sceneText} pointerEvents="none">
-            <Text style={styles.sceneTitle}>{greeting.title}</Text>
-            <Text style={styles.sceneSub}>Since {humanDate(memorial.since)}</Text>
+            <Text style={[type.title, { color: sky.text }]} accessibilityRole="header">
+              {greeting.title}
+            </Text>
+            <Text style={[type.meta, styles.sceneSub, { color: sky.textSecondary }]}>Since {humanDate(memorial.since)}</Text>
           </View>
         </GardenStage>
       </View>
       <View style={styles.contentInner}>
-        <Text style={styles.reflection}>{memorialReflection(today)}</Text>
-        {memorial.note ? <Text style={styles.note}>"{memorial.note}"</Text> : null}
+        <Text style={[type.body, styles.reflection, { color: surface.text }]}>{memorialReflection(today)}</Text>
+        {memorial.note ? <Text style={[type.body, styles.quote, { color: surface.textSecondary }]}>"{memorial.note}"</Text> : null}
 
-        <View style={styles.actionsRow}>
-          <Pressable style={styles.action} onPress={() => setBreathingOpen(true)} accessibilityRole="button">
-            <Feather name="wind" size={16} color="#a7f3d0" />
-            <Text style={styles.actionText}>Sit quietly for a minute</Text>
-          </Pressable>
-        </View>
+        <Card tone="calm" onPress={() => setBreathingOpen(true)} accessibilityLabel="Sit quietly for a minute" style={styles.quietCard}>
+          <View style={styles.quietRow}>
+            <IconTile icon="leaf-outline" category="calm" on="fill" size={40} />
+            <Text style={[type.bodyStrong, styles.quietText, { color: surface.text }]}>Sit quietly for a minute</Text>
+            <Ionicons name="chevron-forward" size={18} color={surface.textTertiary} />
+          </View>
+        </Card>
 
-        <Text style={styles.sectionTitle}>Write a memory</Text>
-        <TextInput
+        <SectionTitle>Write a memory</SectionTitle>
+        <TextField
           value={memoryDraft}
           onChangeText={setMemoryDraft}
           placeholder={`Something you don't want to forget about ${displayName}`}
-          placeholderTextColor="rgba(148,163,184,0.7)"
-          style={[styles.input, styles.inputMulti]}
           multiline
           maxLength={MEMORY_MAX}
           accessibilityLabel="Write a memory"
+          style={styles.multiline}
         />
-        <Pressable style={[styles.primary, (!memoryDraft.trim() || writing) && styles.disabled]} onPress={saveMemory} disabled={!memoryDraft.trim() || writing} accessibilityRole="button">
-          <Text style={styles.primaryText}>{writing ? "Saving…" : "Keep this memory"}</Text>
-        </Pressable>
+        <Button
+          label={writing ? "Saving…" : "Keep this memory"}
+          variant="plum"
+          onPress={saveMemory}
+          disabled={!memoryDraft.trim() || writing}
+          containerStyle={styles.keepButton}
+        />
 
-        {memories.length > 0 ? <Text style={styles.sectionTitle}>Memories</Text> : null}
+        {memories.length > 0 ? <SectionTitle>Memories</SectionTitle> : null}
         {memories.map((m) => (
-          <Pressable key={m.id} style={styles.memoryCard} onLongPress={() => removeOne(m)} accessibilityRole="text" accessibilityHint="Long press to remove">
-            <Text style={styles.memoryText}>{m.text}</Text>
-            <Text style={styles.memoryDate}>{humanDate(m.date)}</Text>
-          </Pressable>
+          <MemoryCard key={m.id} memory={m} onLongPress={() => removeOne(m)} />
         ))}
 
         {milestoneLines.length > 0 ? (
           <View>
-            <Text style={styles.sectionTitle}>Together</Text>
-            <View style={styles.card}>
+            <SectionTitle>Together</SectionTitle>
+            <Card tone="calm">
               {milestoneLines.map((line) => (
-                <Row key={line} icon="sun" text={line} />
+                <CalmRow key={line} icon="sunny-outline" text={line} />
               ))}
-            </View>
+            </Card>
           </View>
         ) : null}
 
         <View style={styles.footer}>
-          <Pressable style={styles.linkButton} onPress={newCompanion} accessibilityRole="button">
-            <Text style={styles.linkText}>Welcome a new companion</Text>
-          </Pressable>
-          <Pressable style={styles.linkButton} onPress={undoMemorial} accessibilityRole="button">
-            <Text style={styles.linkText}>This was a mistake</Text>
-          </Pressable>
+          <Button label="Welcome a new companion" variant="quiet" size="sm" onPress={newCompanion} />
+          <Button label="This was a mistake" variant="quiet" size="sm" onPress={undoMemorial} />
         </View>
       </View>
       <BreathingModal visible={breathingOpen} onClose={() => setBreathingOpen(false)} />
-    </ScrollView>
+    </Screen>
   );
 }
 
-function Row({ icon, text }: { icon: any; text: string }) {
+/** An icon in a soft lavender tile and a line beside it (the promises before, the milestones after). */
+function CalmRow({ icon, text }: { icon: string; text: string }) {
+  const { surface } = useTheme();
   return (
     <View style={styles.row}>
-      <Feather name={icon} size={16} color="#fbcfe8" />
-      <Text style={styles.rowText}>{text}</Text>
+      <IconTile icon={icon} category="calm" on="fill" size={36} />
+      <Text style={[type.callout, styles.rowText, { color: surface.text }]}>{text}</Text>
     </View>
   );
 }
 
+/** One written memory on paper; long press removes it where that is allowed. */
+function MemoryCard({ memory, onLongPress }: { memory: Memory; onLongPress?: () => void }) {
+  const { surface } = useTheme();
+  return (
+    <Card
+      onLongPress={onLongPress}
+      accessibilityRole={onLongPress ? "text" : undefined}
+      accessibilityHint={onLongPress ? "Long press to remove" : undefined}
+      style={styles.memoryCard}
+    >
+      <Text style={[type.body, { color: surface.text }]}>{memory.text}</Text>
+      <Text style={[type.meta, styles.memoryDate, { color: surface.textTertiary }]}>{humanDate(memory.date)}</Text>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0f1420" },
-  content: { padding: 20, paddingBottom: 60 },
-  contentFlush: { paddingBottom: 60 },
-  contentInner: { paddingHorizontal: 20, paddingTop: 14 },
-  sceneWrap: { overflow: "hidden", borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
-  sceneText: { position: "absolute", top: 16, left: 16, right: 16 },
-  sceneTitle: { color: "#ffffff", fontSize: 26, fontWeight: "800", textShadowColor: "rgba(15,23,42,0.65)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6 },
-  sceneSub: { marginTop: 4, color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "600", textShadowColor: "rgba(15,23,42,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  restingCard: { alignItems: "center", paddingVertical: 16, borderRadius: 22, backgroundColor: "rgba(18,24,38,0.95)", borderWidth: 1, borderColor: "rgba(148,163,184,0.22)" },
-  title: { color: "#f8fafc", fontSize: 24, fontWeight: "800", textAlign: "center" },
-  body: { marginTop: 10, color: "rgba(203,213,225,0.92)", fontSize: 15, lineHeight: 22, textAlign: "center" },
-  meta: { marginTop: 6, color: "rgba(148,163,184,0.9)", fontSize: 12 },
-  note: { marginTop: 10, marginHorizontal: 6, color: "#fbcfe8", fontSize: 14, fontStyle: "italic", textAlign: "center", lineHeight: 20 },
-  reflection: { color: "rgba(226,232,240,0.95)", fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 4 },
-  card: { marginTop: 14, padding: 14, borderRadius: 18, backgroundColor: "rgba(18,24,38,0.95)", borderWidth: 1, borderColor: "rgba(148,163,184,0.22)" },
-  row: { flexDirection: "row", alignItems: "flex-start", marginVertical: 6 },
-  rowText: { flex: 1, marginLeft: 10, color: "rgba(226,232,240,0.92)", fontSize: 13, lineHeight: 19 },
-  fieldLabel: { marginTop: 16, color: "rgba(148,163,184,0.95)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
-  input: { marginTop: 8, minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: "rgba(148,163,184,0.4)", backgroundColor: "rgba(15,23,42,0.6)", color: "#e2e8f0", paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
-  inputMulti: { minHeight: 76 },
-  primary: { marginTop: 18, minHeight: 50, borderRadius: 999, backgroundColor: "#35d07f", alignItems: "center", justifyContent: "center" },
-  primaryText: { color: "#0f172a", fontSize: 15, fontWeight: "800" },
-  secondary: { marginTop: 10, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  secondaryText: { color: "rgba(203,213,225,0.95)", fontSize: 14, fontWeight: "700" },
-  disabled: { opacity: 0.55 },
-  actionsRow: { marginTop: 14 },
-  action: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "rgba(52,211,153,0.5)", backgroundColor: "rgba(16,185,129,0.12)" },
-  actionText: { marginLeft: 8, color: "#a7f3d0", fontSize: 14, fontWeight: "700" },
-  sectionTitle: { marginTop: 22, marginBottom: 6, color: "rgba(148,163,184,0.95)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
-  empty: { color: "rgba(148,163,184,0.85)", fontSize: 13 },
-  memoryCard: { marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: "rgba(18,24,38,0.95)", borderWidth: 1, borderColor: "rgba(244,114,182,0.25)" },
-  memoryText: { color: "#f8fafc", fontSize: 14, lineHeight: 20 },
-  memoryDate: { marginTop: 6, color: "rgba(148,163,184,0.85)", fontSize: 11 },
-  archiveRow: { flexDirection: "row", alignItems: "center", marginTop: 8, padding: 12, borderRadius: 16, backgroundColor: "rgba(18,24,38,0.95)", borderWidth: 1, borderColor: "rgba(148,163,184,0.22)" },
-  archiveText: { flex: 1, marginLeft: 12, color: "#e2e8f0", fontSize: 14, fontWeight: "600" },
-  footer: { marginTop: 26, flexDirection: "row", justifyContent: "space-between" },
-  linkButton: { paddingVertical: 8 },
-  linkText: { color: "rgba(203,213,225,0.9)", fontSize: 13, fontWeight: "700" },
+  block: { marginTop: 16 },
+  // archived
+  restingCard: { alignItems: "center", paddingVertical: 20 },
+  restingTitle: { marginTop: 10 },
+  restingMeta: { marginTop: 4 },
+  quote: { marginTop: 12, marginHorizontal: 6, textAlign: "center", fontFamily: fonts.bodyMedium },
+  // before
+  introHero: { alignItems: "center", paddingTop: 4 },
+  introTitle: { marginTop: 12 },
+  introBody: { marginTop: 8, paddingHorizontal: 4 },
+  field: { marginTop: 18 },
+  multiline: { minHeight: 96 },
+  plumButton: { marginTop: 22 },
+  notNow: { alignSelf: "center", marginTop: 6 },
+  archiveRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 60 },
+  archiveText: { flex: 1, fontFamily: fonts.bodyBold },
+  // the memorial
+  sceneWrap: { overflow: "hidden", borderBottomLeftRadius: radius.hero, borderBottomRightRadius: radius.hero, borderCurve: "continuous" },
+  veil: { position: "absolute", left: 0, right: 0, top: 0, height: 140 },
+  sceneText: { position: "absolute", top: 16, left: space.gutter, right: space.gutter },
+  sceneSub: { marginTop: 2 },
+  contentInner: { paddingHorizontal: space.gutter, paddingTop: 18 },
+  reflection: { textAlign: "center" },
+  quietCard: { marginTop: 18 },
+  quietRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  quietText: { flex: 1 },
+  keepButton: { marginTop: 14 },
+  memoryCard: { marginTop: 10 },
+  memoryDate: { marginTop: 6 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 6 },
+  rowText: { flex: 1 },
+  footer: { marginTop: 28, flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
 });
