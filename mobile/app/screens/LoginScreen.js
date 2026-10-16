@@ -34,8 +34,8 @@ export default function LoginScreen({ navigation }) {
     const normalizedPassword = typeof password === 'string' ? password : '';
 
     console.log('AUTH_INPUT', {
-      email: normalizedEmail,
-      emailType: typeof normalizedEmail,
+      emailPresent: normalizedEmail.length > 0,
+      emailLength: normalizedEmail.length,
       passwordLen: normalizedPassword?.length,
     });
 

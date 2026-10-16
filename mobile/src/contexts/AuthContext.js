@@ -5,6 +5,7 @@ import { fetchUserStats } from "../services/dailyLoop";
 import { clearPetStore } from "../services/petStore";
 import { clearAuthFetchIssue, getAuthFetchIssue, subscribeAuthFetchIssue } from "../utils/net";
 import { diagLog } from "../utils/diagLog";
+import { shortId } from "../utils/logRedact";
 
 const RETRYABLE_AUTH_STATUSES = new Set([502, 503, 504, 521]);
 // Remembered per user so an offline launch can still tell "has a pet" from "never set one up" (R-04).
@@ -166,7 +167,7 @@ export function AuthProvider({ children }) {
         if (mountedRef.current && requestId === hydrateCounterRef.current) setProfileStatus("error");
       }
       if (hydrateFailed && __DEV__) {
-        console.warn("AUTH_PROFILE_UNAVAILABLE", { userId: nextUser.id, remembered });
+        console.warn("AUTH_PROFILE_UNAVAILABLE", { userId: shortId(nextUser.id), remembered });
       }
 
       try {
@@ -227,8 +228,8 @@ export function AuthProvider({ children }) {
 
         const currentSession = data?.session ?? null;
         setSessionState(currentSession);
-        console.log("AUTH_STATE", { event: "BOOTSTRAP", userId: currentSession?.user?.id ?? null });
-        diagLog("AUTH_STATE", { event: "BOOTSTRAP", userId: currentSession?.user?.id ?? null });
+        console.log("AUTH_STATE", { event: "BOOTSTRAP", userId: shortId(currentSession?.user?.id) });
+        diagLog("AUTH_STATE", { event: "BOOTSTRAP", userId: shortId(currentSession?.user?.id) });
 
         if (currentSession?.user) {
           await hydrateUserState(currentSession.user);
@@ -245,9 +246,9 @@ export function AuthProvider({ children }) {
     };
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
-      console.log("AUTH_STATE", { event, userId: nextSession?.user?.id ?? null });
+      console.log("AUTH_STATE", { event, userId: shortId(nextSession?.user?.id) });
       if (["SIGNED_IN", "SIGNED_OUT", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)) {
-        diagLog("AUTH_STATE", { event, userId: nextSession?.user?.id ?? null });
+        diagLog("AUTH_STATE", { event, userId: shortId(nextSession?.user?.id) });
       }
       const previousSession = sessionRef.current;
       const isRetryableRefreshFailure =

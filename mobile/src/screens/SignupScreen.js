@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { supabase } from "../lib/supabase";
 import AuthLayout from "../components/auth/AuthLayout";
@@ -6,24 +6,20 @@ import TextField from "../components/common/TextField";
 import Button from "../components/common/Button";
 import { useTheme } from "../theme/theme";
 import { fonts, type } from "../theme/tokens";
-
-function getAuthErrorDetails(error) {
-  const status = typeof error?.status === "number" ? error.status : undefined;
-  const message = String(error?.message || "").toLowerCase();
-  const nonJsonResponse = Boolean(error?.isNonJsonResponse) || message.includes("non-json error response");
-  const serviceUnavailable =
-    nonJsonResponse || status === 521 || status === 502 || status === 503 || status === 504;
-  const missingEmailOrPhone = status === 400 && message.includes("missing email or phone");
-
-  return { serviceUnavailable, missingEmailOrPhone };
-}
+import { signupOutcome } from "../utils/authMessages";
+import { confirmAsync } from "../utils/confirm";
+import { describeEmailForLog, redactForLog } from "../utils/logRedact";
 
 export default function SignupScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
+  // good news or a next step (check your email), as opposed to an attempt that did not work
+  const [notice, setNotice] = useState("");
   const [emailHasError, setEmailHasError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // A ref as well as state: a quick double tap fires twice before the disabled button re-renders.
+  const inFlight = useRef(false);
   const theme = useTheme();
 
   function handleEmailChange(nextEmail) {
@@ -34,17 +30,21 @@ export default function SignupScreen({ navigation }) {
   }
 
   async function handleSignup() {
+    if (inFlight.current) return;
+
     setErr("");
+    setNotice("");
     setEmailHasError(false);
 
     const normalizedEmail = typeof email === "string" ? email.trim() : "";
     const normalizedPassword = typeof pwd === "string" ? pwd : "";
 
-    console.log("AUTH_INPUT", {
-      email: normalizedEmail,
-      emailType: typeof normalizedEmail,
-      passwordLen: normalizedPassword?.length,
-    });
+    if (__DEV__) {
+      console.log("AUTH_INPUT", {
+        ...describeEmailForLog(normalizedEmail),
+        passwordLen: normalizedPassword?.length,
+      });
+    }
 
     if (!normalizedEmail) {
       setEmailHasError(true);
@@ -57,34 +57,50 @@ export default function SignupScreen({ navigation }) {
       return;
     }
 
+    inFlight.current = true;
     setBusy(true);
+    let result;
     try {
-      const { error } = await supabase.auth.signUp({
+      result = await supabase.auth.signUp({
         email: normalizedEmail,
         password: normalizedPassword,
       });
-
-      if (error) {
-        throw error;
-      }
     } catch (error) {
-      const { serviceUnavailable, missingEmailOrPhone } = getAuthErrorDetails(error);
-      console.error("AUTH_SIGNUP_ERROR", error);
-      if (serviceUnavailable) {
-        setErr("Auth service temporarily unavailable. Try again.");
-      } else if (missingEmailOrPhone) {
-        setEmailHasError(true);
-        setErr("Please enter a valid email.");
-      } else {
-        setErr("Unable to create account. Please try again.");
-      }
-      return;
+      result = { data: null, error };
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
 
-    // Profile row is created by a database trigger after signup.
-    // The navigation will be handled by the AuthProvider
+    // Supabase answers "success" to a repeated sign-up and sends nothing; signupOutcome tells the cases apart.
+    const outcome = signupOutcome(result);
+    if (result?.error) {
+      console.error("AUTH_SIGNUP_ERROR", {
+        status: result.error?.status,
+        code: result.error?.code,
+        message: redactForLog(result.error?.message),
+      });
+    } else if (__DEV__) {
+      console.log("AUTH_SIGNUP_RESULT", { outcome: outcome.kind });
+    }
+
+    if (outcome.emailField) setEmailHasError(true);
+    if (outcome.tone === "error") {
+      setErr(outcome.message);
+      return;
+    }
+    setNotice(outcome.message);
+
+    if (outcome.kind === "already_registered") {
+      const goToLogin = await confirmAsync({
+        title: "You already have an account",
+        message: outcome.message,
+        confirmText: "Go to sign in",
+        cancelText: "Stay here",
+      });
+      if (goToLogin) navigation.navigate("Login");
+    }
+    // "signed_in": the AuthProvider takes over navigation. The profile row is created on first hydrate.
   }
 
   return (
@@ -99,6 +115,7 @@ export default function SignupScreen({ navigation }) {
         onChangeText={handleEmailChange}
         value={email}
         error={emailHasError}
+        editable={!busy}
       />
       <TextField
         label="Password"
@@ -110,9 +127,19 @@ export default function SignupScreen({ navigation }) {
         value={pwd}
         returnKeyType="go"
         onSubmitEditing={handleSignup}
+        editable={!busy}
       />
-      {err ? <Text style={[type.meta, { color: theme.alert }]} accessibilityLiveRegion="polite">{err}</Text> : null}
-      <Button label="Create account" onPress={handleSignup} loading={busy} containerStyle={styles.cta} />
+      {err ? (
+        <Text style={[type.meta, { color: theme.alert }]} accessibilityLiveRegion="polite">
+          {err}
+        </Text>
+      ) : null}
+      {notice ? (
+        <Text style={[type.callout, { color: theme.surface.text }]} accessibilityLiveRegion="polite">
+          {notice}
+        </Text>
+      ) : null}
+      <Button label={busy ? "Creating account…" : "Create account"} onPress={handleSignup} loading={busy} disabled={busy} containerStyle={styles.cta} />
       <Pressable onPress={() => navigation.goBack()} hitSlop={8} accessibilityRole="link" style={styles.link}>
         <Text style={[type.callout, { color: theme.surface.textSecondary }]}>
           Already have an account? <Text style={{ color: theme.link, fontFamily: fonts.bodyBold }}>Sign in</Text>

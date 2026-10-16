@@ -1,6 +1,7 @@
 import NetInfo, { type NetInfoState } from "@react-native-community/netinfo";
 import { getRawPublicEnv, isPlaceholderValue, isSupabaseUrlConfigured } from "./env";
 import { diagLog } from "./diagLog";
+import { redactForLog } from "./logRedact";
 
 type NetFetchOptions = RequestInit & {
   timeoutMs?: number;
@@ -296,11 +297,13 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
   const apiUrl = getRawPublicEnv("EXPO_PUBLIC_API_URL");
   const startedAt = Date.now();
   const authEndpoint = isAuthEndpoint(url);
+  // Logs get the URL with user ids shortened and emails dropped (logRedact).
+  const logUrl = redactForLog(url);
 
   if (__DEV__) {
     console.log("NET_FETCH", {
       method,
-      url,
+      url: logUrl,
       timeoutMs,
       env: {
         SUPABASE_URL: truncateValue(supabaseUrl),
@@ -316,14 +319,14 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
         ? "SUPABASE URL not configured"
         : "Network URL not configured";
     const error = tagNetworkError(new Error(message), message);
-    console.error("NET_FETCH_BLOCKED", { url, reason: block.reason, message });
+    console.error("NET_FETCH_BLOCKED", { url: logUrl, reason: block.reason, message });
     throw error;
   }
 
   const netState = await getNetworkState();
   if (__DEV__) {
     console.log("NET_FETCH_NETINFO", {
-      url,
+      url: logUrl,
       isConnected: netState?.isConnected,
       isInternetReachable: netState?.isInternetReachable,
       type: netState?.type,
@@ -335,7 +338,7 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
     const error = tagNetworkError(new Error(message), message);
     (error as any).errorCode = "NETWORK_BLOCKED";
     console.warn("NET_FETCH_PAUSED", {
-      url,
+      url: logUrl,
       message,
       isConnected: netState?.isConnected,
       isInternetReachable: netState?.isInternetReachable,
@@ -399,17 +402,17 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
           bodySnippet = `[unable to read body: ${bodyReadError?.message || "unknown"}]`;
           diagLog("NET_FETCH_BAD_BODY", {
             status: response.status,
-            url,
-            snippet: bodySnippet,
+            url: logUrl,
+            snippet: redactForLog(bodySnippet),
           });
         }
 
         console.warn("NET_FETCH_NON_OK", {
-          url,
+          url: logUrl,
           method,
           status: response.status,
           contentType: contentType || "unknown",
-          bodySnippet,
+          bodySnippet: redactForLog(bodySnippet),
           durationMs: Date.now() - startedAt,
           attempt,
         });
@@ -417,7 +420,7 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
         if (authEndpoint && retryableStatus && attempt < AUTH_RETRY_DELAYS_MS.length) {
           const retryInMs = AUTH_RETRY_DELAYS_MS[attempt];
           console.warn("NET_FETCH_RETRY", {
-            url,
+            url: logUrl,
             method,
             status: response.status,
             retryInMs,
@@ -430,8 +433,8 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
         if (!isJsonContentType(contentType)) {
           diagLog("NON_JSON_RESPONSE", {
             status: response.status,
-            url,
-            snippet: bodySnippet,
+            url: logUrl,
+            snippet: redactForLog(bodySnippet),
           });
           throw createStructuredFetchError({
             message: `Non-JSON error response (${response.status}) from ${url}`,
@@ -449,7 +452,7 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
 
       if (__DEV__) {
         console.log("NET_FETCH_RESPONSE", {
-          url,
+          url: logUrl,
           method,
           status: response.status,
           ok: response.ok,
@@ -466,8 +469,8 @@ export async function resilientFetch(url: string, options: NetFetchOptions = {})
       const message = error?.message || "Network request failed";
       recordFailure(url);
       console.error("NET_FETCH_ERROR", {
-        url,
-        message,
+        url: logUrl,
+        message: redactForLog(message),
         name: error?.name,
         code: error?.code,
         durationMs: Date.now() - startedAt,
