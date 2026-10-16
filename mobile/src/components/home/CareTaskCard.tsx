@@ -20,6 +20,8 @@ export type CareTaskCardProps = {
   onComplete: () => void;
   onOpen?: () => void;
   onRetry?: () => void;
+  /** press and hold (the person's own tasks: put it away) */
+  onLongPress?: () => void;
   surface: Surface;
 };
 
@@ -47,6 +49,7 @@ export default function CareTaskCard({
   onComplete,
   onOpen,
   onRetry,
+  onLongPress,
   surface,
 }: CareTaskCardProps) {
   const tone = categoryTone(category);
@@ -74,8 +77,11 @@ export default function CareTaskCard({
       <View style={[styles.card, { backgroundColor: cardBg, boxShadow: surface.shadow, opacity: done ? 0.62 : 1 }]}>
         <PressableScale
           onPress={done || saving ? undefined : opens && onOpen ? onOpen : onComplete}
-          disabled={done || saving}
+          onLongPress={onLongPress}
+          delayLongPress={onLongPress ? 350 : undefined}
+          disabled={(done || saving) && !onLongPress}
           accessibilityRole="button"
+          accessibilityHint={onLongPress ? "Press and hold to put this away" : undefined}
           accessibilityLabel={`${title}. ${meta}${done ? ". Done" : opens ? ". Opens" : ""}`}
           accessibilityState={{ disabled: done || saving }}
           containerStyle={styles.mainSlot}

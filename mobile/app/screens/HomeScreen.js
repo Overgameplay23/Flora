@@ -7,6 +7,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import HomeView from "../../src/components/home/HomeView";
 import FocusPickerSheet from "../../src/components/home/FocusPickerSheet";
+import AddTaskSheet from "../../src/components/home/AddTaskSheet";
+import { createCustomTask, removeCustomTask } from "../../src/services/customTasks";
 import PressableScale from "../../src/components/common/PressableScale";
 import BreathingModal from "../../src/components/checkin/BreathingModal";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -38,7 +40,7 @@ import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isProtectedMood } from "../../src/domain/protectedMode";
 import { phaseLabel } from "../../src/domain/cycle";
 import { playDing } from "../../src/utils/sfx";
-import { notify } from "../../src/utils/confirm";
+import { confirmAsync, notify } from "../../src/utils/confirm";
 import * as haptics from "../../src/utils/haptics";
 import { brand, fonts, ink, radius, skyFor, surfaces, type } from "../../src/theme/tokens";
 import { useTheme } from "../../src/theme/theme";
@@ -113,6 +115,8 @@ export default function HomeScreen() {
   const [energy, setEnergy] = useState(null);
   const [focusOpen, setFocusOpen] = useState(false);
   const [savingFocus, setSavingFocus] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [savingTask, setSavingTask] = useState(false);
   const [completing, setCompleting] = useState({});
   const [noticeByTask, setNoticeByTask] = useState({});
   const [toast, setToast] = useState(null);
@@ -263,13 +267,13 @@ export default function HomeScreen() {
 
   // ---- completing a care task ---------------------------------------------------------------------------
   const celebrate = useCallback(
-    (item, points) => {
+    (title, act, points) => {
       playDing();
       haptics.tapSoft();
       setPetReaction("cheer");
-      setPetAct(item.planned.task.act || actForTask(item.title));
+      setPetAct(act || actForTask(title));
       setSprouts((prev) => (typeof prev === "number" ? prev + Math.max(0, points) : prev));
-      setToast({ id: Date.now(), text: careDoneLine(petDisplayName, points, item.title.length + Date.now() / 1000) });
+      setToast({ id: Date.now(), text: careDoneLine(petDisplayName, points, title.length + Date.now() / 1000) });
     },
     [petDisplayName]
   );
@@ -283,7 +287,7 @@ export default function HomeScreen() {
         // signed out (nothing to sync against): tick it here so the moment still lands
         completedThisSession.current = true;
         plan.markDone(key);
-        celebrate(item, 0);
+        celebrate(item.title, item.planned.task.act, 0);
         return;
       }
       inFlightTicks.current.add(key);
@@ -302,7 +306,7 @@ export default function HomeScreen() {
           await plan.tickPending(key);
           completedThisSession.current = true;
           setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
-          celebrate(item, 0);
+          celebrate(item.title, item.planned.task.act, 0);
           return;
         }
         const category = item.planned.task.category;
@@ -316,12 +320,12 @@ export default function HomeScreen() {
         if (mutation.state === "queued") {
           plan.markDone(key);
           setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
-          celebrate(item, 0);
+          celebrate(item.title, item.planned.task.act, 0);
           return;
         }
         plan.markDone(key);
         if (mutation.result.inserted) {
-          celebrate(item, mutation.result.points_awarded);
+          celebrate(item.title, item.planned.task.act, mutation.result.points_awarded);
         } else if (!options.silent) {
           setToast({ id: Date.now(), text: `${petDisplayName} already counted that one today.` });
         }
@@ -340,6 +344,91 @@ export default function HomeScreen() {
       }
     },
     [celebrate, completing, loadSideData, petDisplayName, plan, user?.id]
+  );
+
+  // ---- the person's own tasks: add, tick, put away ------------------------------------------------------
+  const completeCustom = useCallback(
+    async (item, options = {}) => {
+      const key = `custom:${item.id}`;
+      if (item.done || completing[key] || inFlightTicks.current.has(key) || !user?.id) return;
+      inFlightTicks.current.add(key);
+      setCompleting((prev) => ({ ...prev, [key]: true }));
+      setNoticeByTask((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      try {
+        const mutation = await completeTaskWithResilience({
+          taskId: item.id,
+          retry: !!options.retry,
+          eventMeta: { category: item.category === "cycle" ? null : item.category, difficulty: 1, points: null },
+        });
+        completedThisSession.current = true;
+        plan.markCustomDone(item.id);
+        if (mutation.state === "queued") {
+          setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
+          celebrate(item.title, null, 0);
+          return;
+        }
+        if (mutation.result.inserted) celebrate(item.title, null, mutation.result.points_awarded);
+        else setToast({ id: Date.now(), text: `${petDisplayName} already counted that one today.` });
+        void loadSideData();
+      } catch (error) {
+        haptics.warning();
+        setNoticeByTask((prev) => ({ ...prev, [key]: { type: "error", message: "Couldn't save that. Tap to try again." } }));
+        console.error("CUSTOM_TASK_COMPLETE_ERROR", error);
+      } finally {
+        inFlightTicks.current.delete(key);
+        setCompleting((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+    },
+    [celebrate, completing, loadSideData, petDisplayName, plan, user?.id]
+  );
+
+  const handleAddTask = useCallback(
+    async (input) => {
+      if (!user?.id || savingTask) return;
+      setSavingTask(true);
+      try {
+        await createCustomTask(user.id, input);
+        setAddOpen(false);
+        setPetReaction("cheer");
+        setToast({ id: Date.now(), text: `${petDisplayName} added it to today's care.` });
+        await plan.reload();
+      } catch (error) {
+        console.error("CUSTOM_TASK_CREATE_ERROR", error);
+        notify("Couldn't add that", "Check your connection and try again.");
+      } finally {
+        setSavingTask(false);
+      }
+    },
+    [petDisplayName, plan, savingTask, user?.id]
+  );
+
+  const removeCustom = useCallback(
+    async (item) => {
+      if (!user?.id) return;
+      const ok = await confirmAsync({
+        title: "Put this task away?",
+        message: `"${item.title}" leaves your list. What you already did stays counted.`,
+        confirmText: "Put it away",
+        cancelText: "Keep it",
+      });
+      if (!ok) return;
+      try {
+        await removeCustomTask(user.id, item.id);
+        await plan.reload();
+      } catch (error) {
+        console.error("CUSTOM_TASK_REMOVE_ERROR", error);
+        notify("Couldn't do that", "Check your connection and try again.");
+      }
+    },
+    [plan, user?.id]
   );
 
   const completeJourneyStep = useCallback(async () => {
@@ -626,8 +715,8 @@ export default function HomeScreen() {
   const petMood = energyOption(energy)?.petMood ?? petMoodFromStores({ liveState: petEmotionState, dailyMood: moodState, hour });
 
   const tasks = useMemo(
-    () =>
-      plan.items.map((item) => ({
+    () => [
+      ...plan.items.map((item) => ({
         key: item.planned.task.id,
         title: item.title,
         category: item.planned.task.category,
@@ -639,9 +728,25 @@ export default function HomeScreen() {
         notice: noticeByTask[item.planned.task.id] || null,
         opens: !!item.planned.task.route,
       })),
-    [completing, noticeByTask, plan.items]
+      // the person's own tasks, after the plan, every day
+      ...plan.custom.map((item) => ({
+        key: `custom:${item.id}`,
+        title: item.title,
+        category: item.category,
+        icon: item.icon,
+        minutes: item.minutes,
+        reason: "Your own",
+        done: item.done,
+        saving: !!completing[`custom:${item.id}`],
+        notice: noticeByTask[`custom:${item.id}`] || null,
+        opens: false,
+        custom: true,
+      })),
+    ],
+    [completing, noticeByTask, plan.custom, plan.items]
   );
   const itemByKey = useCallback((key) => plan.items.find((item) => item.planned.task.id === key), [plan.items]);
+  const customByKey = useCallback((key) => plan.custom.find((item) => `custom:${item.id}` === key), [plan.custom]);
 
   const more = useMemo(() => {
     const items = [
@@ -754,12 +859,22 @@ export default function HomeScreen() {
         tasksError={plan.error}
         onRetryTasks={() => void plan.reload()}
         onCompleteTask={(key, options) => {
+          if (key.startsWith("custom:")) {
+            const own = customByKey(key);
+            if (own) void completeCustom(own, options);
+            return;
+          }
           const item = itemByKey(key);
           if (item) void completeItem(item, options);
         }}
         onOpenTask={(key) => {
           const item = itemByKey(key);
           if (item) openItem(item);
+        }}
+        onAddTask={user?.id ? () => setAddOpen(true) : undefined}
+        onRemoveTask={(key) => {
+          const own = customByKey(key);
+          if (own) void removeCustom(own);
         }}
         more={more}
         week={weekMetrics}
@@ -780,6 +895,7 @@ export default function HomeScreen() {
         onSave={handleSaveFocus}
         onClose={() => (savingFocus ? null : setFocusOpen(false))}
       />
+      <AddTaskSheet visible={addOpen} petName={petDisplayName} saving={savingTask} onSave={(input) => void handleAddTask(input)} onClose={() => (savingTask ? null : setAddOpen(false))} />
       <BreathingModal visible={breathingOpen} onClose={() => setBreathingOpen(false)} />
 
       <Modal visible={petNameModalVisible} transparent animationType="fade" onRequestClose={() => {}}>

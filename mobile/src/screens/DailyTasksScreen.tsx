@@ -244,7 +244,7 @@ export default function DailyTasksScreen() {
     <View style={styles.fill}>
       <Screen bottomPad={96}>
         {tasks.length === 0 ? (
-          <PetEmptyState title="No tasks yet" body="Edit your habits from Home to add some." mood="calm" style={styles.empty} />
+          <PetEmptyState title="No tasks yet" body="Today's care on Home fills this in, and you can add your own there too." mood="calm" style={styles.empty} />
         ) : (
           <Card style={styles.hero}>
             <PetMascot

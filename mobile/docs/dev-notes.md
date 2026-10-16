@@ -468,3 +468,17 @@ progress bar and pinned buttons, `ChoiceCard`, `PetSteps`, `QuizSteps`, `FinishS
 - Verified on web with the test account: start "A softer landing" from the list, day one "Today" in the
   detail, the card on Home, tick from Home → "Day 1 done. Tomorrow: Tomorrow's note.", +2 Sprouts toast,
   carousel "Day 1 of 7". jest: `journeys.test.ts` (catalog invariants, pacing, junk, store).
+
+## 2026-10-16 — "Add your own" care tasks on Home
+
+Finch's custom goals had no equivalent since "Edit habits" left Home. Now "Today's care" ends with an "Add your
+own" row: a sheet asks for a few words, a colour (nine care categories, guessed from the words until picked) and
+about how long. The task is a plain `tasks` row (title only on the hosted table), so it completes through
+`complete_task` like everything else; its colour and minutes live on the device (`floura:custom-tasks:<uid>`,
+`src/services/customTasks.ts`; rules in `src/domain/customTasks.ts`). Own rows are every active row whose title is
+not a catalog title under any pet name and not the play row; they sit under the plan every day, with "Your own"
+as the reason, and press-and-hold puts one away (`active = false`, never deleted, so its Sprouts stay). The daily
+stale-row deactivation never touches them (it only quietens catalog titles). Midday greeting changed from
+"Welcome back" (confusing on a first day) to "Good afternoon"; "Welcome back" remains the real return greeting.
+Verified on web: add "Take my meds" → Body · 5 min · Your own → tick → +2 Sprouts. `customTasks.test.ts` covers
+the title/colour rules and the device meta.

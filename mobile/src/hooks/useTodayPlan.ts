@@ -17,6 +17,18 @@ import {
   tasksSafeToCreate,
 } from "../services/planStore";
 import { enqueuePendingCompletion } from "../services/taskCompletion";
+import { loadCustomTaskMeta } from "../services/customTasks";
+import { iconForCategory, inferCategory, isCustomTaskTitle } from "../domain/customTasks";
+
+/** One of the person's own tasks (a tasks row that is not a catalog title), shown under today's plan. */
+export type TodayCustomItem = {
+  id: number;
+  title: string;
+  category: string;
+  icon: string;
+  minutes: number;
+  done: boolean;
+};
 
 export type TodayPlanItem = {
   planned: PlannedTask;
@@ -94,6 +106,7 @@ function revive(cached: CachedPlan): PlannedTask[] {
 export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, returning, memorial, cyclePhase, ready, onPendingQueued }: Options) {
   const [settings, setSettings] = useState<(PlanSettings & { chosen: boolean }) | null>(null);
   const [items, setItems] = useState<TodayPlanItem[]>([]);
+  const [custom, setCustom] = useState<TodayCustomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
@@ -101,8 +114,10 @@ export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, retur
   onPendingQueuedRef.current = onPendingQueued;
   // ticks made on this device today; a reload that started before a tick can never un-tick it
   const localDone = useRef<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
+  const localCustomDone = useRef<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
   const doneKey = `${userId ?? "guest"}:${dateKey}`;
   if (localDone.current.key !== doneKey) localDone.current = { key: doneKey, ids: new Set() };
+  if (localCustomDone.current.key !== doneKey) localCustomDone.current = { key: doneKey, ids: new Set() };
 
   const reload = useCallback(async () => {
     const id = ++requestId.current;
@@ -111,6 +126,7 @@ export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, retur
     if (memorial) {
       // memorial mode pauses daily care: nothing is built, logged or created
       setItems([]);
+      setCustom([]);
       setError(null);
       setLoading(false);
       return;
@@ -122,26 +138,47 @@ export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, retur
         const planned = buildDailyPlan({ settings: DEFAULT_PLAN_SETTINGS, dateKey, hour: new Date().getHours(), energy, returning, memorial, cyclePhase, history: {}, seed: "guest" });
         setSettings({ ...DEFAULT_PLAN_SETTINGS, chosen: false });
         setItems(planned.map((p) => ({ planned: p, title: renderTitle(p.task, petName), taskId: null, done: localDone.current.ids.has(p.task.id) })));
+        setCustom([]);
         setError(null);
         return;
       }
 
       const stored = await loadPlanSettings(userId);
       if (superseded()) return;
-      const [rowsResult, completionsResult, history, pendingToday] = await Promise.all([
-        supabase.from("tasks").select("id, title").eq("user_id", userId),
+      const [rowsResult, completionsResult, history, pendingToday, customMeta] = await Promise.all([
+        supabase.from("tasks").select("id, title, active").eq("user_id", userId).order("id"),
         // the same day the plan is for (not "now"): past midnight with Home still open they can differ
         supabase.from("task_completions").select("task_id").eq("user_id", userId).eq("completed_date", dateKey),
         loadPlanHistory(userId, dateKey, petName),
         loadPendingPlanTicks(userId, dateKey),
+        loadCustomTaskMeta(userId),
       ]);
       if (superseded()) return;
       // Offline (or a failing read) is not an error screen: the plan is still built (from today's cache when
       // there is one), rows come from planStore's last-known ids, and ticks go to the offline queue.
       const offline = !!(rowsResult.error || completionsResult.error);
       if (offline) console.warn("TODAY_PLAN_READ_FAILED", rowsResult.error?.message || completionsResult.error?.message);
-      const rows = (rowsResult.error ? [] : rowsResult.data || []) as Array<{ id: number; title: string }>;
+      const rows = (rowsResult.error ? [] : rowsResult.data || []) as Array<{ id: number; title: string; active?: boolean | null }>;
       const doneTaskIds = new Set(((completionsResult.error ? [] : completionsResult.data) || []).map((row: any) => String(row.task_id)));
+      // the person's own rows (not catalog titles, not the play row) sit under the plan every day
+      if (!offline) {
+        setCustom(
+          rows
+            .filter((row) => row.active !== false && isCustomTaskTitle(row.title, petName))
+            .map((row) => {
+              const meta = customMeta[String(row.id)];
+              const category = meta?.category ?? inferCategory(row.title);
+              return {
+                id: Number(row.id),
+                title: String(row.title),
+                category,
+                icon: iconForCategory(category),
+                minutes: meta?.minutes ?? 0,
+                done: doneTaskIds.has(String(row.id)) || localCustomDone.current.ids.has(String(row.id)),
+              };
+            })
+        );
+      }
       // ticks kept on this device (no row yet when they were made) count as done today
       pendingToday.forEach((catalogId) => localDone.current.ids.add(catalogId));
       // whatever is already done today stays on the list, whichever list it came from
@@ -234,6 +271,12 @@ export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, retur
     setItems((prev) => prev.map((item) => (item.planned.task.id === catalogId ? { ...item, done: true } : item)));
   }, []);
 
+  /** The same, for one of the person's own rows. */
+  const markCustomDone = useCallback((rowId: number | string) => {
+    localCustomDone.current.ids.add(String(rowId));
+    setCustom((prev) => prev.map((item) => (String(item.id) === String(rowId) ? { ...item, done: true } : item)));
+  }, []);
+
   /**
    * Tick a task that has no row yet (offline before it ever had one, or the pet unnamed): kept on this device
    * and queued for the server as soon as the row can be made.
@@ -259,5 +302,5 @@ export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, retur
     [petKnown, petName, userId]
   );
 
-  return { settings, items, loading, error, reload, saveSettings, markDone, tickPending, ensureRow };
+  return { settings, items, custom, loading, error, reload, saveSettings, markDone, markCustomDone, tickPending, ensureRow };
 }

@@ -10,7 +10,7 @@ import CareToast from "./CareToast";
 import JourneyCard, { type JourneyCardProps } from "./JourneyCard";
 import { AllDoneCard, FocusPromptCard, MemorialCard, SectionTitle } from "./HomeCards";
 import type { Energy } from "../../domain/plan/types";
-import { brand, radius, surfaceFor, type } from "../../theme/tokens";
+import { brand, radius, surfaceFor, type, type Surface } from "../../theme/tokens";
 
 export type HomeTask = {
   key: string;
@@ -24,6 +24,8 @@ export type HomeTask = {
   notice: { type: "error" | "queued"; message: string } | null;
   /** opens its own screen (breathing, journal, a game) */
   opens: boolean;
+  /** one of the person's own tasks: press and hold puts it away */
+  custom?: boolean;
 };
 
 export type HomeViewProps = Omit<HomeHeroProps, "height" | "petLine"> & {
@@ -43,6 +45,10 @@ export type HomeViewProps = Omit<HomeHeroProps, "height" | "petLine"> & {
   onRetryTasks: () => void;
   onCompleteTask: (key: string, options?: { retry?: boolean }) => void;
   onOpenTask: (key: string) => void;
+  /** "Add your own" under the list */
+  onAddTask?: () => void;
+  /** press and hold on one of the person's own tasks */
+  onRemoveTask?: (key: string) => void;
   more: MoreItem[];
   week: WeekDay[];
   loadingWeek: boolean;
@@ -122,10 +128,12 @@ export default function HomeView(props: HomeViewProps) {
                       onComplete={() => props.onCompleteTask(task.key)}
                       onOpen={() => props.onOpenTask(task.key)}
                       onRetry={() => props.onCompleteTask(task.key, { retry: true })}
+                      onLongPress={task.custom && props.onRemoveTask ? () => props.onRemoveTask?.(task.key) : undefined}
                       surface={surface}
                     />
                   ))
                 )}
+                {props.onAddTask && !(props.loadingTasks && total === 0) ? <AddTaskRow onPress={props.onAddTask} surface={surface} /> : null}
               </View>
 
               <SectionTitle surface={surface}>More with {props.petName}</SectionTitle>
@@ -156,12 +164,48 @@ export default function HomeView(props: HomeViewProps) {
   );
 }
 
+/** "Add your own": a quiet dashed row under the day's list. */
+function AddTaskRow({ onPress, surface }: { onPress: () => void; surface: Surface }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Add your own care task" style={[styles.addRow, { borderColor: surface.track }]}>
+      <View style={[styles.addIcon, { backgroundColor: surface.sunken }]}>
+        <Text style={[type.bodyStrong, { color: surface.textSecondary }]}>+</Text>
+      </View>
+      <View style={styles.addBody}>
+        <Text style={[type.bodyStrong, { color: surface.text }]}>Add your own</Text>
+        <Text style={[type.meta, { color: surface.textSecondary }]}>Anything that counts as care for you</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
   scroll: {
     paddingBottom: 40,
+  },
+  addRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: radius.row,
+    borderCurve: "continuous",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    marginTop: 2,
+  },
+  addIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.tile - 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addBody: {
+    flex: 1,
+    marginLeft: 12,
   },
   sheet: {
     marginTop: -30,

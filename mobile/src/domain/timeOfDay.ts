@@ -43,7 +43,8 @@ export function phaseGreeting(phase: DayPhase): string {
     case "morning":
       return "Good morning";
     case "day":
-      return "Welcome back";
+      // "Welcome back" is kept for the real return after days away (hibernation.ts); midday is just midday
+      return "Good afternoon";
     case "golden":
       return "Golden hour";
     case "dusk":
