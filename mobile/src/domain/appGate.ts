@@ -13,12 +13,19 @@ export type AppGateInput = {
   profileHasPet: boolean | null;
   /** what this device remembered from the last successful load: true / false / unknown */
   cachedHasPet: boolean | null;
+  /**
+   * the first-run flow is on screen. Saving the pet's photo part-way through marks the profile as having
+   * a pet, which used to flip the gate to the main tabs and skip the rest of the flow; while this is set
+   * the flow keeps the screen until it finishes.
+   */
+  onboardingActive?: boolean;
 };
 
 export type AppGate = "auth" | "splash" | "setup" | "main" | "unreachable";
 
 export function deriveAppGate(input: AppGateInput): AppGate {
   if (!input.hasUser) return "auth";
+  if (input.onboardingActive) return "setup";
   switch (input.profileStatus) {
     case "ready":
       return input.profileHasPet ? "main" : "setup";

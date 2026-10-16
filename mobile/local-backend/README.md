@@ -42,6 +42,8 @@ npx supabase migration up --workdir local-backend   # apply only NEW migrations 
 ```
 
 Demo login created by the seed: `demo@floura.local` / `floura-demo` (local throwaway fixture).
+Throwaway accounts made by hand while testing the first-run flow on the local stack (same password `floura-test`,
+local only, never on a hosted project): `onboarding-20261016@floura.local`.
 
 Studio for inspecting data: http://127.0.0.1:56323
 

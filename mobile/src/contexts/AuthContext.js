@@ -38,6 +38,9 @@ const AuthContext = createContext({
   profileStatus: "idle",
   /** last remembered answer to "does this user have a pet" (true / false / null = unknown) */
   cachedHasPet: null,
+  /** the first-run flow is on screen: the gate keeps it there until it finishes (src/domain/appGate.ts) */
+  onboardingActive: false,
+  setOnboardingActive: (_next) => {},
   retryHydrate: async () => {},
   authServiceMessage: null,
   setProfile: (_next) => {},
@@ -62,6 +65,7 @@ export function AuthProvider({ children }) {
   const [initializing, setInitializing] = useState(true);
   const [profileStatus, setProfileStatus] = useState("idle");
   const [cachedHasPet, setCachedHasPet] = useState(null);
+  const [onboardingActive, setOnboardingActive] = useState(false);
   const [authServiceMessage, setAuthServiceMessage] = useState(null);
 
   const mountedRef = useRef(true);
@@ -96,6 +100,7 @@ export function AuthProvider({ children }) {
     setPetEmotionState(null);
     setProfileStatus("idle");
     setCachedHasPet(null);
+    setOnboardingActive(false);
     clearPetStore();
   }, []);
 
@@ -313,6 +318,8 @@ export function AuthProvider({ children }) {
         loading: initializing,
         profileStatus,
         cachedHasPet,
+        onboardingActive,
+        setOnboardingActive,
         retryHydrate,
         authServiceMessage,
         setProfile: setProfileAndRemember,
@@ -347,6 +354,8 @@ export function PreviewAuthProvider({ user, initialProfile = null, children }) {
         loading: false,
         profileStatus: "ready",
         cachedHasPet: true,
+        onboardingActive: false,
+        setOnboardingActive: () => {},
         retryHydrate: async () => {},
         authServiceMessage: null,
         setProfile,

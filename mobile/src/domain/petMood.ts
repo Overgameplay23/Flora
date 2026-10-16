@@ -66,10 +66,10 @@ export function celebrationLine(name: string, points: number, seed: number): str
   const lines =
     points > 0
       ? [
-          `${name} did a happy dance. +${points} pts`,
-          `+${points} pts. ${name} is proud of you.`,
-          `${name} wags. That's +${points} for the garden.`,
-          `Nice one. +${points} pts and a very happy ${name}.`,
+          `${name} did a happy dance. +${points} Sprouts`,
+          `+${points} Sprouts. ${name} is proud of you.`,
+          `${name} wags. That's +${points} Sprouts for the garden.`,
+          `Nice one. +${points} Sprouts and a very happy ${name}.`,
         ]
       : [`${name} noticed. Small things count.`, `${name} is glad you did that.`];
   const index = Math.abs(Math.floor(seed)) % lines.length;

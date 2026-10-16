@@ -97,6 +97,7 @@ export default function RootNavigator() {
     clearAuthServiceMessage,
     retryHydrate,
     signOut,
+    onboardingActive,
   } = useAuth();
   const [retrying, setRetrying] = React.useState(false);
   const theme = useTheme();
@@ -107,6 +108,8 @@ export default function RootNavigator() {
     profileStatus,
     profileHasPet: profile ? !!profile.pet_photo_url : null,
     cachedHasPet,
+    // the first-run flow keeps the screen until it finishes, even once the pet's photo marks the profile
+    onboardingActive: !!onboardingActive,
   });
 
   const handleRetry = async () => {

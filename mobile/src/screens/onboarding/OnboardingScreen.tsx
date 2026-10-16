@@ -1,26 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { useWindowDimensions } from "react-native";
 import { notify } from "../../utils/confirm";
 import { type PetPhoto, cameraAvailable, pickPetPhotos } from "../../utils/pickPetPhotos";
-import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePet } from "../../hooks/usePet";
 import { supabase } from "../../lib/supabase";
-import GardenStage from "../../components/garden/GardenStage";
-import PetLookEditor from "../../components/pet/PetLookEditor";
-import PetRig from "../../components/pet/vector/PetRig";
+import Button from "../../components/common/Button";
+import OnboardingFrame from "../../components/onboarding/OnboardingFrame";
+import { LookStep, MeetStep, NameStep, PaintingStep, PhotoStep, ShelterStep, SpeciesStep, WelcomeStep } from "../../components/onboarding/PetSteps";
+import { AreasStep, BatteryStep, CycleStep, HardDayStep, MAX_FOCUS_PICKS, VoiceStep } from "../../components/onboarding/QuizSteps";
+import { FirstThingStep, ReminderStep, RevealStep, type FirstThingRow, type PlanPreviewRow } from "../../components/onboarding/FinishSteps";
 import type { PetImageSources } from "../../components/garden/usePetCandidates";
 import type { PetReaction } from "../../components/pet/PetPortrait";
 import { savePetName, upsertPet, upsertPetResult } from "../../services/petService";
@@ -29,32 +18,45 @@ import { patchPetLocally, savePetLook, setPetNameLocally } from "../../services/
 import { getPetImageCache } from "../../utils/petImageCache";
 import { LOOK_ONLY_SENTINEL } from "../../utils/petImages";
 import { completeTaskWithResilience } from "../../services/taskCompletion";
+import { ensurePlanTaskRows, savePlanSettings } from "../../services/planStore";
+import { saveCarePrefs } from "../../services/carePrefs";
+import { setCycleEnabled } from "../../services/cycleStore";
 import { celebrationLine } from "../../domain/petMood";
-import type { OnboardingTrack } from "../../domain/onboarding";
-import { Companion, adoptedLook, shelterFor } from "../../domain/shelter";
-import { DEFAULT_REMINDERS } from "../../domain/reminders";
+import { buildDailyPlan, dayPartForHour } from "../../domain/plan/select";
+import { PLAN_CATALOG, catalogById, renderTitle } from "../../domain/plan/catalog";
+import { DEFAULT_PLAN_SETTINGS, FOCUS_AREAS } from "../../domain/plan/focusAreas";
+import type { CatalogTask, Energy, FocusArea } from "../../domain/plan/types";
+import { type Companion, adoptedLook } from "../../domain/shelter";
+import { DEFAULT_REMINDERS, MORNING_TIMES, type ReminderTime, formatTime } from "../../domain/reminders";
 import { remindersSupported, requestReminderPermission, saveReminderSettings, syncReminders } from "../../services/reminders";
-import { DEFAULT_LOOK, PetLook, Species, speciesLabel, withSpecies } from "../../domain/petLook";
+import { DEFAULT_LOOK, type PetLook, type Species, withSpecies } from "../../domain/petLook";
 import { sanctuaryCopy, sanctuaryFor } from "../../domain/sanctuary";
 import { applySuggestion, type LookSuggestion } from "../../domain/photoLook";
 import { suggestLookFromPhoto } from "../../services/photoLook";
 import {
-  OnboardingMode,
-  OnboardingStep,
-  PET_NAME_MAX,
-  PET_PHOTO_MAX,
+  type HardDayMinutes,
+  type OnboardingMode,
+  type OnboardingStep,
+  type OnboardingTrack,
+  type Voice,
+  dailyCountFor,
   firstStepFor,
   nameSuggestionsFor,
   nextStep,
-  paintingLine,
   previousStep,
+  revealReasons,
+  stepProgress,
   validatePetName,
   visibleSteps,
 } from "../../domain/onboarding";
+import { getLocalDateKey } from "../../utils/dateKeys";
 import { playDing } from "../../utils/sfx";
+import * as haptics from "../../utils/haptics";
 
 type PaintingState = { status: "idle" | "running" | "done" | "kept-photo" | "failed"; message?: string };
-type SeedTask = { id: number | string; title: string; points?: number | null; category?: string | null; difficulty?: string | number | null };
+
+const AREA_LABELS: Record<string, string> = Object.fromEntries(FOCUS_AREAS.map((area) => [area.id, area.label]));
+const REMINDER_TIMES: ReminderTime[] = MORNING_TIMES.filter((t) => t.hour >= 7 && t.hour <= 9);
 
 function safeErrorMessage(error: any) {
   const raw = error?.userMessage || error?.message || "Something went wrong.";
@@ -62,56 +64,33 @@ function safeErrorMessage(error: any) {
   return text.length > 160 ? text.slice(0, 160) : text;
 }
 
-function StepDots({ steps, current }: { steps: OnboardingStep[]; current: OnboardingStep }) {
-  const index = Math.max(0, steps.indexOf(current === "painting" ? "name" : current));
-  return (
-    <View style={styles.dots} accessibilityRole="progressbar" accessibilityLabel={`Step ${index + 1} of ${steps.length}`}>
-      {steps.map((step, i) => (
-        <View key={step} style={[styles.dot, i === index && styles.dotActive, i < index && styles.dotDone]} />
-      ))}
-    </View>
-  );
+function previewRow(task: CatalogTask, reason: string, petName: string): PlanPreviewRow {
+  return { id: task.id, title: renderTitle(task, petName), category: task.category, icon: task.icon, minutes: task.minutes, reason };
 }
 
 /**
- * First run: welcome -> dog or cat -> 1-3 photos -> name -> painting -> meet -> one small thing. The
- * portrait is painted from the photos alone (nothing to pick by hand); only a person who skips the
- * photos gets the look editor instead. "look" mode reuses the species and look steps for "Change
- * look"; "replace" mode is the new-photos flow. The main tabs are entered only when the person taps
- * Start, so a profile refresh can never interrupt the flow.
+ * First run (docs/ROADMAP.md, "Onboarding v2"): the pet first, the questions second. welcome -> dog or cat
+ * -> 1-3 photos (or the shelter, or the look editor) -> name, at which point the portrait starts painting
+ * in the background -> four short questions (five with the rhythm area) that set up the plan engine and
+ * the care preferences -> the reveal (the pet in its sanctuary, and the plan it made) -> the morning
+ * reminder -> one small thing to do right now. "look" mode reuses the species and look steps for "Change
+ * look"; "replace" mode is the new-photos flow with an explicit painting wait. The main tabs are entered
+ * only when the person taps Start: the auth gate holds the screen while `onboardingActive` is set.
  */
 export default function OnboardingScreen({ route, navigation }: any) {
   const mode: OnboardingMode = route?.params?.mode === "replace" ? "replace" : route?.params?.mode === "look" ? "look" : "first";
-  const { user, setProfile } = useAuth();
+  const { user, setProfile, setOnboardingActive } = useAuth();
   const { sources: petSources, name: existingName, look: existingLook, refresh: refreshPet } = usePet();
   const { height } = useWindowDimensions();
 
   const [step, setStep] = useState<OnboardingStep>(firstStepFor(mode));
   const [species, setSpecies] = useState<Species>(existingLook?.species ?? "dog");
-  const place = sanctuaryCopy(sanctuaryFor(species)).place;
+  const sanctuary = sanctuaryFor(species);
+  const place = sanctuaryCopy(sanctuary).place;
   // "own": bring a real pet to life; "adopt": no pet, pick an illustrated companion from the shelter
   const [track, setTrack] = useState<OnboardingTrack>("own");
   const [companion, setCompanion] = useState<Companion | null>(null);
   const [adopting, setAdopting] = useState(false);
-  // report screen 6: "Would you like [Pet] to greet you tomorrow morning?"
-  const [reminderChoice, setReminderChoice] = useState<"idle" | "on" | "declined" | "denied">("idle");
-  const [settingReminder, setSettingReminder] = useState(false);
-  const enableMorningReminder = async () => {
-    if (!user?.id || settingReminder) return;
-    setSettingReminder(true);
-    try {
-      const permission = await requestReminderPermission();
-      if (permission !== "granted") {
-        setReminderChoice(permission === "denied" ? "denied" : "declined");
-        return;
-      }
-      await saveReminderSettings(user.id, { ...DEFAULT_REMINDERS, enabled: true, evening: { ...DEFAULT_REMINDERS.evening, enabled: false } });
-      await syncReminders(user.id, { petName, species }, { force: true });
-      setReminderChoice("on");
-    } finally {
-      setSettingReminder(false);
-    }
-  };
   const [draftLook, setDraftLook] = useState<PetLook>(existingLook ?? DEFAULT_LOOK.dog);
   const [savingLook, setSavingLook] = useState(false);
   // 1-3 photos of the real pet; the first one is kept as the pet's original photo
@@ -124,14 +103,29 @@ export default function OnboardingScreen({ route, navigation }: any) {
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [painting, setPainting] = useState<PaintingState>({ status: "idle" });
+  const [paintRequested, setPaintRequested] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [reaction, setReaction] = useState<PetReaction | null>(null);
-  const [tasks, setTasks] = useState<SeedTask[]>([]);
-  const [loadingTasks, setLoadingTasks] = useState(false);
-  const [completingId, setCompletingId] = useState<string | null>(null);
-  const [doneTask, setDoneTask] = useState<{ id: string; line: string } | null>(null);
   const [finishing, setFinishing] = useState(false);
   const paintingStarted = useRef(false);
+
+  // the quiz
+  const [areas, setAreas] = useState<FocusArea[]>([]);
+  const [areasHint, setAreasHint] = useState<string | null>(null);
+  const [battery, setBattery] = useState<Energy | null>(null);
+  const [hardDay, setHardDay] = useState<HardDayMinutes | null>(null);
+  const [voice, setVoice] = useState<Voice | null>(null);
+  const [savingQuiz, setSavingQuiz] = useState(false);
+  const pickedCycle = areas.includes("cycle");
+
+  // the reminder (report screen 6: "Would you like [Pet] to greet you tomorrow morning?")
+  const [reminderTime, setReminderTime] = useState<ReminderTime>(DEFAULT_REMINDERS.morning.time);
+  const [reminderChoice, setReminderChoice] = useState<"idle" | "on" | "declined" | "denied">("idle");
+  const [settingReminder, setSettingReminder] = useState(false);
+
+  // one small thing
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  const [doneTask, setDoneTask] = useState<{ id: string; line: string } | null>(null);
 
   useEffect(() => {
     // when the store catches up (e.g. "Change look" opened before the pet loaded), adopt what exists
@@ -142,17 +136,29 @@ export default function OnboardingScreen({ route, navigation }: any) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingLook?.species]);
 
+  // the auth gate keeps this screen until Start, even once the pet's photo marks the profile (R-84)
+  useEffect(() => {
+    if (mode !== "first") return undefined;
+    setOnboardingActive?.(true);
+    return () => setOnboardingActive?.(false);
+  }, [mode, setOnboardingActive]);
+
   const petName = useMemo(() => {
     const valid = validatePetName(nameDraft);
     return valid.ok ? valid.name : existingName || "your pet";
   }, [nameDraft, existingName]);
-  const steps = useMemo(() => visibleSteps(mode, track, hasPhoto), [hasPhoto, mode, track]);
+  const stepContext = useMemo(
+    () => ({ hasName: !!existingName, hasPhoto, track, pickedCycle, remindersSupported }),
+    [existingName, hasPhoto, pickedCycle, track]
+  );
+  const steps = useMemo(() => visibleSteps(mode, track, hasPhoto, { pickedCycle, remindersSupported }), [hasPhoto, mode, pickedCycle, track]);
+  const progress = stepProgress(step, steps);
   const sceneHeight = Math.round(Math.min(340, Math.max(220, height * 0.36)));
 
   const goNext = useCallback(() => {
-    const next = nextStep(step, mode, { hasName: !!existingName, hasPhoto, track });
+    const next = nextStep(step, mode, stepContext);
     if (next) setStep(next);
-  }, [existingName, hasPhoto, mode, step, track]);
+  }, [mode, step, stepContext]);
 
   const goBack = useCallback(() => {
     const prev = previousStep(step, mode, track, hasPhoto);
@@ -204,41 +210,41 @@ export default function OnboardingScreen({ route, navigation }: any) {
   };
 
   // ---- photos (1-3 of the same pet) ---------------------------------------------------------------------
-  const addPhotos = useCallback(async (source: "camera" | "library") => {
-    if (picking) return;
-    const remaining = PET_PHOTO_MAX - photos.length;
-    if (remaining <= 0) return;
-    setPicking(true);
-    try {
-      const result = await pickPetPhotos(source, remaining);
-      if (result.denied) {
-        notify(
-          "Permission needed",
-          source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose pictures of your pet."
-        );
-        return;
+  const addPhotos = useCallback(
+    async (source: "camera" | "library") => {
+      if (picking) return;
+      const remaining = 3 - photos.length;
+      if (remaining <= 0) return;
+      setPicking(true);
+      try {
+        const result = await pickPetPhotos(source, remaining);
+        if (result.denied) {
+          notify("Permission needed", source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose pictures of your pet.");
+          return;
+        }
+        if (result.canceled) return;
+        if (result.photos.length === 0) {
+          notify("Couldn't read those photos", "Please try other pictures.");
+          return;
+        }
+        if (result.unreadable > 0) notify("Some photos were skipped", "One or more pictures could not be read.");
+        const next = [...photos, ...result.photos].slice(0, 3);
+        setPhotos(next);
+        // the illustrated pet stands in until the portrait is painted: quietly tint it from the first photo
+        if (photos.length === 0) {
+          const hint = suggestLookFromPhoto(next[0].base64, species);
+          setSuggestion(hint);
+          if (hint) setDraftLook((prev) => applySuggestion(prev, hint));
+        }
+      } catch (error) {
+        console.error("ONBOARDING_PICK_ERROR", { message: (error as any)?.message });
+        notify("Couldn't open the picker", "Please try again.");
+      } finally {
+        setPicking(false);
       }
-      if (result.canceled) return;
-      if (result.photos.length === 0) {
-        notify("Couldn't read those photos", "Please try other pictures.");
-        return;
-      }
-      if (result.unreadable > 0) notify("Some photos were skipped", "One or more pictures could not be read.");
-      const next = [...photos, ...result.photos].slice(0, PET_PHOTO_MAX);
-      setPhotos(next);
-      // the illustrated pet stands in until the portrait is painted: quietly tint it from the first photo
-      if (photos.length === 0) {
-        const hint = suggestLookFromPhoto(next[0].base64, species);
-        setSuggestion(hint);
-        if (hint) setDraftLook((prev) => applySuggestion(prev, hint));
-      }
-    } catch (error) {
-      console.error("ONBOARDING_PICK_ERROR", { message: (error as any)?.message });
-      notify("Couldn't open the picker", "Please try again.");
-    } finally {
-      setPicking(false);
-    }
-  }, [photos, picking, species]);
+    },
+    [photos, picking, species]
+  );
 
   const removePhoto = useCallback((index: number) => {
     setPhotos((prev) => {
@@ -248,9 +254,8 @@ export default function OnboardingScreen({ route, navigation }: any) {
     });
   }, []);
 
-  // "Use these photos": the portrait comes from the photos, nothing is picked by hand. The species and
-  // the photo-tinted look are still saved so the stand-in matches while the portrait is painted (and if
-  // the painting cannot finish).
+  // "Use these photos": the portrait comes from the photos, nothing is picked by hand. The species and the
+  // photo-tinted look are still saved so the stand-in matches while the portrait is painted.
   const commitPhotos = useCallback(async () => {
     if (!user?.id || committingPhotos || photos.length === 0) return;
     setCommittingPhotos(true);
@@ -264,7 +269,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
     }
   }, [committingPhotos, draftLook, goNext, mode, photos.length, user?.id]);
 
-  // ---- name -------------------------------------------------------------------------------------------
+  // ---- name (the painting starts here, in the background) -------------------------------------------
   const submitName = useCallback(async () => {
     const valid = validatePetName(nameDraft);
     if (valid.ok === false) {
@@ -278,17 +283,22 @@ export default function OnboardingScreen({ route, navigation }: any) {
       const saved = await savePetName(user.id, valid.name);
       setPetNameLocally(user.id, saved);
       setNameDraft(saved);
+      if (mode === "first" && hasPhoto) setPaintRequested(true);
       goNext();
     } catch (error) {
       setNameError(safeErrorMessage(error));
     } finally {
       setSavingName(false);
     }
-  }, [goNext, nameDraft, user?.id]);
+  }, [goNext, hasPhoto, mode, nameDraft, user?.id]);
 
-  // ---- painting (only when photos were chosen) --------------------------------------------------------
+  // ---- painting (first run: while the quiz runs; "new photos": its own step) -------------------------
   useEffect(() => {
-    if (step !== "painting" || paintingStarted.current || !user?.id || photos.length === 0) return;
+    if (step === "painting") setPaintRequested(true);
+  }, [step]);
+
+  useEffect(() => {
+    if (!paintRequested || paintingStarted.current || !user?.id || photos.length === 0) return;
     paintingStarted.current = true;
     const primary = photos[0];
     let alive = true;
@@ -343,10 +353,10 @@ export default function OnboardingScreen({ route, navigation }: any) {
       alive = false;
       clearInterval(timer);
     };
-  }, [photos, refreshPet, step, user?.id]);
+  }, [paintRequested, photos, refreshPet, user?.id]);
 
   useEffect(() => {
-    if (step === "painting" && (painting.status === "done" || painting.status === "kept-photo")) {
+    if (mode === "replace" && step === "painting" && (painting.status === "done" || painting.status === "kept-photo")) {
       const id = setTimeout(() => {
         setStep("meet");
         setReaction("cheer");
@@ -354,6 +364,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
       return () => clearTimeout(id);
     }
     if (step === "meet" && painting.status === "idle") setReaction("cheer");
+    if (step === "reveal") setReaction("cheer");
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting.status, step]);
@@ -362,50 +373,126 @@ export default function OnboardingScreen({ route, navigation }: any) {
     paintingStarted.current = false;
     setElapsed(0);
     setPainting({ status: "idle" });
+    setPaintRequested(false);
     setStep("painting");
   };
 
-  // ---- first small thing --------------------------------------------------------------------------------
-  useEffect(() => {
-    if (step !== "firstStep" || !user?.id) return;
-    let alive = true;
-    setLoadingTasks(true);
-    supabase
-      .from("tasks")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("active", true)
-      .order("sort_order")
-      .then(({ data, error }) => {
-        if (!alive) return;
-        if (error) console.warn("ONBOARDING_TASKS_LOAD_ERROR", error.message);
-        setTasks(
-          (data || []).slice(0, 4).map((row: any) => ({
-            id: row.id,
-            title: row.title,
-            points: Number.isFinite(Number(row.points)) ? Number(row.points) : null,
-            category: row.category ?? row.type ?? null,
-            difficulty: row.difficulty ?? null,
-          }))
-        );
-        setLoadingTasks(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [step, user?.id]);
+  // ---- the quiz ---------------------------------------------------------------------------------------
+  const toggleArea = (area: FocusArea) => {
+    setAreasHint(null);
+    setAreas((prev) => {
+      if (prev.includes(area)) return prev.filter((id) => id !== area);
+      if (prev.length >= MAX_FOCUS_PICKS) {
+        setAreasHint("Three is plenty. Unpick one to swap it.");
+        return prev;
+      }
+      return [...prev, area];
+    });
+  };
 
-  const completeFirstTask = async (task: SeedTask) => {
-    if (completingId || doneTask) return;
-    setCompletingId(String(task.id));
+  const planSettings = useMemo(
+    () => ({ focusAreas: areas.length > 0 ? areas : [...DEFAULT_PLAN_SETTINGS.focusAreas], dailyCount: dailyCountFor(battery, hardDay) }),
+    [areas, battery, hardDay]
+  );
+
+  /** Saves what the quiz learned: focus areas and daily count for the plan engine, the rest as care preferences. */
+  const commitQuiz = useCallback(
+    async (options: { keepCycle: boolean; cycleOn: boolean }) => {
+      if (!user?.id || savingQuiz) return;
+      setSavingQuiz(true);
+      try {
+        const focusAreas = options.keepCycle ? planSettings.focusAreas : planSettings.focusAreas.filter((area) => area !== "cycle");
+        if (!options.keepCycle) setAreas((prev) => prev.filter((area) => area !== "cycle"));
+        await savePlanSettings(user.id, { focusAreas: focusAreas.length > 0 ? focusAreas : [...DEFAULT_PLAN_SETTINGS.focusAreas], dailyCount: planSettings.dailyCount });
+        await saveCarePrefs(user.id, { usualBattery: battery, hardDayMinutes: hardDay, voice: voice ?? "warm" });
+        if (options.cycleOn) await setCycleEnabled(user.id, true);
+        haptics.success();
+        setStep("reveal");
+      } catch (error) {
+        notify("Couldn't save that yet", safeErrorMessage(error));
+      } finally {
+        setSavingQuiz(false);
+      }
+    },
+    [battery, hardDay, planSettings, savingQuiz, user?.id, voice]
+  );
+
+  // ---- the reveal: the plan the engine would build today from the answers ---------------------------
+  const planPreview = useMemo(() => {
+    if (step !== "reveal" && step !== "firstStep") return [] as PlanPreviewRow[];
+    const planned = buildDailyPlan({
+      settings: planSettings,
+      dateKey: getLocalDateKey(),
+      hour: new Date().getHours(),
+      energy: battery,
+      returning: false,
+      memorial: false,
+      cyclePhase: null,
+      history: {},
+      seed: user?.id || "guest",
+    });
+    return planned.map((item) => previewRow(item.task, item.reason, petName));
+  }, [battery, petName, planSettings, step, user?.id]);
+  const reasons = useMemo(() => revealReasons({ areas: planSettings.focusAreas, areaLabels: AREA_LABELS, battery, hardDay }), [battery, hardDay, planSettings.focusAreas]);
+  const paintingNote =
+    painting.status === "running"
+      ? `Still painting ${petName} from your photos. The portrait appears on Home when it's ready.`
+      : painting.status === "kept-photo"
+        ? `The portrait didn't finish, so your photo is kept for later. You can retry from the Pet tab any time.`
+        : null;
+
+  // ---- the reminder -----------------------------------------------------------------------------------
+  const enableMorningReminder = async () => {
+    if (!user?.id || settingReminder) return;
+    setSettingReminder(true);
     try {
-      const mutation = await completeTaskWithResilience({
-        taskId: task.id,
-        eventMeta: { category: task.category ?? null, difficulty: task.difficulty ?? null, points: task.points ?? null },
+      const permission = await requestReminderPermission();
+      if (permission !== "granted") {
+        setReminderChoice(permission === "denied" ? "denied" : "declined");
+        if (permission !== "denied") goNext();
+        return;
+      }
+      await saveReminderSettings(user.id, {
+        ...DEFAULT_REMINDERS,
+        enabled: true,
+        morning: { enabled: true, time: reminderTime },
+        evening: { ...DEFAULT_REMINDERS.evening, enabled: false },
       });
-      const points = mutation.state === "success" ? mutation.result.points_awarded : task.points ?? 0;
-      setDoneTask({ id: String(task.id), line: celebrationLine(petName, points, task.title.length) });
+      await syncReminders(user.id, { petName, species }, { force: true });
+      setReminderChoice("on");
+      goNext();
+    } finally {
+      setSettingReminder(false);
+    }
+  };
+
+  // ---- one small thing --------------------------------------------------------------------------------
+  const firstThings = useMemo<FirstThingRow[]>(() => {
+    if (step !== "firstStep") return [];
+    const part = dayPartForHour(new Date().getHours());
+    const gentle = (task: CatalogTask) => task.kind === "tap" && task.lowEnergySafe && (task.dayParts === "any" || task.dayParts.includes(part));
+    const fromPlan = planPreview.map((row) => catalogById(row.id)).filter((task): task is CatalogTask => !!task && gentle(task));
+    const extras = PLAN_CATALOG.filter((task) => gentle(task) && !fromPlan.some((other) => other.id === task.id));
+    return [...fromPlan, ...extras].slice(0, 3).map((task) => ({ ...previewRow(task, "A small start", petName), act: task.act ?? null }));
+  }, [petName, planPreview, step]);
+
+  const completeFirstTask = async (row: FirstThingRow) => {
+    if (completingId || doneTask || !user?.id) return;
+    const task = catalogById(row.id);
+    if (!task) return;
+    setCompletingId(row.id);
+    try {
+      const ids = await ensurePlanTaskRows(user.id, [task], petName);
+      const taskId = ids[task.id];
+      if (taskId == null) throw new Error("No task row yet");
+      const mutation = await completeTaskWithResilience({
+        taskId,
+        eventMeta: { category: task.category === "cycle" ? null : task.category, difficulty: task.effort, points: null },
+      });
+      const points = mutation.state === "success" ? mutation.result.points_awarded : 0;
+      setDoneTask({ id: row.id, line: celebrationLine(petName, points, row.title.length) });
       setReaction("love");
+      haptics.success();
       playDing();
     } catch (error) {
       console.error("ONBOARDING_FIRST_TASK_ERROR", { message: (error as any)?.message });
@@ -437,611 +524,229 @@ export default function OnboardingScreen({ route, navigation }: any) {
         } else {
           setProfile?.((prev: any) => ({ ...(prev || {}), user_id: user.id, pet_photo_url: fallbackUrl }));
         }
+        if (mode === "first") await saveCarePrefs(user.id, { completedAt: new Date().toISOString() });
       }
-      if (mode !== "first" && navigation?.canGoBack?.()) navigation.goBack();
+      if (mode === "first") setOnboardingActive?.(false);
+      else if (navigation?.canGoBack?.()) navigation.goBack();
     } finally {
       setFinishing(false);
     }
   };
 
+  // ---- render -----------------------------------------------------------------------------------------
   const previewSources: PetImageSources | null = hasPhoto ? { original: photos[0].uri, allowOriginal: true } : null;
   const canGoBack = previousStep(step, mode, track, hasPhoto) !== null || (mode !== "first" && (step === "photo" || step === "species"));
-  const showCamera = cameraAvailable;
   const sceneLook = mode === "replace" ? existingLook : draftLook;
-  const photosLeft = PET_PHOTO_MAX - photos.length;
+  const nameSuggestions = nameSuggestionsFor({ hasPhoto });
+  const showProgress = step !== "welcome";
 
-  return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          {canGoBack ? (
-            <Pressable onPress={goBack} hitSlop={10} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back">
-              <Feather name="arrow-left" size={20} color="#e2e8f0" />
-            </Pressable>
-          ) : (
-            <View style={styles.backButton} />
-          )}
-          <StepDots steps={steps} current={step} />
-          <View style={styles.backButton} />
-        </View>
+  let content: React.ReactNode = null;
+  let footer: React.ReactNode = null;
 
-        {step === "welcome" ? (
-          <View>
-            <View style={styles.sceneCard}>
-              <GardenStage height={sceneHeight} variant="welcome" hidePet accessibilityLabel="An empty garden with a patch of soil, waiting" />
-            </View>
-            <Text style={styles.title}>Bring your best friend to life</Text>
-            <Text style={styles.body}>
-              A cozy garden where taking care of yourself takes care of them. Each small act of care, a glass of water, a
-              walk, a check-in, helps their garden grow.
-            </Text>
-            <Pressable
-              style={styles.primaryButton}
+  switch (step) {
+    case "welcome":
+      content = <WelcomeStep sceneHeight={sceneHeight} />;
+      footer = (
+        <>
+          <Button
+            label="Create my pet"
+            onPress={() => {
+              setTrack("own");
+              goNext();
+            }}
+          />
+          <Button
+            label="No pet? Adopt a companion"
+            variant="quiet"
+            onPress={() => {
+              setTrack("adopt");
+              setStep("species");
+            }}
+          />
+        </>
+      );
+      break;
+    case "species":
+      content = (
+        <SpeciesStep
+          species={species}
+          onPick={chooseSpecies}
+          existingLook={existingLook}
+          title={mode === "look" ? "Dog or cat?" : track === "adopt" ? "Who would you like to adopt?" : "Who's your best friend?"}
+          lead={track === "adopt" ? "Dog or cat, whichever feels like company. The shelter has a few of each." : "Pick the one that's yours."}
+        />
+      );
+      footer = <Button label="Continue" onPress={goNext} />;
+      break;
+    case "shelter":
+      content = <ShelterStep species={species} companion={companion} onPick={setCompanion} />;
+      footer = <Button label={companion ? `Take ${companion.name} home` : "Pick a companion"} onPress={adopt} disabled={!companion} loading={adopting} />;
+      break;
+    case "look":
+      content = (
+        <LookStep
+          look={draftLook}
+          onChange={setDraftLook}
+          photoUri={hasPhoto ? photos[0].uri : null}
+          suggestion={suggestion}
+          onUsePhotoColours={suggestion ? () => setDraftLook((prev) => applySuggestion(prev, suggestion)) : undefined}
+        />
+      );
+      footer = <Button label={mode === "look" ? "Save look" : "That's them"} onPress={commitLook} loading={savingLook} />;
+      break;
+    case "photo": {
+      const left = 3 - photos.length;
+      content = <PhotoStep photos={photos} picking={picking} petName={petName} replace={mode === "replace"} onAdd={addPhotos} onRemove={removePhoto} />;
+      footer = hasPhoto ? (
+        <>
+          <Button label={photos.length === 1 ? "Use this photo" : "Use these photos"} onPress={commitPhotos} loading={committingPhotos} disabled={picking} />
+          {left > 0 && cameraAvailable ? <Button label="Take another photo" variant="secondary" onPress={() => addPhotos("camera")} disabled={picking} /> : null}
+        </>
+      ) : (
+        <>
+          {cameraAvailable ? <Button label="Take a photo" onPress={() => addPhotos("camera")} disabled={picking} loading={picking} /> : null}
+          <Button label="Choose from photos" variant={cameraAvailable ? "secondary" : "primary"} onPress={() => addPhotos("library")} disabled={picking} loading={!cameraAvailable && picking} />
+          {mode === "first" ? <Button label="Skip for now" variant="quiet" onPress={goNext} /> : null}
+        </>
+      );
+      break;
+    }
+    case "name":
+      content = (
+        <NameStep
+          photoUri={hasPhoto ? photos[0].uri : null}
+          look={draftLook}
+          value={nameDraft}
+          onChange={(text) => {
+            setNameDraft(text);
+            if (nameError) setNameError("");
+          }}
+          error={nameError}
+          onSubmit={submitName}
+          suggestions={nameSuggestions}
+          lead={track === "adopt" && companion ? `${companion.name} came with that name. Keep it, or give them a new one.` : "This is how they'll be called all through the app."}
+        />
+      );
+      footer = <Button label="That's the one" onPress={submitName} loading={savingName} />;
+      break;
+    case "painting":
+      content = <PaintingStep sceneHeight={sceneHeight} previewSources={previewSources} look={sceneLook} petName={petName} status={painting.status} message={painting.message} elapsed={elapsed} />;
+      footer =
+        painting.status === "failed" ? (
+          <>
+            <Button label="Try again" onPress={retryPainting} />
+            <Button label="Choose a different photo" variant="secondary" onPress={() => setStep("photo")} />
+          </>
+        ) : null;
+      break;
+    case "meet":
+      content = (
+        <MeetStep
+          sceneHeight={sceneHeight}
+          petSources={petSources}
+          look={sceneLook}
+          petName={petName}
+          place={place}
+          reaction={reaction}
+          onReactionEnd={() => setReaction(null)}
+          onPetPress={() => setReaction("love")}
+          keptPhoto={painting.status === "kept-photo"}
+        />
+      );
+      footer = <Button label={mode === "first" ? "Continue" : "Done"} onPress={mode === "first" ? goNext : finish} loading={finishing} />;
+      break;
+    case "quizAreas":
+      content = <AreasStep picked={areas} onToggle={toggleArea} hint={areasHint} petName={petName} />;
+      footer = <Button label={areas.length === 0 ? "Pick at least one" : "Continue"} onPress={goNext} disabled={areas.length === 0} />;
+      break;
+    case "quizBattery":
+      content = <BatteryStep value={battery} onPick={setBattery} />;
+      footer = <Button label="Continue" onPress={goNext} disabled={!battery} />;
+      break;
+    case "quizHardDay":
+      content = <HardDayStep value={hardDay} onPick={setHardDay} />;
+      footer = <Button label="Continue" onPress={goNext} disabled={!hardDay} />;
+      break;
+    case "quizVoice":
+      content = <VoiceStep value={voice} onPick={setVoice} petName={petName} />;
+      footer = <Button label={pickedCycle ? "Continue" : "Build my plan"} onPress={pickedCycle ? goNext : () => void commitQuiz({ keepCycle: false, cycleOn: false })} disabled={!voice} loading={savingQuiz} />;
+      break;
+    case "quizCycle":
+      content = <CycleStep petName={petName} />;
+      footer = (
+        <>
+          <Button label="Yes, on this phone" onPress={() => void commitQuiz({ keepCycle: true, cycleOn: true })} loading={savingQuiz} />
+          <Button label="Not now" variant="quiet" onPress={() => void commitQuiz({ keepCycle: false, cycleOn: false })} disabled={savingQuiz} />
+        </>
+      );
+      break;
+    case "reveal":
+      content = (
+        <RevealStep
+          sceneHeight={sceneHeight}
+          petSources={petSources}
+          look={sceneLook}
+          petName={petName}
+          theme={sanctuary}
+          place={place}
+          reasons={reasons}
+          plan={planPreview}
+          paintingNote={paintingNote}
+          reaction={reaction}
+          onReactionEnd={() => setReaction(null)}
+          onPetPress={() => setReaction("love")}
+        />
+      );
+      footer = <Button label="Looks good" onPress={goNext} />;
+      break;
+    case "reminder":
+      content = <ReminderStep petName={petName} times={REMINDER_TIMES} time={reminderTime} onPickTime={setReminderTime} denied={reminderChoice === "denied"} />;
+      footer =
+        reminderChoice === "denied" ? (
+          <Button label="Continue" onPress={goNext} />
+        ) : (
+          <>
+            <Button label={`Yes, at ${formatTime(reminderTime)}`} onPress={enableMorningReminder} loading={settingReminder} />
+            <Button
+              label="Not now"
+              variant="quiet"
               onPress={() => {
-                setTrack("own");
+                setReminderChoice("declined");
                 goNext();
               }}
-              accessibilityRole="button"
-            >
-              <Text style={styles.primaryButtonText}>Create my pet</Text>
-            </Pressable>
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => {
-                setTrack("adopt");
-                setStep("species");
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Adopt a companion"
-            >
-              <Text style={styles.secondaryButtonText}>No pet? Adopt a companion</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === "species" ? (
-          <View>
-            <Text style={styles.title}>{mode === "look" ? "Dog or cat?" : track === "adopt" ? "Who would you like to adopt?" : "Who's your best friend?"}</Text>
-            <Text style={styles.body}>
-              {track === "adopt" ? "Dog or cat, whichever feels like company. The shelter has a few of each." : "Pick the one that's yours."}
-            </Text>
-            <View style={styles.speciesRow}>
-              {(["dog", "cat"] as Species[]).map((option) => {
-                const active = species === option;
-                const preview = existingLook && existingLook.species === option ? existingLook : DEFAULT_LOOK[option];
-                return (
-                  <Pressable
-                    key={option}
-                    style={[styles.speciesCard, active && styles.speciesCardActive]}
-                    onPress={() => chooseSpecies(option)}
-                    accessibilityRole="button"
-                    accessibilityLabel={speciesLabel(option)}
-                    accessibilityState={{ selected: active }}
-                  >
-                    <PetRig look={preview} size={128} mood={active ? "happy" : "calm"} />
-                    <Text style={[styles.speciesLabel, active && styles.speciesLabelActive]}>{speciesLabel(option)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable style={styles.primaryButton} onPress={goNext} accessibilityRole="button">
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === "shelter" ? (
-          <View>
-            <Text style={styles.title}>Meet the shelter</Text>
-            <Text style={styles.body}>Each of them is looking for someone. Pick who feels right; you can change their look and name any time.</Text>
-            <View style={styles.shelterList}>
-              {shelterFor(species).map((c) => {
-                const active = companion?.id === c.id;
-                return (
-                  <Pressable
-                    key={c.id}
-                    style={[styles.shelterCard, active && styles.shelterCardActive]}
-                    onPress={() => setCompanion(c)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${c.name}: ${c.bio}`}
-                    accessibilityState={{ selected: active }}
-                  >
-                    <PetRig look={c.look} size={92} mood={active ? "happy" : "calm"} />
-                    <View style={styles.shelterBody}>
-                      <Text style={[styles.shelterName, active && styles.speciesLabelActive]}>{c.name}</Text>
-                      <Text style={styles.shelterBio}>{c.bio}</Text>
-                    </View>
-                    {active ? <Feather name="check-circle" size={20} color="#35d07f" /> : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable style={[styles.primaryButton, (!companion || adopting) && styles.buttonDisabled]} onPress={adopt} disabled={!companion || adopting} accessibilityRole="button">
-              {adopting ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{companion ? `Take ${companion.name} home` : "Pick a companion"}</Text>}
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === "look" ? (
-          <View>
-            <Text style={styles.title}>Make it look like yours</Text>
-            <Text style={styles.body}>
-              {suggestion
-                ? "We picked colours from the photo. Adjust anything until it feels right."
-                : "Start from a preset, then adjust the coat, eyes, ears and markings."}
-            </Text>
-            <View style={styles.editorCard}>
-              <PetLookEditor
-                look={draftLook}
-                onChange={setDraftLook}
-                aside={
-                  hasPhoto ? (
-                    <View style={styles.photoAside}>
-                      <Image source={{ uri: photos[0].uri }} style={styles.photoAsideImage} resizeMode="cover" accessibilityLabel="Your photo" />
-                      {suggestion ? (
-                        <Pressable style={styles.asideButton} onPress={() => setDraftLook((prev) => applySuggestion(prev, suggestion))} accessibilityRole="button">
-                          <Text style={styles.asideButtonText}>Use photo colours</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ) : null
-                }
-              />
-            </View>
-            <Pressable style={[styles.primaryButton, savingLook && styles.buttonDisabled]} onPress={commitLook} disabled={savingLook} accessibilityRole="button">
-              {savingLook ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{mode === "look" ? "Save look" : "That's them"}</Text>}
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === "photo" ? (
-          <View>
-            <Text style={styles.title}>{mode === "replace" ? "New photos" : "Add photos of them"}</Text>
-            <Text style={styles.body}>
-              {`Pick 1 to ${PET_PHOTO_MAX} clear photos. ${petName === "your pet" ? "Your pet" : petName} is painted from the photos alone, nothing to choose by hand. Photos in good light, with the whole body showing, make the truest portrait.`}
-            </Text>
-            <View style={styles.photoStage}>
-              {hasPhoto ? (
-                <View style={styles.photoRow} accessibilityRole="list">
-                  {photos.map((item, index) => (
-                    <View key={`${item.uri}-${index}`} style={styles.photoThumb}>
-                      <Image source={{ uri: item.uri }} style={styles.photoThumbImage} resizeMode="cover" accessibilityLabel={`Photo ${index + 1} of ${photos.length}`} />
-                      <Pressable
-                        style={styles.photoRemove}
-                        onPress={() => removePhoto(index)}
-                        hitSlop={8}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove photo ${index + 1}`}
-                      >
-                        <Feather name="x" size={14} color="#0f172a" />
-                      </Pressable>
-                    </View>
-                  ))}
-                  {photosLeft > 0 ? (
-                    <Pressable
-                      style={[styles.photoThumb, styles.photoAdd]}
-                      onPress={() => addPhotos("library")}
-                      disabled={picking}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Add another photo, ${photosLeft} more allowed`}
-                    >
-                      {picking ? <ActivityIndicator color="#35d07f" /> : <Feather name="plus" size={26} color="rgba(226,232,240,0.85)" />}
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : (
-                <View style={[styles.photoFrame, styles.photoEmpty]}>
-                  <Feather name="camera" size={34} color="rgba(226,232,240,0.7)" />
-                </View>
-              )}
-            </View>
-            {hasPhoto ? (
-              <View>
-                <Text style={styles.photoCount}>
-                  {photos.length === 1 ? "1 photo" : `${photos.length} photos`}
-                  {photosLeft > 0 ? ` · you can add ${photosLeft} more` : ""}
-                </Text>
-                <Pressable style={[styles.primaryButton, committingPhotos && styles.buttonDisabled]} onPress={commitPhotos} disabled={committingPhotos || picking} accessibilityRole="button">
-                  {committingPhotos ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{photos.length === 1 ? "Use this photo" : "Use these photos"}</Text>}
-                </Pressable>
-                {photosLeft > 0 && showCamera ? (
-                  <Pressable style={styles.secondaryButton} onPress={() => addPhotos("camera")} disabled={picking} accessibilityRole="button">
-                    <Text style={styles.secondaryButtonText}>Take another photo</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : (
-              <View>
-                {showCamera ? (
-                  <Pressable style={styles.primaryButton} onPress={() => addPhotos("camera")} disabled={picking} accessibilityRole="button">
-                    {picking ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>Take a photo</Text>}
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  style={showCamera ? styles.secondaryButton : styles.primaryButton}
-                  onPress={() => addPhotos("library")}
-                  disabled={picking}
-                  accessibilityRole="button"
-                >
-                  {picking && !showCamera ? (
-                    <ActivityIndicator color="#0f172a" />
-                  ) : (
-                    <Text style={showCamera ? styles.secondaryButtonText : styles.primaryButtonText}>Choose from photos</Text>
-                  )}
-                </Pressable>
-                {mode === "first" ? (
-                  <Pressable style={styles.secondaryButton} onPress={goNext} accessibilityRole="button">
-                    <Text style={styles.secondaryButtonText}>Skip for now</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            )}
-            <View style={styles.tips}>
-              <Text style={styles.tip}>• The photos stay private to your account.</Text>
-              <Text style={styles.tip}>• Painting takes about a minute. If it can't finish, your photo is kept and you can retry from the Pet tab.</Text>
-            </View>
-          </View>
-        ) : null}
-
-        {step === "name" ? (
-          <View>
-            <View style={styles.photoStage}>
-              {hasPhoto ? (
-                <View style={styles.photoFrame}>
-                  <Image source={{ uri: photos[0].uri }} style={styles.photoImage} resizeMode="cover" accessibilityLabel="Your pet" />
-                </View>
-              ) : (
-                <PetRig look={draftLook} size={140} mood="happy" />
-              )}
-            </View>
-            <Text style={styles.title}>What's their name?</Text>
-            <Text style={styles.body}>
-              {track === "adopt" && companion
-                ? `${companion.name} came with that name. Keep it, or give them a new one.`
-                : "This is how they'll be called all through Luna."}
-            </Text>
-            <TextInput
-              value={nameDraft}
-              onChangeText={(text) => {
-                setNameDraft(text);
-                if (nameError) setNameError("");
-              }}
-              placeholder="Their name"
-              placeholderTextColor="rgba(148,163,184,0.8)"
-              autoCapitalize="words"
-              maxLength={PET_NAME_MAX}
-              style={styles.input}
-              returnKeyType="done"
-              onSubmitEditing={submitName}
-              accessibilityLabel="Pet name"
+              disabled={settingReminder}
             />
-            {nameError ? <Text style={styles.error}>{nameError}</Text> : null}
-            {/* a real pet in a photo already has a name: ideas only appear for a companion or a look-only pet */}
-            {nameSuggestionsFor({ hasPhoto }).length > 0 ? (
-              <View style={styles.chips}>
-                {nameSuggestionsFor({ hasPhoto }).map((idea) => (
-                  <Pressable key={idea} style={styles.chip} onPress={() => setNameDraft(idea)} accessibilityRole="button">
-                    <Text style={styles.chipText}>{idea}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-            <Pressable style={[styles.primaryButton, savingName && styles.buttonDisabled]} onPress={submitName} disabled={savingName} accessibilityRole="button">
-              {savingName ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>That's the one</Text>}
-            </Pressable>
-          </View>
-        ) : null}
+          </>
+        );
+      break;
+    case "firstStep":
+      content = (
+        <FirstThingStep
+          petName={petName}
+          place={place}
+          tasks={firstThings}
+          doneId={doneTask?.id ?? null}
+          busyId={completingId}
+          onPick={(row) => void completeFirstTask(row)}
+          celebration={doneTask?.line ?? null}
+          reaction={reaction}
+          onReactionEnd={() => setReaction(null)}
+        />
+      );
+      footer = (
+        <>
+          <Button label={doneTask ? `Into the ${place}` : "Start"} onPress={finish} loading={finishing} />
+          {!doneTask ? <Button label="Maybe later" variant="quiet" onPress={finish} disabled={finishing} /> : null}
+        </>
+      );
+      break;
+    default:
+      content = null;
+  }
 
-        {step === "painting" ? (
-          <View>
-            <View style={styles.sceneCard}>
-              <GardenStage
-                height={sceneHeight}
-                variant="welcome"
-                petImageSources={previewSources}
-                petLook={hasPhoto ? null : sceneLook}
-                allowOriginal
-                petMood="calm"
-                accessibilityLabel={`${petName} waiting in the garden while the portrait is painted`}
-              />
-            </View>
-            {painting.status === "failed" ? (
-              <View>
-                <Text style={styles.title}>That didn't work</Text>
-                <Text style={styles.body}>{painting.message || "We couldn't save the photo."} Check your connection and try again.</Text>
-                <Pressable style={styles.primaryButton} onPress={retryPainting} accessibilityRole="button">
-                  <Text style={styles.primaryButtonText}>Try again</Text>
-                </Pressable>
-                <Pressable style={styles.secondaryButton} onPress={() => setStep("photo")} accessibilityRole="button">
-                  <Text style={styles.secondaryButtonText}>Choose a different photo</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.title}>Painting {petName}…</Text>
-                <Text style={styles.body}>{paintingLine(elapsed, petName)}</Text>
-                <ActivityIndicator color="#35d07f" style={styles.spinner} />
-                <Text style={styles.footnote}>This usually takes under a minute. You can keep the screen open or come back later.</Text>
-              </View>
-            )}
-          </View>
-        ) : null}
-
-        {step === "meet" ? (
-          <View>
-            <View style={styles.sceneCard}>
-              <GardenStage
-                height={sceneHeight}
-                variant="home"
-                petImageSources={petSources}
-                petLook={sceneLook}
-                allowOriginal
-                petMood="happy"
-                petReaction={reaction}
-                onPetReactionEnd={() => setReaction(null)}
-                onPetPress={() => setReaction("love")}
-                accessibilityLabel={`${petName} sitting in the ${place}`}
-              />
-            </View>
-            <Text style={styles.title}>{petName} moved in</Text>
-            <Text style={styles.body}>
-              {painting.status === "kept-photo"
-                ? "The painted portrait didn't finish, so the photo is kept for later. You can retry from the Pet tab any time."
-                : `Tap ${petName} to say hello. They'll be here on Home, in the ${place}, and whenever you check in.`}
-            </Text>
-            <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={mode === "first" ? goNext : finish} disabled={finishing} accessibilityRole="button">
-              {finishing ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{mode === "first" ? "Continue" : "Done"}</Text>}
-            </Pressable>
-          </View>
-        ) : null}
-
-        {step === "firstStep" ? (
-          <View>
-            <Text style={styles.title}>One small thing for today</Text>
-            <Text style={styles.body}>Pick something you can do in the next few minutes. {petName} will notice.</Text>
-            {remindersSupported && reminderChoice !== "declined" ? (
-              <View style={styles.reminderCard}>
-                <Feather name="sunrise" size={18} color="#86efac" />
-                <View style={styles.reminderBody}>
-                  <Text style={styles.reminderTitle}>
-                    {reminderChoice === "on" ? `${petName} will say good morning at 08:30` : reminderChoice === "denied" ? "Notifications are off for Luna" : `Want ${petName} to greet you tomorrow morning?`}
-                  </Text>
-                  <Text style={styles.reminderHint}>
-                    {reminderChoice === "on"
-                      ? "Change the time or turn it off under Profile › Reminders."
-                      : reminderChoice === "denied"
-                        ? "You can allow them later in your phone's settings."
-                        : "One gentle hello a day, in their voice. Never a streak, never a nag."}
-                  </Text>
-                  {reminderChoice === "idle" ? (
-                    <View style={styles.reminderActions}>
-                      <Pressable style={styles.reminderYes} onPress={enableMorningReminder} disabled={settingReminder} accessibilityRole="button" accessibilityLabel="Yes please">
-                        {settingReminder ? <ActivityIndicator color="#0f172a" size="small" /> : <Text style={styles.reminderYesText}>Yes please</Text>}
-                      </Pressable>
-                      <Pressable style={styles.reminderNo} onPress={() => setReminderChoice("declined")} accessibilityRole="button" accessibilityLabel="Not now">
-                        <Text style={styles.reminderNoText}>Not now</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-            {loadingTasks ? (
-              <ActivityIndicator color="#35d07f" style={styles.spinner} />
-            ) : tasks.length === 0 ? (
-              <Text style={styles.footnote}>Your daily tasks will be waiting on Home.</Text>
-            ) : (
-              <View style={styles.taskList}>
-                {tasks.map((task) => {
-                  const done = doneTask?.id === String(task.id);
-                  const busy = completingId === String(task.id);
-                  return (
-                    <Pressable
-                      key={String(task.id)}
-                      style={[styles.taskRow, done && styles.taskRowDone, (!!doneTask || !!completingId) && !done && styles.taskRowMuted]}
-                      onPress={() => completeFirstTask(task)}
-                      disabled={!!doneTask || !!completingId}
-                      accessibilityRole="button"
-                      accessibilityState={{ checked: done, disabled: !!doneTask || !!completingId }}
-                    >
-                      <View style={[styles.taskCheck, done && styles.taskCheckDone]}>
-                        {busy ? <ActivityIndicator size="small" color="#35d07f" /> : done ? <Feather name="check" size={14} color="#0f172a" /> : null}
-                      </View>
-                      <Text style={[styles.taskTitle, done && styles.taskTitleDone]}>{task.title}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-            {doneTask ? <Text style={styles.celebration}>{doneTask.line}</Text> : null}
-            <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={finish} disabled={finishing} accessibilityRole="button">
-              {finishing ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>{doneTask ? `Into the ${place}` : "Start"}</Text>}
-            </Pressable>
-            {!doneTask ? (
-              <Pressable style={styles.secondaryButton} onPress={finish} disabled={finishing} accessibilityRole="button">
-                <Text style={styles.secondaryButtonText}>Maybe later</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        <View style={{ height: 24 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+  return (
+    <OnboardingFrame progress={showProgress ? progress : null} onBack={canGoBack ? goBack : null} footer={footer} keyboard={step === "name"}>
+      {content}
+    </OnboardingFrame>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#0f1420" },
-  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, minHeight: 40 },
-  backButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  dots: { flexDirection: "row", alignItems: "center" },
-  dot: { width: 7, height: 7, borderRadius: 4, marginHorizontal: 3, backgroundColor: "rgba(148,163,184,0.35)" },
-  dotActive: { width: 18, backgroundColor: "#35d07f" },
-  dotDone: { backgroundColor: "rgba(53,208,127,0.6)" },
-  sceneCard: { borderRadius: 22, overflow: "hidden", marginBottom: 18, borderWidth: 1, borderColor: "rgba(148,163,184,0.2)" },
-  editorCard: { marginTop: 16 },
-  title: { color: "#f8fafc", fontSize: 26, fontWeight: "800", textAlign: "center" },
-  body: { marginTop: 10, color: "rgba(203,213,225,0.92)", fontSize: 15, lineHeight: 22, textAlign: "center" },
-  footnote: { marginTop: 14, color: "rgba(148,163,184,0.85)", fontSize: 12, lineHeight: 17, textAlign: "center" },
-  spinner: { marginTop: 18 },
-  primaryButton: {
-    marginTop: 22,
-    minHeight: 52,
-    borderRadius: 999,
-    backgroundColor: "#35d07f",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 22,
-  },
-  primaryButtonText: { color: "#0f172a", fontSize: 16, fontWeight: "800" },
-  secondaryButton: { marginTop: 10, minHeight: 46, alignItems: "center", justifyContent: "center" },
-  secondaryButtonText: { color: "rgba(203,213,225,0.95)", fontSize: 14, fontWeight: "700" },
-  buttonDisabled: { opacity: 0.7 },
-  speciesRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
-  speciesCard: {
-    width: "48%",
-    alignItems: "center",
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: "rgba(148,163,184,0.25)",
-    backgroundColor: "rgba(18,24,38,0.95)",
-  },
-  speciesCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
-  speciesLabel: { marginTop: 6, color: "#e2e8f0", fontSize: 17, fontWeight: "800" },
-  speciesLabelActive: { color: "#a7f3d0" },
-  reminderCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 14,
-    backgroundColor: "rgba(53,208,127,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.28)",
-  },
-  reminderBody: { flex: 1 },
-  reminderTitle: { color: "#f8fafc", fontSize: 14, fontWeight: "700", lineHeight: 19 },
-  reminderHint: { marginTop: 3, color: "rgba(226,232,240,0.85)", fontSize: 12, lineHeight: 17 },
-  reminderActions: { flexDirection: "row", gap: 10, marginTop: 10 },
-  reminderYes: { backgroundColor: "#35d07f", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, minWidth: 96, alignItems: "center" },
-  reminderYesText: { color: "#0f172a", fontWeight: "800", fontSize: 13 },
-  reminderNo: { paddingHorizontal: 12, paddingVertical: 8 },
-  reminderNoText: { color: "rgba(226,232,240,0.85)", fontWeight: "600", fontSize: 13 },
-  shelterList: { marginBottom: 6 },
-  shelterCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    marginBottom: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.22)",
-    backgroundColor: "rgba(18,24,38,0.95)",
-  },
-  shelterCardActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.12)" },
-  shelterBody: { flex: 1, marginLeft: 10, marginRight: 8 },
-  shelterName: { color: "#f8fafc", fontSize: 16, fontWeight: "800" },
-  shelterBio: { marginTop: 3, color: "rgba(226,232,240,0.85)", fontSize: 13, lineHeight: 18 },
-  photoStage: { alignItems: "center", marginTop: 20, marginBottom: 6 },
-  photoAside: { alignItems: "center" },
-  photoAsideImage: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: "rgba(255,255,255,0.8)" },
-  asideButton: { marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: "rgba(53,208,127,0.6)", backgroundColor: "rgba(16,185,129,0.15)" },
-  asideButtonText: { color: "#a7f3d0", fontSize: 11, fontWeight: "700" },
-  photoFrame: {
-    width: 196,
-    height: 196,
-    borderRadius: 98,
-    overflow: "hidden",
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.85)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-  },
-  photoEmpty: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: "rgba(148,163,184,0.6)" },
-  photoImage: { width: "100%", height: "100%" },
-  photoRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12 },
-  photoThumb: {
-    width: 96,
-    height: 96,
-    borderRadius: 20,
-    overflow: "visible",
-    borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.85)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-  },
-  photoThumbImage: { width: "100%", height: "100%", borderRadius: 17 },
-  photoRemove: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.6)",
-  },
-  photoAdd: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: "rgba(148,163,184,0.6)" },
-  photoCount: { marginTop: 10, color: "rgba(148,163,184,0.9)", fontSize: 13, textAlign: "center", fontWeight: "600" },
-  tips: { marginTop: 22 },
-  tip: { color: "rgba(148,163,184,0.9)", fontSize: 13, lineHeight: 20 },
-  input: {
-    marginTop: 18,
-    minHeight: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.45)",
-    backgroundColor: "rgba(15,23,42,0.6)",
-    color: "#f8fafc",
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-    paddingHorizontal: 14,
-  },
-  error: { marginTop: 8, color: "#fca5a5", fontSize: 13, textAlign: "center", fontWeight: "600" },
-  chips: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginTop: 14 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.35)",
-    backgroundColor: "rgba(18,24,38,0.95)",
-    margin: 4,
-  },
-  chipText: { color: "#e2e8f0", fontSize: 13, fontWeight: "600" },
-  taskList: { marginTop: 18 },
-  taskRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 56,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.25)",
-    backgroundColor: "rgba(18,24,38,0.95)",
-    marginBottom: 10,
-  },
-  taskRowDone: { borderColor: "#35d07f" },
-  taskRowMuted: { opacity: 0.55 },
-  taskCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(53,208,127,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  taskCheckDone: { backgroundColor: "#35d07f", borderColor: "#35d07f" },
-  taskTitle: { flex: 1, color: "#e2e8f0", fontSize: 15, fontWeight: "600" },
-  taskTitleDone: { color: "rgba(226,232,240,0.75)" },
-  celebration: { marginTop: 8, color: "#fde68a", fontSize: 14, fontWeight: "700", textAlign: "center" },
-});

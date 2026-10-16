@@ -16,6 +16,14 @@ describe("deriveAppGate", () => {
     expect(deriveAppGate({ hasUser: true, profileStatus: "error", profileHasPet: null, cachedHasPet: null })).toBe("unreachable");
   });
 
+  it("keeps the first-run flow on screen until it finishes, even once the photo marks the profile", () => {
+    expect(deriveAppGate({ hasUser: true, profileStatus: "ready", profileHasPet: true, cachedHasPet: true, onboardingActive: true })).toBe("setup");
+    expect(deriveAppGate({ hasUser: true, profileStatus: "loading", profileHasPet: null, cachedHasPet: true, onboardingActive: true })).toBe("setup");
+    expect(deriveAppGate({ hasUser: true, profileStatus: "ready", profileHasPet: true, cachedHasPet: true, onboardingActive: false })).toBe("main");
+    // signing out ends it regardless
+    expect(deriveAppGate({ hasUser: false, profileStatus: "ready", profileHasPet: true, cachedHasPet: true, onboardingActive: true })).toBe("auth");
+  });
+
   it("lets a remembered user straight in while the profile is still loading", () => {
     expect(deriveAppGate({ hasUser: true, profileStatus: "loading", profileHasPet: null, cachedHasPet: true })).toBe("main");
     expect(deriveAppGate({ hasUser: true, profileStatus: "loading", profileHasPet: null, cachedHasPet: null })).toBe("splash");

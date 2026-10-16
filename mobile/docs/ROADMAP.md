@@ -39,6 +39,13 @@ one is something a real-pet app can beat:
   breathing rebuilt once (4-2-6, the pet breathes with you, a haptic per phase). Onboarding, Talk, plant store and
   the painting screens are still dark slate. Web previews of every screen: `?preview=<screen>`.
 
+- **2026-10-16:** the SDK 57 upgrade, the home redesign and the sign-up fix are merged on `main` (review fixes in
+  `docs/dev-notes.md`). **Onboarding v2** is built (item 3 below): pet first, the painting in the background, a
+  four-question quiz (five with rhythm) that sets up the plan engine and the care preferences, the reveal with
+  the plan, the morning reminder with a time, one small thing. Still waiting on the owner: anonymous sign-in
+  (Bloom setting) so the account comes after the first minutes, Apple/Google sign-in (app identity + dev build),
+  the soft paywall (Club decision).
+
 ## Next, in order
 
 ### 1. The pet everywhere (1-2 sessions)

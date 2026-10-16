@@ -404,3 +404,43 @@ Left as found (for Donovan): the breathing session now waits for a Start tap (it
 in protected mode); `@react-native-community/slider` and `app/screens/LoginScreen.js` are unused; the proposed
 `user_plans` migration is still not applied and `normalizePlanSettings` still accepts `cycle` from the
 snake_case shape (strip before any sync).
+
+## 2026-10-16 — Onboarding v2 (pet first, then the quiz; the painting runs behind it)
+
+Built per `docs/ROADMAP.md` item 3, on the design system (`src/components/onboarding/`: `OnboardingFrame` with a
+progress bar and pinned buttons, `ChoiceCard`, `PetSteps`, `QuizSteps`, `FinishSteps`; flow in
+`src/screens/onboarding/OnboardingScreen.tsx`; rules in `src/domain/onboarding.ts`).
+
+- **Order:** welcome → dog/cat (or adopt) → 1-3 photos | shelter | look editor → name → **the painting starts in
+  the background** → quiz (what's felt heaviest: up to 3 of the 10 areas, ranked; usual battery; how much a
+  hard day allows: 1/5/15 min; how the pet should talk: gentle/warm/plain; and, only if the rhythm area was
+  picked, "keep your rhythm private on this phone?") → reveal (the pet in its sanctuary, "because you said"
+  chips, the plan the engine builds from the answers) → morning reminder with a time (skipped on web, where
+  there are no notifications) → one small thing (gentle tap tasks from the plan, completed through a real
+  `tasks` row and `complete_task`) → Start. The "new photos" flow keeps its explicit painting wait; "change
+  look" is unchanged.
+- **Where the answers go:** focus areas + a daily count (`dailyCountFor`: drained/anxious or a one-minute
+  hard day start at 3, bright + 15 minutes at 5, else 4) → `planStore.savePlanSettings`, so Home's focus
+  prompt no longer shows after onboarding; usual battery, hard-day minutes, voice and `completedAt` → a new
+  on-device store `floura:care-prefs:<uid>` (`src/domain/carePrefs.ts`, `src/services/carePrefs.ts`). The
+  voice is stored but not yet used by the dialogue lines (next: pick line sets by voice in
+  `homeDialogue.ts`). "Not now" on the cycle question drops the rhythm area from the plan settings; "Yes"
+  calls `setCycleEnabled(uid, true)` and nothing else (the guard test lists the screen as a flag-only
+  toucher). Nothing from the quiz is sent to the server.
+- **The gate (R-84):** `AuthContext.onboardingActive` is set while the first run is mounted and cleared on
+  Start (and on sign-out); `deriveAppGate` returns `setup` while it is set. The kept-photo path no longer
+  skips the end of the flow when saving the photo marks `profiles.pet_photo_url`. A reload mid-flow still
+  lands on Home (the latch is in memory); Home's focus prompt covers the plan in that case.
+- **Reveal plan preview** = `buildDailyPlan` with the quiz settings and the usual battery as today's energy
+  (an on-edge person sees a gentle 3-task day); nothing is logged or written. Progress is a bar; the welcome
+  hides it. Left as is: the look editor (`PetLookEditor`) still has its dark preset tiles; the dev-only
+  `RENDER_SOURCE` pill shows on the welcome/reveal scenes in dev builds.
+- **Not done (needs the owner / Bloom):** account creation still comes first (anonymous sign-in needs the
+  Bloom auth setting; Apple/Google sign-in needs an app identity and a dev build); the soft paywall at the
+  end of onboarding waits for the Club decision. `celebrationLine` now says "Sprouts" instead of "pts".
+- Verified on web against the local stack with a fresh account (`onboarding-20261016@floura.local`, noted in
+  `local-backend/README.md`): skip-photo path → look editor → name "Maple" → sleep + rhythm areas → on edge →
+  five minutes → warm → yes to private rhythm → reveal (3 gentle tasks, 4 chips) → first thing "Open the
+  curtains" (+2) → Home with "1 day", 2 Sprouts, focus chip "Sleep · Rhythm", 1 of 3 done. The photo path
+  (background painting) could not be driven on web (file picker) and painting itself needs the function on
+  Bloom; its state machine is unit-tested.

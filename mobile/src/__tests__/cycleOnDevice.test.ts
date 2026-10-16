@@ -27,12 +27,15 @@ describe("cycle data stays on the device", () => {
       .map(rel)
       .sort();
     // Adding a reader here is fine for display; if it also talks to the backend, ask the owner first.
+    // OnboardingScreen only flips the on/off flag (setCycleEnabled) after the person's explicit yes on the
+    // "keep your rhythm private on this phone?" step; it never reads cycle data.
     expect(readers).toEqual([
       "app/screens/HomeScreen.js",
       "app/screens/ProfileScreen.js",
       "src/hooks/useCycle.ts",
       "src/screens/CycleScreen.tsx",
       "src/screens/PetTalkScreen.tsx",
+      "src/screens/onboarding/OnboardingScreen.tsx",
     ]);
   });
 
