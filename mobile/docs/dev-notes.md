@@ -513,3 +513,16 @@ the title/colour rules and the device meta.
   playtime counts without any setup. The Play hub's wording says so; the "add the task" buttons remain as the
   explicit option. `GameId` gained `petting` (`GAME_IDS`).
 - Not done: Treat Catch, Memory Match, Hide-and-Seek (roadmap); a leaderboard of any kind (by design, none).
+
+## 2026-10-16 — Journey chapters and sequels (part two)
+
+- **Sequels:** three "part two" journeys continue the most-picked areas (`sleep.softer_landing_2` "Both ends of
+  the day", `calm.back_to_the_room_2` "Staying in the room", `rest.refill_the_cup_2` "Keeping it filled"), each
+  `sequelOf` its part one, same area, seven catalog tasks. `journeysFor` lists a part two only once part one has
+  been walked, right after it (callers pass `completed`); `isJourneyUnlocked`, `sequelFor`, `partOneOf`.
+- **Chapters:** finishing a journey now keeps the days it was walked (`CompletedJourney.doneDays`; older entries
+  without dates still work). The Journey screen of a finished journey shows its chapter (`chapterFor`: when it
+  was walked, the seven lines with their dates) and a "Walk part two" button when a sequel exists. The
+  Journeys list badges "PART TWO". The chapter is also what Keepsakes lists (the journey entry).
+- Started by the linked session that hit its limit (the sequel content was its uncommitted work); finished
+  here. Tests: `journeys.test.ts` (one part one per area, sequel invariants, gating, kept dates, chapter).

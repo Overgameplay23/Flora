@@ -52,6 +52,8 @@ one is something a real-pet app can beat:
   moved in: Profile › Keepsakes); the pet's lines on Home follow the **voice** chosen in onboarding.
 - **2026-10-16, evening:** Play (item 6, part): **Pet the pet**, a calm one-minute game, and the first game of the
   day earns Sprouts on its own (the play task is made the first time). Treat Catch and Memory Match are next.
+- **2026-10-16, night:** journey **chapters** (a finished journey keeps the days it was walked and shows them) and
+  **sequels** (part two for sleep, calm and burnout, offered once part one is walked).
 
 ## Next, in order
 

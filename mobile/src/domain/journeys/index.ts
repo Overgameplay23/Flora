@@ -3,9 +3,9 @@
 // src/services/journeyStore.ts.
 import { addDaysToDateKey, parseDateKey } from "../../utils/dateKeys";
 import type { FocusArea } from "../plan/types";
-import { JOURNEYS, JOURNEY_DAYS, type Journey, type JourneyDay, journeyById } from "./catalog";
+import { JOURNEYS, JOURNEY_DAYS, type Journey, type JourneyDay, journeyById, partOneOf, sequelFor } from "./catalog";
 
-export { JOURNEYS, JOURNEY_DAYS, journeyById };
+export { JOURNEYS, JOURNEY_DAYS, journeyById, partOneOf, sequelFor };
 export type { Journey, JourneyDay };
 
 export type JourneyProgress = {
@@ -16,7 +16,13 @@ export type JourneyProgress = {
   doneDays: Record<string, string>;
 };
 
-export type CompletedJourney = { journeyId: string; startedOn: string; finishedOn: string };
+export type CompletedJourney = {
+  journeyId: string;
+  startedOn: string;
+  finishedOn: string;
+  /** day index -> the local day it was done; journeys finished before chapters existed have none */
+  doneDays?: Record<string, string>;
+};
 
 export type JourneyState = {
   version: 1;
@@ -30,19 +36,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeDoneDays(raw: unknown): Record<string, string> {
+  const doneDays: Record<string, string> = {};
+  if (isRecord(raw)) {
+    for (const [index, day] of Object.entries(raw)) {
+      const n = Number(index);
+      if (Number.isInteger(n) && n >= 0 && n < JOURNEY_DAYS && typeof day === "string" && parseDateKey(day)) doneDays[String(n)] = day;
+    }
+  }
+  return doneDays;
+}
+
 function normalizeProgress(raw: unknown): JourneyProgress | null {
   if (!isRecord(raw)) return null;
   const journeyId = typeof raw.journeyId === "string" ? raw.journeyId : "";
   const startedOn = typeof raw.startedOn === "string" ? raw.startedOn : "";
   if (!journeyById(journeyId) || !parseDateKey(startedOn)) return null;
-  const doneDays: Record<string, string> = {};
-  if (isRecord(raw.doneDays)) {
-    for (const [index, day] of Object.entries(raw.doneDays)) {
-      const n = Number(index);
-      if (Number.isInteger(n) && n >= 0 && n < JOURNEY_DAYS && typeof day === "string" && parseDateKey(day)) doneDays[String(n)] = day;
-    }
-  }
-  return { journeyId, startedOn, doneDays };
+  return { journeyId, startedOn, doneDays: normalizeDoneDays(raw.doneDays) };
 }
 
 /** Defensive parse for whatever storage hands back. */
@@ -63,7 +73,9 @@ export function normalizeJourneyState(raw: unknown): JourneyState {
       const journeyId = typeof entry.journeyId === "string" ? entry.journeyId : "";
       const startedOn = typeof entry.startedOn === "string" ? entry.startedOn : "";
       const finishedOn = typeof entry.finishedOn === "string" ? entry.finishedOn : "";
-      if (journeyById(journeyId) && parseDateKey(startedOn) && parseDateKey(finishedOn)) completed.push({ journeyId, startedOn, finishedOn });
+      if (!journeyById(journeyId) || !parseDateKey(startedOn) || !parseDateKey(finishedOn)) continue;
+      const doneDays = normalizeDoneDays(entry.doneDays);
+      completed.push(Object.keys(doneDays).length > 0 ? { journeyId, startedOn, finishedOn, doneDays } : { journeyId, startedOn, finishedOn });
     }
   }
   return { version: 1, active: normalizeProgress(value.active), completed };
@@ -116,8 +128,8 @@ export function startJourney(state: JourneyState, journeyId: string, today: stri
 }
 
 /**
- * Marks today's step done. The seventh step finishes the journey: it moves to `completed` and nothing is
- * active any more. Doing it twice on one day changes nothing.
+ * Marks today's step done. The seventh step finishes the journey: it moves to `completed` (with the days it
+ * was walked, for its chapter page) and nothing is active any more. Doing it twice on one day changes nothing.
  */
 export function completeStep(state: JourneyState, today: string): JourneyState {
   const progress = state.active;
@@ -130,7 +142,7 @@ export function completeStep(state: JourneyState, today: string): JourneyState {
     return {
       ...state,
       active: null,
-      completed: [...state.completed, { journeyId: progress.journeyId, startedOn: progress.startedOn, finishedOn: today }],
+      completed: [...state.completed, { journeyId: progress.journeyId, startedOn: progress.startedOn, finishedOn: today, doneDays }],
     };
   }
   return { ...state, active: next };
@@ -157,20 +169,68 @@ export function expectedFinish(progress: JourneyProgress, today: string): string
   return addDaysToDateKey(today, Math.max(0, daysAhead));
 }
 
+/** The most recent time a journey was finished, if ever. */
+export function lastFinished(completed: CompletedJourney[], journeyId: string): CompletedJourney | null {
+  let latest: CompletedJourney | null = null;
+  for (const entry of completed) {
+    if (entry.journeyId !== journeyId) continue;
+    if (!latest || entry.finishedOn > latest.finishedOn) latest = entry;
+  }
+  return latest;
+}
+
+/** Whether a journey may be offered: part ones always; a part two only once its part one has been walked. */
+export function isJourneyUnlocked(journey: Journey, completed: CompletedJourney[]): boolean {
+  if (!journey.sequelOf) return true;
+  return completed.some((entry) => entry.journeyId === journey.sequelOf);
+}
+
 /**
- * The journeys to offer, the person's own areas first (in their order), then the rest. The rhythm journey
- * is only listed when the person tracks their cycle or picked the area (it is private like the tracker).
+ * The journeys to offer, the person's own areas first (in their order), then the rest; within an area part one
+ * comes before part two, and a part two is listed only once part one has been walked. The rhythm journey is
+ * only listed when the person tracks their cycle or picked the area (it is private like the tracker).
  */
-export function journeysFor(areas: FocusArea[], options: { cycleVisible: boolean }): Journey[] {
+export function journeysFor(areas: FocusArea[], options: { cycleVisible: boolean; completed?: CompletedJourney[] }): Journey[] {
+  const completed = options.completed ?? [];
   const rank = new Map<FocusArea, number>();
   areas.forEach((area, index) => {
     if (!rank.has(area)) rank.set(area, index);
   });
-  return JOURNEYS.filter((journey) => journey.area !== "cycle" || options.cycleVisible || areas.includes("cycle")).sort((a, b) => {
-    const ra = rank.has(a.area) ? (rank.get(a.area) as number) : 99;
-    const rb = rank.has(b.area) ? (rank.get(b.area) as number) : 99;
-    return ra - rb;
-  });
+  return JOURNEYS.filter((journey) => journey.area !== "cycle" || options.cycleVisible || areas.includes("cycle"))
+    .filter((journey) => isJourneyUnlocked(journey, completed))
+    .sort((a, b) => {
+      const ra = rank.has(a.area) ? (rank.get(a.area) as number) : 99;
+      const rb = rank.has(b.area) ? (rank.get(b.area) as number) : 99;
+      if (ra !== rb) return ra - rb;
+      // same area: part one before part two, otherwise catalog order
+      const sa = a.sequelOf ? 1 : 0;
+      const sb = b.sequelOf ? 1 : 0;
+      if (sa !== sb) return sa - sb;
+      return JOURNEYS.indexOf(a) - JOURNEYS.indexOf(b);
+    });
+}
+
+export type ChapterLine = { index: number; title: string; petLine: string; doneOn: string | null; prompt: string | null };
+
+/** The chapter a finished journey leaves behind: when it was walked, and the seven days with their dates. */
+export function chapterFor(journey: Journey, entry: CompletedJourney, petName: string): { title: string; walked: string; lines: ChapterLine[]; sequel: Journey | undefined } {
+  const lines = journey.days.map((day, index) => ({
+    index,
+    title: day.title,
+    petLine: journeyLine(day.petLine, petName),
+    doneOn: entry.doneDays?.[String(index)] ?? null,
+    prompt: day.prompt ? day.prompt : null,
+  }));
+  const days = daysBetween(entry.startedOn, entry.finishedOn) + 1;
+  const walked = days <= JOURNEY_DAYS ? "Walked in seven days straight." : `Walked over ${days} days, at your own pace.`;
+  return { title: `${journey.title}: a chapter`, walked, lines, sequel: sequelFor(journey.id) };
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = parseDateKey(from);
+  const b = parseDateKey(to);
+  if (!a || !b) return 0;
+  return Math.max(0, Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86_400_000));
 }
 
 /** Fills {pet} in a line. */

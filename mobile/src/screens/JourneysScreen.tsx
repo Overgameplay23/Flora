@@ -48,7 +48,8 @@ export default function JourneysScreen() {
     };
   }, [user?.id]);
 
-  const list = useMemo(() => journeysFor(areas, { cycleVisible: cycle.enabled }), [areas, cycle.enabled]);
+  // sequels appear only once their part one has been walked (journeysFor hides them until then)
+  const list = useMemo(() => journeysFor(areas, { cycleVisible: cycle.enabled, completed: state.completed }), [areas, cycle.enabled, state.completed]);
   const completedById = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of state.completed) map.set(entry.journeyId, entry.finishedOn);
@@ -116,6 +117,10 @@ export default function JourneysScreen() {
                       <View style={[styles.badge, { backgroundColor: theme.tone("body").fill }]}>
                         <Ionicons name="checkmark" size={12} color={theme.tone("body").accent} />
                         <Text style={[type.micro, { color: theme.tone("body").accent }]}>DONE {humanDate(finishedOn).toUpperCase()}</Text>
+                      </View>
+                    ) : journey.sequelOf ? (
+                      <View style={[styles.badge, { backgroundColor: theme.tone(journey.category).fill }]}>
+                        <Text style={[type.micro, { color: theme.tone(journey.category).accent }]}>PART TWO</Text>
                       </View>
                     ) : own ? (
                       <View style={[styles.badge, { backgroundColor: theme.tone(journey.category).fill }]}>

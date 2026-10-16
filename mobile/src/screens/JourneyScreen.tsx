@@ -13,7 +13,7 @@ import PetMascot from "../components/pet/PetMascot";
 import { useAuth } from "../contexts/AuthContext";
 import { usePet } from "../hooks/usePet";
 import { useJourney } from "../hooks/useJourney";
-import { JOURNEY_DAYS, journeyById, journeyLine } from "../domain/journeys";
+import { JOURNEY_DAYS, chapterFor, journeyById, journeyLine, lastFinished, partOneOf, sequelFor } from "../domain/journeys";
 import { catalogById, renderTitle } from "../domain/plan/catalog";
 import { careDoneLine } from "../domain/homeDialogue";
 import { completeJourneyTask } from "../services/journeyActions";
@@ -47,6 +47,10 @@ export default function JourneyScreen() {
   const { state, journey: active, step, start, completeToday, leave } = useJourney(user?.id ?? null, today);
   const isActive = !!journey && active?.id === journey.id;
   const finished = journey ? state.completed.filter((entry) => entry.journeyId === journey.id) : [];
+  const latest = journey ? lastFinished(state.completed, journey.id) : null;
+  const chapter = journey && latest && !isActive ? chapterFor(journey, latest, petName) : null;
+  const sequel = journey ? sequelFor(journey.id) : undefined;
+  const partOne = partOneOf(journey);
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [notice, setNotice] = useState<{ type: "error" | "queued"; message: string } | null>(null);
@@ -129,6 +133,7 @@ export default function JourneyScreen() {
         <View style={styles.header}>
           <IconTile icon={journey.icon} category={journey.category} size={60} />
           <View style={styles.headerText}>
+            {partOne ? <Text style={[type.micro, { color: tone.accent }]}>PART TWO OF {partOne.title.toUpperCase()}</Text> : null}
             <ScreenTitle>{journey.title}</ScreenTitle>
             <Lead>{journey.blurb}</Lead>
           </View>
@@ -160,15 +165,33 @@ export default function JourneyScreen() {
               </Card>
             ) : null}
           </View>
-        ) : finished.length > 0 && !isActive ? (
-          <Card tone="body" style={styles.doneCard}>
+        ) : chapter && latest ? (
+          // the chapter this journey left behind: when it was walked, the seven lines with their dates
+          <Card tone={journey.category} style={styles.doneCard}>
             <View style={styles.doneRow}>
               <PetMascot size={64} mood="happy" showShadow={false} night={night} />
               <View style={styles.doneText}>
-                <Text style={[type.bodyStrong, { color: surface.text }]}>You walked this one already</Text>
-                <Text style={[type.meta, { color: surface.textSecondary }]}>Finished {humanDate(finished[finished.length - 1].finishedOn)}. It's here whenever you want it again.</Text>
+                <Text style={[type.micro, { color: tone.accent }]}>A CHAPTER IN YOUR KEEPSAKES</Text>
+                <Text style={[type.bodyStrong, { color: surface.text }]}>{chapter.title}</Text>
+                <Text style={[type.meta, { color: surface.textSecondary }]}>
+                  {humanDate(latest.startedOn)} to {humanDate(latest.finishedOn)}. {chapter.walked}
+                </Text>
               </View>
             </View>
+            <View style={styles.chapterLines}>
+              {chapter.lines.map((line) => (
+                <View key={line.index} style={styles.chapterLine}>
+                  <Text style={[type.micro, styles.chapterDay, { color: tone.accent }]}>{line.doneOn ? humanDate(line.doneOn).toUpperCase() : `DAY ${line.index + 1}`}</Text>
+                  <View style={styles.chapterBody}>
+                    <Text style={[type.bodyStrong, { color: surface.text }]}>{line.title}</Text>
+                    <Text style={[type.petVoice, { color: surface.textSecondary }]}>{line.petLine}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+            {sequel && active?.id !== sequel.id ? (
+              <Button label={`Walk part two: ${sequel.title}`} size="md" onPress={() => navigation.navigate("Journey", { journeyId: sequel.id })} containerStyle={styles.sequelButton} />
+            ) : null}
           </Card>
         ) : null}
 
@@ -234,6 +257,26 @@ const styles = StyleSheet.create({
   doneText: {
     flex: 1,
     gap: 2,
+  },
+  chapterLines: {
+    marginTop: 14,
+    gap: 10,
+  },
+  chapterLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  chapterDay: {
+    width: 64,
+    marginTop: 4,
+  },
+  chapterBody: {
+    flex: 1,
+    gap: 1,
+  },
+  sequelButton: {
+    marginTop: 14,
+    alignSelf: "flex-start",
   },
   dayRow: {
     flexDirection: "row",

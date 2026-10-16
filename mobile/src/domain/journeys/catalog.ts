@@ -2,6 +2,8 @@
 // a line from the pet and one task from the plan catalog (src/domain/plan/catalog.ts), so a journey step is
 // completed through the same tasks row and complete_task as any other care task. A few days add a journal
 // prompt. Pure content, versioned in code; ids and task ids are held to the tests in src/__tests__/journeys.test.ts.
+// A journey may have a sequel ("Part two", `sequelOf` names part one): the same area, seven more days, offered
+// once part one has been walked. The three most-picked areas (sleep, calm_mind, burnout) have one.
 //
 // Voice: a warm adult friend. The pet speaks in the first person, never scolds, never counts what was missed.
 import type { CareCategory, FocusArea } from "../plan/types";
@@ -25,6 +27,8 @@ export type Journey = {
   icon: string;
   category: CareCategory;
   days: JourneyDay[];
+  /** part two: the id of the journey this one continues; listed once that one is walked */
+  sequelOf?: string;
 };
 
 export const JOURNEY_DAYS = 7;
@@ -200,9 +204,76 @@ export const JOURNEYS: Journey[] = [
       { title: "What's left", petLine: "Write down what's left, so it stops living in your head.", taskId: "focus.brain_dump", prompt: "Which small win made the biggest difference to your space?" },
     ],
   },
+
+  // ---------- part two: sequels, offered once part one is walked ----------
+  {
+    id: "sleep.softer_landing_2",
+    sequelOf: "sleep.softer_landing",
+    area: "sleep",
+    title: "Both ends of the day",
+    blurb: "Part two of A softer landing: mornings that start softer make nights that land easier.",
+    icon: "partly-sunny-outline",
+    category: "rest",
+    days: [
+      { title: "Morning light", petLine: "Open the curtains before anything else. Tonight starts now.", taskId: "sleep.curtains" },
+      { title: "Water first", petLine: "A glass of water before the coffee. Your body wakes up kinder.", taskId: "body.water" },
+      { title: "Some sky", petLine: "Five minutes outside in daylight sets your clock for tonight.", taskId: "body.sunlight" },
+      { title: "A stretch", petLine: "One minute of stretching shakes the day loose.", taskId: "body.stretch" },
+      { title: "Phone to bed, again", petLine: "You know this one. Yours sleeps in another room tonight.", taskId: "sleep.phone_bed" },
+      { title: "Wind down", petLine: "Ten minutes between the day and the pillow. I'll be there.", taskId: "sleep.wind_down" },
+      { title: "Slow breaths", petLine: "A minute of slow breathing, then lights out. Look how far you've come.", taskId: "sleep.slow_breath", prompt: "Which morning change made the evening easier?" },
+    ],
+  },
+  {
+    id: "calm.back_to_the_room_2",
+    sequelOf: "calm.back_to_the_room",
+    area: "calm_mind",
+    title: "Staying in the room",
+    blurb: "Part two of Back to the room: the calms you found, carried into the rest of the day.",
+    icon: "cloud-outline",
+    category: "calm",
+    days: [
+      { title: "Three exhales, anywhere", petLine: "The long exhale works in a queue, in a meeting, in bed. Try it somewhere new.", taskId: "calm.long_exhale" },
+      { title: "Let the room breathe", petLine: "Open a window. The room gets some air, and so do you.", taskId: "lift.window" },
+      { title: "Walk it loose", petLine: "Ten minutes of walking lets the spin settle on its own.", taskId: "body.walk" },
+      { title: "Everything out", petLine: "Pour the whole swirl onto a page. It's smaller on paper.", taskId: "focus.brain_dump" },
+      { title: "A pause with no job", petLine: "Nothing to fix for a few minutes. Just a pause, with me.", taskId: "rest.pause" },
+      { title: "Four, four, four", petLine: "You know box breathing now. Four in, four hold, four out.", taskId: "calm.box_breath" },
+      { title: "Still here", petLine: "Head to toes, slowly. Then notice: you're still in the room.", taskId: "calm.body_scan", prompt: "Which calm came quickest this time, and where did you use it?" },
+    ],
+  },
+  {
+    id: "rest.refill_the_cup_2",
+    sequelOf: "rest.refill_the_cup",
+    area: "burnout",
+    title: "Keeping it filled",
+    blurb: "Part two of Refill the cup: small habits that keep something in the tank.",
+    icon: "cafe-outline",
+    category: "rest",
+    days: [
+      { title: "A pause before you need one", petLine: "Rest before you're empty. That's the whole trick.", taskId: "rest.pause" },
+      { title: "Some sky", petLine: "Five minutes of sky, no reason, no phone.", taskId: "body.sunlight" },
+      { title: "Tomorrow can have it", petLine: "One thing waits until tomorrow. It will keep.", taskId: "rest.let_wait" },
+      { title: "One song", petLine: "Put on one song you love and do nothing else for its length.", taskId: "lift.song" },
+      { title: "Lie down", petLine: "Five minutes flat. Not asleep, not busy. Just flat.", taskId: "rest.lie_down" },
+      { title: "A small no", petLine: "One no today. Hear how much room it makes.", taskId: "rest.say_no" },
+      { title: "A note to future you", petLine: "Tell future you what keeps the cup full. They'll need reminding.", taskId: "kind.future_letter", prompt: "What kept something in the tank this week, and how could it stay?" },
+    ],
+  },
 ];
 
 export function journeyById(id: string | null | undefined): Journey | undefined {
   if (!id) return undefined;
   return JOURNEYS.find((journey) => journey.id === id);
+}
+
+/** Part two of a journey, if it has one. */
+export function sequelFor(journeyId: string | null | undefined): Journey | undefined {
+  if (!journeyId) return undefined;
+  return JOURNEYS.find((journey) => journey.sequelOf === journeyId);
+}
+
+/** The journey a sequel continues; undefined for a part one. */
+export function partOneOf(journey: Journey | null | undefined): Journey | undefined {
+  return journey?.sequelOf ? journeyById(journey.sequelOf) : undefined;
 }
