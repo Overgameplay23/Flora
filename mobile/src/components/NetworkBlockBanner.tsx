@@ -2,7 +2,9 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { clearNetworkBlock, getNetworkBlockState, subscribeNetworkBlock } from "../utils/net";
 import { isSupabaseUrlConfigured } from "../utils/env";
+import { categories, fonts, ink } from "../theme/tokens";
 
+/** The app paused its requests because the network looks blocked (VPN, captive Wi-Fi); one tap retries. */
 export default function NetworkBlockBanner() {
   const [block, setBlock] = React.useState(getNetworkBlockState());
 
@@ -15,9 +17,9 @@ export default function NetworkBlockBanner() {
   };
 
   return (
-    <View style={styles.banner}>
-      <Text style={styles.text}>Network blocked: check VPN/Wi-Fi</Text>
-      <Pressable style={styles.button} onPress={handleRetry}>
+    <View style={styles.banner} accessibilityLiveRegion="polite">
+      <Text style={styles.text}>Can't reach the network. Check VPN or Wi-Fi.</Text>
+      <Pressable style={styles.button} onPress={handleRetry} accessibilityRole="button" accessibilityLabel="Retry the connection">
         <Text style={styles.buttonText}>Retry</Text>
       </Pressable>
     </View>
@@ -32,27 +34,29 @@ const styles = StyleSheet.create({
     right: 0,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: "#f59e0b",
+    backgroundColor: categories.energy.mid,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     zIndex: 19,
   },
   text: {
-    color: "#0f172a",
-    fontWeight: "700",
+    color: ink.primary,
+    fontFamily: fonts.bodyBold,
     fontSize: 12,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    flex: 1,
+    marginRight: 10,
   },
   button: {
-    backgroundColor: "rgba(15,23,42,0.15)",
-    paddingHorizontal: 10,
+    backgroundColor: "rgba(46,40,56,0.12)",
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 999,
   },
   buttonText: {
-    color: "#0f172a",
-    fontWeight: "700",
+    color: ink.primary,
+    fontFamily: fonts.bodyHeavy,
     fontSize: 12,
   },
 });

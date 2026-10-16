@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, Image, StyleSheet } from "react-native";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { supabase } from "../../src/lib/supabase";
 import { useSignedPetPhotoUrl } from "../../src/services/petPhotoUrls";
+import Screen from "../../src/components/common/Screen";
+import Button from "../../src/components/common/Button";
+import { Lead, ScreenTitle } from "../../src/components/common/Headings";
+import { useTheme } from "../../src/theme/theme";
+import { radius, type } from "../../src/theme/tokens";
 
+/** The older painted-portrait result (reached from PetSetup): the painting, then Done or try again. */
 export default function PetStylizeResultScreen({ route, navigation }) {
   const { user, setProfile } = useAuth();
+  const theme = useTheme();
+  const { surface } = theme;
   const stylizedUrl = route?.params?.stylizedUrl;
   const cutoutUrl = route?.params?.cutoutUrl;
   const savedStylized = route?.params?.savedStylized !== false;
@@ -83,124 +91,67 @@ export default function PetStylizeResultScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{savedStylized ? "Meet your new pet" : "Preview ready"}</Text>
-      <Text style={styles.subtitle}>
-        {savedStylized
-          ? "Your stylized pet is saved."
-          : "Your original pet photo is saved. Stylized save is waiting on schema updates."}
-      </Text>
+    <Screen scroll={false} centered>
       {renderUrl ? (
-        <Image
-          source={{ uri: renderUrl }}
-          style={maskOriginal ? styles.imageMasked : styles.image}
-        />
+        <View style={[styles.frame, maskOriginal && styles.frameRound, { backgroundColor: theme.tone("body").fill, boxShadow: surface.shadow }]}>
+          <Image source={{ uri: renderUrl }} style={[styles.image, maskOriginal && styles.frameRound]} accessibilityLabel="Your painted pet" />
+        </View>
       ) : (
-        <View style={styles.imagePlaceholder}>
-          <Text style={styles.placeholderText}>Image unavailable</Text>
+        <View style={[styles.frame, styles.placeholder, { backgroundColor: surface.sunken }]}>
+          <Text style={[type.meta, { color: surface.textTertiary }]}>Image unavailable</Text>
         </View>
       )}
-
-      {errorMessage ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        </View>
-      ) : null}
-
-      <Pressable style={[styles.primaryButton, saving && styles.primaryButtonDisabled]} onPress={handleDone}>
-        {saving ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.primaryButtonText}>Done</Text>}
-      </Pressable>
-      <Pressable style={styles.secondaryButton} onPress={handleTryAgain}>
-        <Text style={styles.secondaryButtonText}>Try again</Text>
-      </Pressable>
-    </View>
+      <ScreenTitle center style={styles.title}>
+        {savedStylized ? "Meet your pet" : "Preview ready"}
+      </ScreenTitle>
+      <Lead center style={styles.lead}>
+        {savedStylized ? "The painted portrait is saved. They'll be on Home, in the garden, and whenever you check in." : "Your original photo is saved; the painted version could not be stored yet."}
+      </Lead>
+      {errorMessage ? <Text style={[type.meta, styles.error, { color: theme.alert }]}>{errorMessage}</Text> : null}
+      <Button label="Done" onPress={handleDone} loading={saving} containerStyle={styles.primary} />
+      <Button label="Try again" variant="quiet" size="md" onPress={handleTryAgain} containerStyle={styles.secondary} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f172a",
+  frame: {
+    width: 236,
+    height: 236,
+    borderRadius: radius.card,
+    borderCurve: "continuous",
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#e2e8f0",
-  },
-  subtitle: {
-    marginTop: 6,
-    fontSize: 12,
-    color: "rgba(148, 163, 184, 0.85)",
     marginBottom: 20,
-    textAlign: "center",
+  },
+  frameRound: {
+    borderRadius: 118,
   },
   image: {
-    width: 220,
-    height: 220,
-    borderWidth: 2,
-    borderColor: "rgba(148, 163, 184, 0.35)",
-    marginBottom: 16,
+    width: 236,
+    height: 236,
   },
-  imageMasked: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 2,
-    borderColor: "rgba(148, 163, 184, 0.35)",
-    marginBottom: 16,
+  placeholder: {
+    borderRadius: 118,
   },
-  imagePlaceholder: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
+  title: {
+    marginTop: 4,
   },
-  placeholderText: {
-    color: "rgba(148, 163, 184, 0.7)",
-    fontSize: 12,
+  lead: {
+    marginTop: 8,
+    paddingHorizontal: 8,
   },
-  errorBanner: {
-    marginBottom: 12,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "rgba(225, 29, 72, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(244, 63, 94, 0.4)",
-  },
-  errorText: {
-    color: "#fecdd3",
-    fontSize: 12,
-  },
-  primaryButton: {
-    backgroundColor: "#34d399",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 999,
-    marginTop: 6,
-  },
-  primaryButtonDisabled: {
-    opacity: 0.7,
-  },
-  primaryButtonText: {
-    color: "#0f172a",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  secondaryButton: {
+  error: {
     marginTop: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    textAlign: "center",
   },
-  secondaryButtonText: {
-    color: "rgba(148, 163, 184, 0.9)",
-    fontSize: 12,
+  primary: {
+    marginTop: 22,
+    alignSelf: "stretch",
+  },
+  secondary: {
+    marginTop: 6,
+    alignSelf: "center",
   },
 });

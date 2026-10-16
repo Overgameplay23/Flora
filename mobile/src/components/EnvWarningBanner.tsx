@@ -1,7 +1,9 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { isSupabaseUrlConfigured } from "../utils/env";
+import { brand, fonts } from "../theme/tokens";
 
+/** Dev only: the public Supabase URL is missing from the profile the app was started with. */
 export default function EnvWarningBanner() {
   if (!__DEV__ || isSupabaseUrlConfigured()) return null;
 
@@ -20,13 +22,13 @@ const styles = StyleSheet.create({
     right: 0,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: "#f87171",
+    backgroundColor: brand.ember,
     alignItems: "center",
     zIndex: 20,
   },
   text: {
-    color: "#0f172a",
-    fontWeight: "700",
+    color: brand.cream,
+    fontFamily: fonts.bodyHeavy,
     fontSize: 12,
     letterSpacing: 0.3,
   },

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import {
   COAT_SWATCHES,
   EAR_STYLES,
@@ -13,11 +13,16 @@ import {
   presetsFor,
 } from "../../domain/petLook";
 import PetRig from "./vector/PetRig";
+import Chip from "../common/Chip";
+import PressableScale from "../common/PressableScale";
+import { useTheme } from "../../theme/theme";
+import { brand, fonts, ink, radius, type } from "../../theme/tokens";
+import { selection } from "../../utils/haptics";
 
 type PetLookEditorProps = {
   look: PetLook;
   onChange: (next: PetLook) => void;
-  /** shown above the swatches, e.g. the photo the person picked, to match colours against */
+  /** shown beside the preview, e.g. the photo the person picked, to match colours against */
   aside?: React.ReactNode;
   previewSize?: number;
 };
@@ -39,42 +44,50 @@ const LABELS: Record<string, string> = {
   slim: "Slim",
 };
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function isLight(hex: string) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150;
+}
+
+function Section({ title, children, color }: { title: string; children: React.ReactNode; color: string }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[type.micro, styles.sectionTitle, { color }]}>{title.toUpperCase()}</Text>
       <View style={styles.row}>{children}</View>
     </View>
   );
 }
 
-function Swatch({ color, active, onPress, label }: { color: string; active: boolean; onPress: () => void; label: string }) {
+function Swatch({ color, active, onPress, label, ring }: { color: string; active: boolean; onPress: () => void; label: string; ring: string }) {
   return (
-    <Pressable onPress={onPress} style={[styles.swatch, { backgroundColor: color }, active && styles.swatchActive]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active }}>
-      {active ? <Feather name="check" size={14} color={isLight(color) ? "#0f172a" : "#ffffff"} /> : null}
+    <Pressable
+      onPress={() => {
+        selection();
+        onPress();
+      }}
+      style={[styles.swatch, { backgroundColor: color, borderColor: active ? ring : "rgba(74,52,40,0.14)", borderWidth: active ? 3 : 2 }]}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      hitSlop={4}
+    >
+      {active ? <Ionicons name="checkmark" size={16} color={isLight(color) ? ink.primary : brand.cream} /> : null}
     </Pressable>
   );
-}
-
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]} accessibilityRole="button" accessibilityState={{ selected: active }}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function isLight(hex: string) {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b > 150;
 }
 
 /**
  * "Make it look like yours": presets, coat, eyes, nose, ears, tail, markings, build. The rig previews
- * every change live; the parent owns the look and decides when to save.
+ * every change live; the parent owns the look and decides when to save. Paper and tokens from the design
+ * system; the connection rose marks what is picked.
  */
 export default function PetLookEditor({ look, onChange, aside, previewSize = 168 }: PetLookEditorProps) {
+  const theme = useTheme();
+  const { surface, night } = theme;
+  const tone = theme.tone("connection");
   const presets = useMemo(() => presetsFor(look.species), [look.species]);
   const set = (patch: Partial<PetLook>) => onChange(normalizeLook({ ...look, ...patch }, look.species));
   const coatId = COAT_SWATCHES.find((s) => s.coat === look.coat)?.id ?? null;
@@ -82,65 +95,79 @@ export default function PetLookEditor({ look, onChange, aside, previewSize = 168
   return (
     <View>
       <View style={styles.previewRow}>
-        <View style={styles.preview}>
+        <View style={[styles.preview, { backgroundColor: night ? surface.sunken : theme.tone("body").fill }]}>
           <PetRig look={look} size={previewSize} mood="happy" />
         </View>
         {aside ? <View style={styles.aside}>{aside}</View> : null}
       </View>
 
-      <Section title="Start from">
+      <Section title="Start from" color={surface.textTertiary}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetRow}>
           {presets.map((preset) => {
             const active = JSON.stringify(preset.look) === JSON.stringify(look);
             return (
-              <Pressable key={preset.id} onPress={() => onChange(preset.look)} style={[styles.preset, active && styles.presetActive]} accessibilityRole="button" accessibilityLabel={preset.label} accessibilityState={{ selected: active }}>
+              <PressableScale
+                key={preset.id}
+                onPress={() => {
+                  selection();
+                  onChange(preset.look);
+                }}
+                pressedScale={0.96}
+                accessibilityRole="radio"
+                accessibilityLabel={preset.label}
+                accessibilityState={{ selected: active }}
+                style={[
+                  styles.preset,
+                  { backgroundColor: active ? tone.fill : surface.paper, borderColor: active ? tone.accent : surface.hairline, boxShadow: active ? "none" : surface.shadow },
+                ]}
+              >
                 <PetRig look={preset.look} size={56} mood="calm" reducedMotion />
-                <Text style={styles.presetLabel}>{preset.label}</Text>
-              </Pressable>
+                <Text style={[styles.presetLabel, { color: active ? tone.accent : surface.textSecondary }]}>{preset.label}</Text>
+              </PressableScale>
             );
           })}
         </ScrollView>
       </Section>
 
-      <Section title="Coat">
+      <Section title="Coat" color={surface.textTertiary}>
         {COAT_SWATCHES.map((s) => (
-          <Swatch key={s.id} color={s.coat} label={s.label} active={coatId === s.id} onPress={() => set({ coat: s.coat, secondary: s.secondary, ear: s.ear })} />
+          <Swatch key={s.id} color={s.coat} label={s.label} ring={tone.accent} active={coatId === s.id} onPress={() => set({ coat: s.coat, secondary: s.secondary, ear: s.ear })} />
         ))}
       </Section>
 
-      <Section title="Eyes">
+      <Section title="Eyes" color={surface.textTertiary}>
         {EYE_SWATCHES.map((s) => (
-          <Swatch key={s.id} color={s.eye} label={s.label} active={look.eye === s.eye} onPress={() => set({ eye: s.eye })} />
+          <Swatch key={s.id} color={s.eye} label={s.label} ring={tone.accent} active={look.eye === s.eye} onPress={() => set({ eye: s.eye })} />
         ))}
       </Section>
 
-      <Section title="Nose">
+      <Section title="Nose" color={surface.textTertiary}>
         {NOSE_SWATCHES.map((s) => (
-          <Swatch key={s.id} color={s.nose} label={s.label} active={look.nose === s.nose} onPress={() => set({ nose: s.nose })} />
+          <Swatch key={s.id} color={s.nose} label={s.label} ring={tone.accent} active={look.nose === s.nose} onPress={() => set({ nose: s.nose })} />
         ))}
       </Section>
 
-      <Section title="Ears">
+      <Section title="Ears" color={surface.textTertiary}>
         {EAR_STYLES[look.species].map((ears) => (
-          <Chip key={ears} label={LABELS[ears]} active={look.ears === ears} onPress={() => set({ ears })} />
+          <Chip key={ears} label={LABELS[ears]} selected={look.ears === ears} onPress={() => set({ ears })} category="connection" style={styles.chip} />
         ))}
       </Section>
 
-      <Section title="Tail">
+      <Section title="Tail" color={surface.textTertiary}>
         {TAIL_STYLES[look.species].map((tail) => (
-          <Chip key={tail} label={LABELS[tail]} active={look.tail === tail} onPress={() => set({ tail })} />
+          <Chip key={tail} label={LABELS[tail]} selected={look.tail === tail} onPress={() => set({ tail })} category="connection" style={styles.chip} />
         ))}
       </Section>
 
-      <Section title="Markings">
+      <Section title="Markings" color={surface.textTertiary}>
         {MARKINGS[look.species].map((marking) => (
-          <Chip key={marking} label={LABELS[marking]} active={look.marking === marking} onPress={() => set({ marking })} />
+          <Chip key={marking} label={LABELS[marking]} selected={look.marking === marking} onPress={() => set({ marking })} category="connection" style={styles.chip} />
         ))}
       </Section>
 
-      <Section title="Build">
+      <Section title="Build" color={surface.textTertiary}>
         {(["round", "slim"] as const).map((build) => (
-          <Chip key={build} label={LABELS[build]} active={look.build === build} onPress={() => set({ build })} />
+          <Chip key={build} label={LABELS[build]} selected={look.build === build} onPress={() => set({ build })} category="connection" style={styles.chip} />
         ))}
       </Section>
     </View>
@@ -152,31 +179,27 @@ const styles = StyleSheet.create({
   preview: {
     alignItems: "center",
     justifyContent: "flex-end",
-    padding: 8,
-    borderRadius: 24,
-    backgroundColor: "rgba(53,208,127,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.2)",
+    padding: 10,
+    borderRadius: radius.card,
+    borderCurve: "continuous",
   },
   aside: { marginLeft: 14 },
-  section: { marginTop: 14 },
-  sectionTitle: { color: "rgba(148,163,184,0.95)", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, marginLeft: 2 },
+  section: { marginTop: 16 },
+  sectionTitle: { marginBottom: 8, marginLeft: 2 },
   row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   presetRow: { paddingRight: 12 },
   preset: {
     alignItems: "center",
     marginRight: 8,
     paddingHorizontal: 8,
-    paddingTop: 4,
-    paddingBottom: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.25)",
-    backgroundColor: "rgba(18,24,38,0.95)",
-    minWidth: 74,
+    paddingTop: 6,
+    paddingBottom: 8,
+    borderRadius: radius.tile,
+    borderCurve: "continuous",
+    borderWidth: 1.5,
+    minWidth: 76,
   },
-  presetActive: { borderColor: "#35d07f", backgroundColor: "rgba(53,208,127,0.14)" },
-  presetLabel: { marginTop: 2, color: "#e2e8f0", fontSize: 11, fontWeight: "600" },
+  presetLabel: { marginTop: 2, fontFamily: fonts.bodyBold, fontSize: 11 },
   swatch: {
     width: 36,
     height: 36,
@@ -185,12 +208,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
   },
-  swatchActive: { borderColor: "#35d07f", borderWidth: 3 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "rgba(148,163,184,0.35)", marginRight: 6, marginBottom: 6, backgroundColor: "rgba(18,24,38,0.95)" },
-  chipActive: { backgroundColor: "rgba(53,208,127,0.2)", borderColor: "#35d07f" },
-  chipText: { color: "#e2e8f0", fontSize: 13, fontWeight: "600" },
-  chipTextActive: { color: "#a7f3d0" },
+  chip: { marginRight: 6, marginBottom: 6 },
 });

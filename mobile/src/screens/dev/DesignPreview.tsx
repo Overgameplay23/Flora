@@ -11,15 +11,18 @@ import AppNavigator, { stackScreenOptions } from "../../../app/navigation/AppNav
 import { SplashScreen, UnreachableScreen } from "../../../app/navigation/RootNavigator";
 import LoginScreen from "../LoginScreen";
 import SignupScreen from "../SignupScreen";
+import OnboardingScreen from "../onboarding/OnboardingScreen";
 
 // Dev-only design previews on web, so every screen can be checked in a browser without signing in:
 //   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, cycle, reminders,
-//                     memorial, play, fetch, bubbles, tasks, habits, login, signup, splash, unreachable
+//                     memorial, play, fetch, bubbles, petting, tasks, habits, journeys, keepsakes, talk,
+//                     painting, painted, onboarding, login, signup, splash, unreachable
 //   &hour=21          pin the time of day (night paper from 21:00 to 05:00)
 //   &pet=cat|none     which fixture pet (default: a golden dog called Biscuit)
 //   &memorial=1       the pet has passed away
 // Screens render for a signed-in looking user with no session behind it, so anything they load from the
-// backend comes back empty or fails and they show their empty / error states. Never shipped: App.js only
+// backend comes back empty or fails and they show their empty / error states (onboarding: the steps that
+// save stop at "couldn't save"; painting/painted show their no-photo states). Never shipped: App.js only
 // routes here under __DEV__ on web.
 
 const ROUTES: Record<string, string> = {
@@ -36,8 +39,14 @@ const ROUTES: Record<string, string> = {
   play: "Play",
   fetch: "PlayFetch",
   bubbles: "PlayBubbles",
+  petting: "PlayPetting",
   tasks: "Tasks",
   habits: "Habits",
+  journeys: "Journeys",
+  keepsakes: "Keepsakes",
+  talk: "PetTalk",
+  painting: "PetStylizeLoading",
+  painted: "PetStylizeResult",
 };
 
 const PREVIEW_USER = { id: "00000000-0000-4000-8000-00000000d351", email: "preview@floura.app" };
@@ -65,6 +74,16 @@ function PreviewBody({ name }: { name: string }) {
         <AuthStack.Navigator id="preview-auth" initialRouteName={name === "signup" ? "Signup" : "Login"} screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
           <AuthStack.Screen name="Signup" component={SignupScreen} />
+        </AuthStack.Navigator>
+      </NavigationContainer>
+    );
+  }
+  if (name === "onboarding") {
+    // the first run, the way a new account sees it (use &pet=none so no fixture pet stands in)
+    return (
+      <NavigationContainer theme={navigationTheme}>
+        <AuthStack.Navigator id="preview-onboarding" screenOptions={{ headerShown: false }}>
+          <AuthStack.Screen name="Onboarding" component={OnboardingScreen} initialParams={{ mode: "first" }} />
         </AuthStack.Navigator>
       </NavigationContainer>
     );
