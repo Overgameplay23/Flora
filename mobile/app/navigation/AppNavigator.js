@@ -19,6 +19,7 @@ import CycleScreen from '../../src/screens/CycleScreen';
 import MemorialScreen from '../../src/screens/MemorialScreen';
 import FetchGameScreen from '../../src/games/fetch/FetchGameScreen';
 import BubblesGameScreen from '../../src/games/bubbles/BubblesGameScreen';
+import PettingGameScreen from '../../src/games/petting/PettingGameScreen';
 import WeeklyReflectionScreen from '../../src/screens/WeeklyReflectionScreen';
 import RemindersScreen from '../../src/screens/RemindersScreen';
 import PetTalkScreen from '../../src/screens/PetTalkScreen';
@@ -127,6 +128,7 @@ export default function AppNavigator({ initialRoute = null }) {
       <Stack.Screen name="Memorial" component={MemorialScreen} options={{ title: "Remembering", headerShown: true }} />
       <Stack.Screen name="PlayFetch" component={FetchGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
       <Stack.Screen name="PlayBubbles" component={BubblesGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
+      <Stack.Screen name="PlayPetting" component={PettingGameScreen} options={{ headerShown: false, presentation: "fullScreenModal", animation: "fade" }} />
       <Stack.Screen name="PlantStore" component={PlantStoreScreen} options={{ title: "Plant Store", headerShown: true }} />
       <Stack.Screen name="NetworkDebug" component={NetworkDebugScreen} options={{ title: "Network Debug", headerShown: true }} />
       <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} options={{ title: "Diagnostics", headerShown: true }} />

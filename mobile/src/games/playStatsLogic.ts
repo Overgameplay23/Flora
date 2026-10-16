@@ -1,6 +1,7 @@
 // Pure rules for play statistics and the play task; no storage or network here so they are unit-testable.
 
-export type GameId = "fetch" | "bubbles";
+export type GameId = "fetch" | "bubbles" | "petting";
+export const GAME_IDS: GameId[] = ["fetch", "bubbles", "petting"];
 
 export type PlayStats = {
   best: Partial<Record<GameId, number>>;
@@ -12,7 +13,7 @@ export type PlayStats = {
 export function normalizePlayStats(raw: unknown, today: string): PlayStats {
   const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, any>;
   const best: Partial<Record<GameId, number>> = {};
-  for (const game of ["fetch", "bubbles"] as GameId[]) {
+  for (const game of GAME_IDS) {
     const n = Number(value?.best?.[game]);
     // a recorded 0 still means "played"; only missing/negative values are dropped
     if (Number.isFinite(n) && n >= 0 && value?.best?.[game] != null) best[game] = Math.floor(n);

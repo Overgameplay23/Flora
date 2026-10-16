@@ -170,3 +170,94 @@ describe("play stats", () => {
     expect(isPlayTask("Drink water")).toBe(false);
   });
 });
+
+// ---------- pet the pet ----------
+import {
+  CALM_TARGET,
+  FRANTIC_MS,
+  IDLE_MS,
+  PETTING_ROUND_MS,
+  easeCalm,
+  endPettingRound,
+  isPettingOver,
+  newPettingRound,
+  pettingMood,
+  pettingScore,
+  pettingSecondsLeft,
+  pettingSummary,
+  recordStroke,
+  strokeGain,
+} from "../games/petting/pettingLogic";
+import { GAME_IDS } from "../games/playStatsLogic";
+
+describe("pet the pet", () => {
+  it("rewards slow, steady strokes and barely counts frantic ones", () => {
+    expect(strokeGain(null)).toBe(4);
+    expect(strokeGain(100)).toBe(1);
+    expect(strokeGain(800)).toBe(6);
+    expect(strokeGain(3000)).toBe(3);
+    let round = newPettingRound(0);
+    let t = 0;
+    for (let i = 0; i < 10; i++) {
+      t += 700;
+      round = recordStroke(round, t).round;
+    }
+    expect(round.strokes).toBe(10);
+    expect(round.longestFlow).toBe(9);
+    expect(round.calm).toBe(4 + 9 * 6);
+    const frantic = recordStroke(round, t + FRANTIC_MS - 50);
+    expect(frantic.gain).toBe(1);
+    expect(frantic.round.flow).toBe(0);
+  });
+
+  it("purrs at each quarter, fills to full, and cannot be lost", () => {
+    let round = newPettingRound(0);
+    let purrs = 0;
+    let t = 0;
+    while (!isPettingOver(round, t)) {
+      t += 600;
+      const result = recordStroke(round, t);
+      round = result.round;
+      if (result.purr) purrs += 1;
+    }
+    expect(round.calm).toBe(CALM_TARGET);
+    expect(purrs).toBe(4);
+    expect(round.quartersReached).toBe(4);
+    expect(pettingMood(round.calm)).toBe("sleepy");
+    expect(pettingMood(10)).toBe("calm");
+    expect(pettingMood(50)).toBe("happy");
+    expect(pettingScore(round)).toBeGreaterThanOrEqual(100);
+    expect(pettingSummary(round, "Maple")).toMatch(/Maple/);
+    const ended = endPettingRound(round, t);
+    expect(recordStroke(ended, t + 700).gain).toBe(0);
+  });
+
+  it("eases back while idle, never below the last quarter reached", () => {
+    let round = newPettingRound(0);
+    let t = 0;
+    for (let i = 0; i < 6; i++) {
+      t += 700;
+      round = recordStroke(round, t).round;
+    }
+    expect(round.calm).toBe(34);
+    expect(round.quartersReached).toBe(1);
+    // nothing happens before the idle grace
+    expect(easeCalm(round, t + IDLE_MS - 100, t)).toBe(round);
+    const later = easeCalm(round, t + IDLE_MS + 2000, t + IDLE_MS);
+    expect(later.calm).toBeCloseTo(30, 5);
+    const muchLater = easeCalm(later, t + IDLE_MS + 60_000, t + IDLE_MS + 2000);
+    expect(muchLater.calm).toBe(25);
+  });
+
+  it("runs for a minute at most and knows its game id", () => {
+    const round = newPettingRound(1000);
+    expect(pettingSecondsLeft(round, 1000)).toBe(60);
+    expect(isPettingOver(round, 1000 + PETTING_ROUND_MS)).toBe(true);
+    expect(isPettingOver(round, 1000 + PETTING_ROUND_MS - 1)).toBe(false);
+    expect(pettingSummary(round, "Maple")).toMatch(/company/);
+    expect(GAME_IDS).toContain("petting");
+    const stats = applySession(normalizePlayStats(null, "2026-10-16"), "petting", 88, "2026-10-16");
+    expect(stats.stats.best.petting).toBe(88);
+    expect(normalizePlayStats({ best: { petting: 12 } }, "2026-10-16").best.petting).toBe(12);
+  });
+});

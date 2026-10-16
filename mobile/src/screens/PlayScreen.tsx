@@ -19,6 +19,7 @@ import { createPlayTask, findPlayTask, loadPlayStats, type PlayStats } from "../
 const GAMES = [
   { id: "fetch" as const, route: "PlayFetch", title: "Fetch", blurb: "Flick the ball across the lawn. Eight throws, sixty seconds.", icon: "tennisball-outline" },
   { id: "bubbles" as const, route: "PlayBubbles", title: "Bubbles", blurb: "Tap them before they float away. Thirty seconds.", icon: "ellipse-outline" },
+  { id: "petting" as const, route: "PlayPetting", title: "Pet the pet", blurb: "Slow strokes, floating hearts, a very content pet. One calm minute.", icon: "heart-outline" },
 ];
 
 /** The play hub: two games, best scores, and the option to make playtime a daily task. Colour: play gold. */
@@ -115,10 +116,10 @@ export default function PlayScreen({ navigation }: any) {
             {hasTask === null && user?.id ? (
               <ActivityIndicator color={tone.accent} style={styles.taskLoading} />
             ) : hasTask ? (
-              <Text style={[type.callout, { color: surface.text }]}>"Play with {displayName}" is one of your daily tasks. Finishing a game completes it and earns points for the garden.</Text>
+              <Text style={[type.callout, { color: surface.text }]}>"Play with {displayName}" is one of your daily tasks. The first game each day completes it and earns Sprouts for the garden.</Text>
             ) : (
               <View>
-                <Text style={[type.callout, { color: surface.text }]}>Make playtime one of your daily tasks and every game earns points for the garden.</Text>
+                <Text style={[type.callout, { color: surface.text }]}>Your first game each day earns Sprouts for the garden, the same as any care task; "Play with {displayName}" joins your list the first time you play. Add it now if you like.</Text>
                 <Button
                   label={addingTask ? "Adding…" : `Add "Play with ${displayName}"`}
                   icon="add-circle-outline"

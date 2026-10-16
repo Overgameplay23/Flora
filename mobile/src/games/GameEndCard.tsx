@@ -43,7 +43,7 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
   useEffect(() => {
     let alive = true;
     (async () => {
-      const result = await recordPlaySession({ userId, game, score });
+      const result = await recordPlaySession({ userId, game, score, petName });
       let hasTask = result.taskCompleted;
       if (!hasTask && userId) {
         try {
@@ -79,7 +79,7 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
       const mutation = await completeTaskWithResilience({ taskId: task.id, eventMeta: { category: "play", points: null } });
       const completed = mutation.state === "success";
       const points = mutation.state === "success" ? mutation.result.points_awarded : 0;
-      setTaskMessage({ text: points > 0 ? `Added. Today's playtime earned +${points} pts for the garden.` : "Added. It will count from tomorrow.", failed: false });
+      setTaskMessage({ text: points > 0 ? `Added. Today's playtime earned +${points} Sprouts for the garden.` : "Added. It will count from tomorrow.", failed: false });
       setOutcome((prev) => (prev ? { ...prev, hasTask: true, taskCompleted: true, pointsAwarded: points } : prev));
       if (completed) {
         success();
@@ -106,7 +106,7 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
         {outcome ? (
           <Text style={[type.meta, styles.meta, { color: surface.textTertiary }]}>
             Best {outcome.best}
-            {outcome.taskCompleted && outcome.pointsAwarded > 0 ? ` · +${outcome.pointsAwarded} pts for the garden` : ""}
+            {outcome.taskCompleted && outcome.pointsAwarded > 0 ? ` · +${outcome.pointsAwarded} Sprouts for the garden` : ""}
           </Text>
         ) : (
           <ActivityIndicator color={tone.accent} style={styles.meta} />

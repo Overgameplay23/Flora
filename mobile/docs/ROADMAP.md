@@ -50,6 +50,8 @@ one is something a real-pet app can beat:
 - **2026-10-16, later still:** "Add your own" care tasks on Home (Finch's custom goals); **Days Together
   milestones** (1 to 365 days, one moment each, kept as **Keepsakes** with the journeys walked and the day the pet
   moved in: Profile › Keepsakes); the pet's lines on Home follow the **voice** chosen in onboarding.
+- **2026-10-16, evening:** Play (item 6, part): **Pet the pet**, a calm one-minute game, and the first game of the
+  day earns Sprouts on its own (the play task is made the first time). Treat Catch and Memory Match are next.
 
 ## Next, in order
 

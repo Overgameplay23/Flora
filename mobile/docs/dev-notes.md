@@ -500,3 +500,16 @@ the title/colour rules and the device meta.
   Not yet voiced: the task-done toast, the journey lines, the reminders.
 - Verified on web with the test account (day 1): the "First day together" sheet on Home, Keepsakes with the
   milestone and "Maple moved in". jest: `milestones.test.ts` new, `homeDialogue.test.ts` extended.
+
+## 2026-10-16 — "Pet the pet" (a calm game) and Sprouts for the first game of the day
+
+- **Pet the pet** (`src/games/petting/`): the pet sits in the middle of the lawn; slow strokes (a drag, or taps)
+  fill its contentment, hearts float up and a light haptic lands with each stroke; a frantic rub barely counts;
+  stopping lets it ease back a little, never below the last quarter reached. One calm minute, or until the pet is
+  fully content; there is no way to lose. Score = contentment + a little for a steady rhythm. Route `PlayPetting`,
+  listed on the Play hub and the Pet tab. The rules are pure (`pettingLogic.ts`) and tested in `games.test.ts`.
+- **First game of the day earns Sprouts on its own** (roadmap, Play): `recordPlaySession` now makes the "Play with
+  {pet}" task row the first time a game is finished on a day when none exists, then completes it as before, so
+  playtime counts without any setup. The Play hub's wording says so; the "add the task" buttons remain as the
+  explicit option. `GameId` gained `petting` (`GAME_IDS`).
+- Not done: Treat Catch, Memory Match, Hide-and-Seek (roadmap); a leaderboard of any kind (by design, none).

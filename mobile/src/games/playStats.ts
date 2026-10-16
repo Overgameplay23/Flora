@@ -47,11 +47,13 @@ export async function createPlayTask(userId: string, petName: string) {
 }
 
 /**
- * Records a finished session: local stats, a `pet_played` event for the activity log, and, if the person
- * has a play task, completes it for today through complete_task (points for the garden).
+ * Records a finished session: local stats, a `pet_played` event for the activity log, and the play task
+ * completed for today through complete_task (Sprouts for the garden). The first game of the day earns
+ * Sprouts on its own (docs/ROADMAP.md, Play): when there is no play task yet, the first session of the day
+ * makes one ("Play with <pet>") and completes it, so playtime counts without any setup.
  */
-export async function recordPlaySession(options: { userId: string | null | undefined; game: GameId; score: number }) {
-  const { userId, game, score } = options;
+export async function recordPlaySession(options: { userId: string | null | undefined; game: GameId; score: number; petName?: string | null }) {
+  const { userId, game, score, petName } = options;
   const today = getLocalDateKey();
   if (!userId) return { stats: applySession({ ...EMPTY }, game, score, today).stats, bestBeaten: false, taskCompleted: false, pointsAwarded: 0 };
   const current = await loadPlayStats(userId);
@@ -61,7 +63,14 @@ export async function recordPlaySession(options: { userId: string | null | undef
   let taskCompleted = false;
   let pointsAwarded = 0;
   try {
-    const task = await findPlayTask(userId);
+    let task = await findPlayTask(userId);
+    if (!task && stats.sessionsToday === 1) {
+      try {
+        task = await createPlayTask(userId, petName || "your pet");
+      } catch (createError) {
+        console.warn("PLAY_TASK_AUTO_CREATE_FAILED", (createError as any)?.message || String(createError));
+      }
+    }
     if (task) {
       const mutation = await completeTaskWithResilience({ taskId: task.id, eventMeta: { category: "play", points: null } });
       if (mutation.state === "success" && mutation.result.inserted) {
