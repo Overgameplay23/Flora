@@ -444,3 +444,27 @@ progress bar and pinned buttons, `ChoiceCard`, `PetSteps`, `QuizSteps`, `FinishS
   curtains" (+2) → Home with "1 day", 2 Sprouts, focus chip "Sleep · Rhythm", 1 of 3 done. The photo path
   (background painting) could not be driven on web (file picker) and painting itself needs the function on
   Bloom; its state machine is unit-tested.
+
+## 2026-10-16 — Journeys v1 (seven-day arcs, one per focus area)
+
+`docs/ROADMAP.md` item 8, "Journeys: 7-day arcs per focus area". Built on the device, like the plan settings.
+
+- **Content:** `src/domain/journeys/catalog.ts`, ten journeys (one per focus area), seven days each: a theme,
+  a line from the pet and a task from the plan catalog, plus a journal question on the last day (and a few
+  others). Because every step is a catalog task, a step is completed through the same `tasks` row and
+  `complete_task` as any care task (`src/services/journeyActions.ts`): Sprouts, history and the offline queue
+  are unchanged; only the arc lives on the device (`floura:journeys:<uid>`, `src/services/journeyStore.ts`).
+- **Pacing** (`src/domain/journeys/index.ts`): one journey at a time; one step per calendar day (after today's
+  step the card says "Day N done. Tomorrow: …"); a missed day costs nothing, the journey just takes longer
+  ("about <date> at this pace"); the seventh step finishes it (kept in `completed`). Starting another journey
+  sets the current one aside after a `confirmAsync`; leaving keeps what was done. Nothing is ever "broken".
+- **Where:** the active journey's step sits at the top of "Today's care" on Home (`JourneyCard`), with its own
+  check; a step ticked from the care list or a game counts for the arc too. "More with {pet}" has a Journeys
+  door (it names the active journey and its day); Profile › Journeys; routes `Journeys` (list, the person's
+  areas first with a "for you" badge, done dates) and `Journey` (the seven days, today's step, start/leave).
+- **Rhythm journey** ("Gentle days") is listed only when the person tracks their cycle or picked the area;
+  its tasks are the neutral `cozy.*` catalog titles, so nothing cycle-related reaches the database (test).
+- **Not done:** rewards for finishing (a scrapbook page / room item, roadmap), sequels, server sync of the arc.
+- Verified on web with the test account: start "A softer landing" from the list, day one "Today" in the
+  detail, the card on Home, tick from Home → "Day 1 done. Tomorrow: Tomorrow's note.", +2 Sprouts toast,
+  carousel "Day 1 of 7". jest: `journeys.test.ts` (catalog invariants, pacing, junk, store).

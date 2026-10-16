@@ -45,6 +45,8 @@ one is something a real-pet app can beat:
   the plan, the morning reminder with a time, one small thing. Still waiting on the owner: anonymous sign-in
   (Bloom setting) so the account comes after the first minutes, Apple/Google sign-in (app identity + dev build),
   the soft paywall (Club decision).
+- **2026-10-16, later:** **Journeys v1** (item 8): ten seven-day arcs, one per focus area, paced one step a day with
+  no penalties; today's step on Home, a Journeys list and detail. Rewards for finishing and sequels are next.
 
 ## Next, in order
 

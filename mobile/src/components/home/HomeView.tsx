@@ -7,6 +7,7 @@ import CareTaskCard from "./CareTaskCard";
 import MoreCarousel, { type MoreItem } from "./MoreCarousel";
 import WeekCard, { type WeekDay } from "./WeekCard";
 import CareToast from "./CareToast";
+import JourneyCard, { type JourneyCardProps } from "./JourneyCard";
 import { AllDoneCard, FocusPromptCard, MemorialCard, SectionTitle } from "./HomeCards";
 import type { Energy } from "../../domain/plan/types";
 import { brand, radius, surfaceFor, type } from "../../theme/tokens";
@@ -34,6 +35,8 @@ export type HomeViewProps = Omit<HomeHeroProps, "height" | "petLine"> & {
   focusLabel: string | null;
   focusCategory: string | null;
   onOpenFocus: () => void;
+  /** today's step of the active journey, shown at the top of today's care */
+  journey?: Omit<JourneyCardProps, "surface"> | null;
   tasks: HomeTask[];
   loadingTasks: boolean;
   tasksError: string | null;
@@ -93,6 +96,7 @@ export default function HomeView(props: HomeViewProps) {
                   onOpenFocus={props.onOpenFocus}
                   surface={surface}
                 />
+                {props.journey ? <JourneyCard {...props.journey} surface={surface} /> : null}
                 {props.focusChosen ? null : <FocusPromptCard petName={props.petName} onPress={props.onOpenFocus} surface={surface} />}
                 {allDone ? <AllDoneCard petName={props.petName} surface={surface} /> : null}
                 {props.loadingTasks && total === 0 ? (

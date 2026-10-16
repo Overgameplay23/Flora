@@ -139,6 +139,7 @@ export default function ProfileScreen({ navigation }) {
       <Eyebrow style={styles.sectionTitle}>Reflect</Eyebrow>
       <ListGroup>
         <ListRow icon="book-outline" category="connection" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
+        <ListRow icon="map-outline" category="focus" label="Journeys" hint="Seven-day arcs, one small step a day" onPress={() => navigation.navigate("Journeys")} />
         <ListRow icon="sunny-outline" category="energy" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />
         <ListRow icon="create-outline" category="focus" label="Journal" hint="A few lines for yourself" onPress={() => navigation.navigate("Journal")} />
         <ListRow icon="flower-outline" category="cycle" label="Cycle tracking" hint={cycleEnabled ? "On · stays on this device" : "Off · optional, on-device only"} onPress={() => navigation.navigate("Cycle")} />

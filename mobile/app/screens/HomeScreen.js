@@ -14,6 +14,10 @@ import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
 import { useReminderTaps } from "../../src/hooks/useReminderTaps";
 import { useTodayPlan } from "../../src/hooks/useTodayPlan";
+import { useJourney } from "../../src/hooks/useJourney";
+import { journeyLine } from "../../src/domain/journeys";
+import { catalogById, renderTitle } from "../../src/domain/plan/catalog";
+import { completeJourneyTask } from "../../src/services/journeyActions";
 import { todayKey } from "../../src/services/dailyLoop";
 import { fetchCatalog, fetchGardenPoints, fetchUserPlants } from "../../src/services/garden";
 import { fetchDaysTogether } from "../../src/services/homeStats";
@@ -173,6 +177,20 @@ export default function HomeScreen() {
     onPendingQueued: () => void syncQueuedRef.current?.("plan_pending"),
   });
 
+  // ---- the active journey: today's step sits at the top of today's care ------------------------------
+  const journeyState = useJourney(user?.id ?? null, homeDateKey);
+  const [journeySaving, setJourneySaving] = useState(false);
+  const [journeyNotice, setJourneyNotice] = useState(null);
+  const journeyTask = journeyState.step ? catalogById(journeyState.step.day.taskId) : null;
+  // a step whose task was ticked from the care list (or a game) counts as done in the arc too
+  useEffect(() => {
+    const step = journeyState.step;
+    if (!step || step.done || !journeyTask) return;
+    const item = plan.items.find((row) => row.planned.task.id === journeyTask.id);
+    if (item?.done) void journeyState.completeToday();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.items, journeyState.step?.index, journeyState.step?.done, journeyTask?.id]);
+
   // ---- the battery check, kept per day on the device --------------------------------------------------
   useEffect(() => {
     let alive = true;
@@ -323,6 +341,44 @@ export default function HomeScreen() {
     },
     [celebrate, completing, loadSideData, petDisplayName, plan, user?.id]
   );
+
+  const completeJourneyStep = useCallback(async () => {
+    const step = journeyState.step;
+    if (!step || step.done || !user?.id || journeySaving || !journeyTask) return;
+    setJourneySaving(true);
+    setJourneyNotice(null);
+    try {
+      const outcome = await completeJourneyTask(user.id, journeyTask.id, petDisplayName, petNameKnown);
+      if (outcome.state === "no_row") {
+        // no row yet: keep the tick on this phone the way the care list does; the arc still moves on
+        await plan.tickPending(journeyTask.id);
+        setJourneyNotice({ type: "queued", message: "Saved on this phone. It syncs when you're back online." });
+      } else {
+        plan.markDone(journeyTask.id);
+        if (outcome.state === "queued") setJourneyNotice({ type: "queued", message: "Saved on this phone. It syncs when you're back online." });
+      }
+      await journeyState.completeToday();
+      completedThisSession.current = true;
+      playDing();
+      haptics.tapSoft();
+      const last = step.index + 1 >= step.total;
+      setPetReaction(last ? "love" : "cheer");
+      setPetAct(journeyTask.act || actForTask(renderTitle(journeyTask, petDisplayName)));
+      const points = outcome.state === "success" ? outcome.points : 0;
+      if (points > 0) setSprouts((prev) => (typeof prev === "number" ? prev + points : prev));
+      setToast({
+        id: Date.now(),
+        text: last ? `${journeyState.journey?.title ?? "Your journey"}: done. ${petDisplayName} is so proud of you.` : careDoneLine(petDisplayName, points, Date.now() / 1000),
+      });
+      void loadSideData();
+    } catch (error) {
+      haptics.warning();
+      setJourneyNotice({ type: "error", message: "Couldn't save that. Tap to try again." });
+      console.error("JOURNEY_STEP_ERROR", error);
+    } finally {
+      setJourneySaving(false);
+    }
+  }, [journeySaving, journeyState, journeyTask, loadSideData, petDisplayName, petNameKnown, plan, user?.id]);
 
   // all of today's care done: one bigger moment, once per day
   const doneCount = plan.items.filter((item) => item.done).length;
@@ -590,6 +646,14 @@ export default function HomeScreen() {
   const more = useMemo(() => {
     const items = [
       { key: "play", title: `Play with ${petDisplayName}`, subtitle: "Fetch, bubbles and more", icon: "tennisball-outline", category: "play", onPress: () => navigation.navigate("Play") },
+      {
+        key: "journeys",
+        title: journeyState.journey ? journeyState.journey.title : "Journeys",
+        subtitle: journeyState.journey && journeyState.step ? `Day ${journeyState.step.index + 1} of ${journeyState.step.total}` : "Seven small steps, one a day",
+        icon: "map-outline",
+        category: "focus",
+        onPress: () => navigation.navigate("Journeys"),
+      },
       { key: "breathe", title: "Breathe together", subtitle: "One slow minute", icon: "leaf-outline", category: "calm", onPress: () => navigation.navigate("Breathing") },
       { key: "journal", title: `Write to ${petDisplayName}`, subtitle: "Today's question is waiting", icon: "book-outline", category: "connection", onPress: () => navigation.navigate("Journal") },
       {
@@ -613,7 +677,26 @@ export default function HomeScreen() {
     // on a heavy day, the calmest door comes first
     if (gentle) items.sort((a, b) => (a.key === "breathe" ? -1 : b.key === "breathe" ? 1 : 0));
     return items;
-  }, [cycle.enabled, cycle.status?.cycleDay, cycle.status?.phase, gentle, hasExistingCheckin, navigation, petDisplayName, theme]);
+  }, [cycle.enabled, cycle.status?.cycleDay, cycle.status?.phase, gentle, hasExistingCheckin, journeyState.journey, journeyState.step, navigation, petDisplayName, theme]);
+
+  const journeyCard =
+    journeyState.step && journeyState.journey && !inMemorial
+      ? {
+          journeyTitle: journeyState.journey.title,
+          dayIndex: journeyState.step.index,
+          total: journeyState.step.total,
+          dayTitle: journeyState.step.day.title,
+          petLine: journeyLine(journeyState.step.day.petLine, petDisplayName),
+          task: journeyTask ? { title: renderTitle(journeyTask, petDisplayName), category: journeyTask.category, icon: journeyTask.icon, minutes: journeyTask.minutes } : null,
+          done: journeyState.step.done,
+          nextTitle: journeyState.step.next?.title ?? null,
+          saving: journeySaving,
+          notice: journeyNotice,
+          onOpen: () => navigation.navigate("Journey", { journeyId: journeyState.journey.id }),
+          onComplete: () => void completeJourneyStep(),
+          onRetry: () => void completeJourneyStep(),
+        }
+      : null;
 
   const footerLinks = [
     { label: "All tasks", onPress: () => navigation.navigate("Tasks") },
@@ -665,6 +748,7 @@ export default function HomeScreen() {
         focusLabel={plan.settings?.chosen && focusAreas.length ? focusAreas.map((area) => area.short).join(" · ") : null}
         focusCategory={focusAreas[0]?.category ?? null}
         onOpenFocus={() => setFocusOpen(true)}
+        journey={journeyCard}
         tasks={tasks}
         loadingTasks={plan.loading}
         tasksError={plan.error}
