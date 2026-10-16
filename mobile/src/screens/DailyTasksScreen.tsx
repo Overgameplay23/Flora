@@ -124,13 +124,17 @@ export default function DailyTasksScreen() {
   );
 
   /** A tick landed: a soft tap, and the pet notices (cheer + a line in the toast). */
-  const celebrate = useCallback(() => {
-    completedThisSession.current = true;
-    tapSoft();
-    if (memorial) return;
-    setPetReaction("cheer");
-    setToast({ id: Date.now(), text: careDoneLine(displayName, 0, Date.now() / 1000) });
-  }, [displayName, memorial]);
+  const celebrate = useCallback(
+    (points: number = 0) => {
+      completedThisSession.current = true;
+      tapSoft();
+      if (memorial) return;
+      setPetReaction("cheer");
+      // the same line Home uses, Sprouts included, so a tick reads the same wherever it lands
+      setToast({ id: Date.now(), text: careDoneLine(displayName, Math.max(0, Number(points) || 0), Date.now() / 1000) });
+    },
+    [displayName, memorial]
+  );
 
   const toggleTask = async (id: number | string, options?: { retry?: boolean }) => {
     const retry = !!options?.retry;
@@ -162,7 +166,7 @@ export default function DailyTasksScreen() {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: true } : t)));
       if (mutation.result.inserted) {
         playDing();
-        celebrate();
+        celebrate(mutation.result.points_awarded);
       } else notify("Already done today", "That one is already in the garden.");
     } catch (error) {
       warning();

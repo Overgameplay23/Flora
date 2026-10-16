@@ -28,13 +28,18 @@ import {
 } from "../domain/plan";
 import { isPlayTask, playTaskTitle } from "../games/playStatsLogic";
 import {
+  addPendingPlanTick,
   ensurePlanTaskRows,
+  flushPendingPlanTicks,
+  loadPendingPlanTicks,
   loadPlanHistory,
   loadPlanSettings,
   loadTodayEnergy,
+  pendingPlanTickIds,
   recordPlanShown,
   savePlanSettings,
   saveTodayEnergy,
+  tasksSafeToCreate,
 } from "../services/planStore";
 import { addDaysToDateKey } from "../utils/dateKeys";
 
@@ -504,14 +509,87 @@ describe("planStore", () => {
     expect(await loadTodayEnergy("u1", TODAY)).toBeNull();
   });
 
-  it("logs what was shown, merges re-plans and forgets days past the window", async () => {
+  it("logs what was shown, keeps only a day's latest plan when it re-plans, and forgets days past the window", async () => {
     const old = addDaysToDateKey(TODAY, -40);
-    await AsyncStorage.setItem("floura:plan-shown:u1", JSON.stringify({ [old]: ["body.water"], junk: ["x"] }));
+    const yesterday = addDaysToDateKey(TODAY, -1);
+    await AsyncStorage.setItem("floura:plan-shown:u1", JSON.stringify({ [old]: ["body.water"], [yesterday]: ["rest.pause"], junk: ["x"] }));
     await recordPlanShown("u1", TODAY, ["body.water", "calm.box_breath"]);
+    // the evening plan replaced water with dim-lights: water was not passed over, so it leaves the log
     await recordPlanShown("u1", TODAY, ["calm.box_breath", "sleep.dim_lights"]);
     const log = JSON.parse((await AsyncStorage.getItem("floura:plan-shown:u1")) as string);
-    expect(Object.keys(log)).toEqual([TODAY]);
-    expect(log[TODAY].sort()).toEqual(["body.water", "calm.box_breath", "sleep.dim_lights"]);
+    expect(Object.keys(log).sort()).toEqual([yesterday, TODAY].sort());
+    expect(log[TODAY].sort()).toEqual(["calm.box_breath", "sleep.dim_lights"]);
+    expect(log[yesterday]).toEqual(["rest.pause"]);
+  });
+
+  it("keeps a tick made before its row existed, and queues it (dated by the tap) once the row is known", async () => {
+    const yesterday = addDaysToDateKey(TODAY, -1);
+    const tapped = new Date("2026-10-15T21:03:00.000Z");
+    expect(await loadPendingPlanTicks("u1", TODAY)).toEqual([]);
+    await addPendingPlanTick("u1", yesterday, "calm.box_breath", tapped);
+    await addPendingPlanTick("u1", TODAY, "body.water");
+    await addPendingPlanTick("u1", TODAY, "body.water"); // twice is still one tick
+    await addPendingPlanTick("u1", TODAY, "not.a.task");
+    await addPendingPlanTick("u1", "nonsense", "body.water");
+    expect(await loadPendingPlanTicks("u1", TODAY)).toEqual(["body.water"]);
+    expect((await pendingPlanTickIds("u1")).sort()).toEqual(["body.water", "calm.box_breath"]);
+
+    const enqueue = jest.fn(async (..._args: any[]) => undefined);
+    // only water has a row yet: it is queued for today; the breathing tick waits
+    expect(await flushPendingPlanTicks("u1", { "body.water": 12 }, enqueue, TODAY)).toBe(1);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue.mock.calls[0][0]).toBe(12);
+    expect(enqueue.mock.calls[0][1]).toBe(TODAY);
+    expect(enqueue.mock.calls[0][2]).toEqual({ category: "nourish", difficulty: 1, points: null });
+    expect(await loadPendingPlanTicks("u1", TODAY)).toEqual([]);
+    expect(await pendingPlanTickIds("u1")).toEqual(["calm.box_breath"]);
+
+    // the breathing row arrives: queued for yesterday, at the time it was tapped
+    expect(await flushPendingPlanTicks("u1", { "calm.box_breath": 40 }, enqueue, TODAY)).toBe(1);
+    expect(enqueue.mock.calls[1]).toEqual([40, yesterday, { category: "calm", difficulty: 1, points: null }, tapped.toISOString()]);
+    expect(await AsyncStorage.getItem("floura:plan-pending-ticks:u1")).toBeNull();
+
+    // a queue that fails keeps the tick; a tick older than the window is dropped
+    await addPendingPlanTick("u1", TODAY, "body.water");
+    await addPendingPlanTick("u1", addDaysToDateKey(TODAY, -40), "rest.pause");
+    const failing = jest.fn(async () => {
+      throw new Error("no storage");
+    });
+    expect(await flushPendingPlanTicks("u1", { "body.water": 12 }, failing, TODAY)).toBe(0);
+    expect(await pendingPlanTickIds("u1")).toEqual(["body.water"]);
+  });
+
+  it("never writes the pet's name into a row before the name is known", () => {
+    const tasks = ["pet.play", "body.water", "lift.pet_photo"].map((id) => catalogById(id)!);
+    expect(tasksSafeToCreate(tasks, true)).toEqual(tasks);
+    expect(tasksSafeToCreate(tasks, false).map((task) => task.id)).toEqual(["body.water"]);
+    expect(tasksSafeToCreate([], false)).toEqual([]);
+  });
+
+  it("can quieten the other plan rows, but never the person's own tasks or the play row", async () => {
+    mockDb.tasks.push(
+      { id: 1, user_id: "u1", title: "Drink water", active: true },
+      { id: 2, user_id: "u1", title: "Box breathing for one minute", active: true },
+      { id: 3, user_id: "u1", title: "Play with Biscuit", active: true },
+      { id: 4, user_id: "u1", title: "Water the ferns", active: true },
+      { id: 5, user_id: "u2", title: "Box breathing for one minute", active: true }
+    );
+    mockDb.nextId = 10;
+    const today = [catalogById("body.water")!];
+    expect(await ensurePlanTaskRows("u1", today, "Biscuit", { deactivateStale: true })).toEqual({ "body.water": 1 });
+    const active = (id: number) => mockDb.tasks.find((row) => row.id === id)!.active;
+    expect(active(1)).toBe(true);
+    expect(active(2)).toBe(false); // yesterday's plan row
+    expect(active(3)).toBe(true); // the games complete this one
+    expect(active(4)).toBe(true); // written by the person
+    expect(active(5)).toBe(true); // someone else's
+    expect(mockDb.deletes).toBe(0);
+
+    // picked again later: back on, no duplicate; a plain ensure never quietens anything
+    expect(await ensurePlanTaskRows("u1", [catalogById("calm.box_breath")!], "Biscuit")).toEqual({ "calm.box_breath": 2 });
+    expect(active(2)).toBe(true);
+    expect(active(1)).toBe(true);
+    expect(mockDb.tasks.length).toBe(5);
   });
 
   it("rebuilds history from the shown log and completions, leaving today out", async () => {

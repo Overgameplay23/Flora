@@ -1,11 +1,13 @@
 import "./global.css";
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { AuthProvider } from './src/contexts/AuthContext';
 import RootNavigator from './app/navigation/RootNavigator';
 import { runStartupNetworkDiagnostics } from "./src/utils/net";
 import { useAppFonts } from "./src/theme/fonts";
 import { ThemeProvider } from "./src/theme/theme";
+import { dayPhase } from "./src/domain/timeOfDay";
+import { skyFor } from "./src/theme/tokens";
 
 // Kick off connectivity probes before the app renders; failures are logged but won't block startup.
 void runStartupNetworkDiagnostics();
@@ -20,8 +22,10 @@ const DESIGN_PREVIEW =
 export default function App() {
   // Fraunces + Nunito (src/theme/tokens.ts); a failed load falls through to the system font.
   const fontsReady = useAppFonts();
-  if (!fontsReady) return null;
-  if (DESIGN_PREVIEW) {
+  // the sky of the hour instead of a white frame while the fonts register (a slow first web load)
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: skyFor(dayPhase(new Date().getHours())).mid }} />;
+  // `__DEV__ &&` again here so the release bundle drops the require (a variable test alone is not folded away)
+  if (__DEV__ && DESIGN_PREVIEW) {
     const DesignPreview = require("./src/screens/dev/DesignPreview").default;
     return <DesignPreview name={DESIGN_PREVIEW.toLowerCase()} />;
   }

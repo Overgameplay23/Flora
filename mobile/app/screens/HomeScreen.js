@@ -123,6 +123,7 @@ export default function HomeScreen() {
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [returnNote, setReturnNote] = useState(null);
   const lastSeenChecked = useRef(null);
+  const inFlightTicks = useRef(new Set());
   const openedTask = useRef(null);
   const celebratedAllDone = useRef(null);
   // true once something was ticked in this session, so the all-done moment never fires just for opening the app
@@ -143,25 +144,33 @@ export default function HomeScreen() {
   // network cannot hold it back for more than a moment.
   const [energyLoadedFor, setEnergyLoadedFor] = useState(null);
   const [returnChecked, setReturnChecked] = useState(false);
-  const [readyFallback, setReadyFallback] = useState(false);
+  // the fallback is per day and user: after midnight the new day's plan waits for the new day's battery answer
+  const readyKey = `${user?.id ?? "guest"}:${homeDateKey}`;
+  const [readyFallbackFor, setReadyFallbackFor] = useState(null);
   useEffect(() => {
-    const id = setTimeout(() => setReadyFallback(true), 2500);
+    const id = setTimeout(() => setReadyFallbackFor(readyKey), 2500);
     return () => clearTimeout(id);
-  }, []);
+  }, [readyKey]);
   const planReady =
     !user?.id ||
-    readyFallback ||
-    (energyLoadedFor === `${user.id}:${homeDateKey}` && returnChecked && !cycle.loading && petStatus !== "loading" && petStatus !== "idle");
+    readyFallbackFor === readyKey ||
+    (energyLoadedFor === readyKey && returnChecked && !cycle.loading && petStatus !== "loading" && petStatus !== "idle");
+  // rows whose title carries the pet's name wait until the name is known (never a stored "Play with Your pet")
+  const petNameKnown = petStatus === "ready" && !!normalizePetName(petName);
+  const syncQueuedRef = useRef(null);
 
   const plan = useTodayPlan({
     userId: user?.id ?? null,
     petName: petDisplayName,
+    petKnown: petNameKnown,
     dateKey: homeDateKey,
     energy,
     returning,
     memorial: inMemorial,
     cyclePhase,
     ready: planReady,
+    // ticks kept on this phone just got their rows: push the queue now rather than at the next foreground
+    onPendingQueued: () => void syncQueuedRef.current?.("plan_pending"),
   });
 
   // ---- the battery check, kept per day on the device --------------------------------------------------
@@ -171,6 +180,8 @@ export default function HomeScreen() {
       setEnergy(null);
       return undefined;
     }
+    // a new day starts unanswered: yesterday's battery must never shape today's plan
+    setEnergy(null);
     loadTodayEnergy(user.id, homeDateKey)
       .then((value) => {
         if (alive) setEnergy(value ?? null);
@@ -248,7 +259,8 @@ export default function HomeScreen() {
   const completeItem = useCallback(
     async (item, options = {}) => {
       const key = item.planned.task.id;
-      if (item.done || completing[key]) return;
+      // a ref as well as state: the card has two targets, and two taps can land before the re-render
+      if (item.done || completing[key] || inFlightTicks.current.has(key)) return;
       if (!user?.id) {
         // signed out (nothing to sync against): tick it here so the moment still lands
         completedThisSession.current = true;
@@ -256,6 +268,7 @@ export default function HomeScreen() {
         celebrate(item, 0);
         return;
       }
+      inFlightTicks.current.add(key);
       setCompleting((prev) => ({ ...prev, [key]: true }));
       setNoticeByTask((prev) => {
         const next = { ...prev };
@@ -265,7 +278,15 @@ export default function HomeScreen() {
       try {
         // the batch row lookup can miss a task on a flaky network; never fake a tick that was not saved
         const taskId = item.taskId ?? (await plan.ensureRow(item.planned.task));
-        if (taskId == null) throw new Error("No task row for this care task yet");
+        if (taskId == null) {
+          // no row yet (offline before this task ever had one, or the pet still unnamed): the tick stays on
+          // this phone, shows as done, and is queued for the server as soon as the row can be made
+          await plan.tickPending(key);
+          completedThisSession.current = true;
+          setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
+          celebrate(item, 0);
+          return;
+        }
         const category = item.planned.task.category;
         const mutation = await completeTaskWithResilience({
           taskId,
@@ -292,6 +313,7 @@ export default function HomeScreen() {
         setNoticeByTask((prev) => ({ ...prev, [key]: { type: "error", message: "Couldn't save that. Tap to try again." } }));
         console.error("TASK_COMPLETE_ERROR", error);
       } finally {
+        inFlightTicks.current.delete(key);
         setCompleting((prev) => {
           const next = { ...prev };
           delete next[key];
@@ -364,25 +386,41 @@ export default function HomeScreen() {
   );
 
   // ---- Graceful Hibernation: after days away, a warm welcome once per visit, no backlog ---------------
+  // The welcome, and the smaller day it brings, holds for the whole day: opening the app again at noon must
+  // not swap the gentle plan for a full one.
   useEffect(() => {
     if (!user?.id || lastSeenChecked.current === user.id) return;
     lastSeenChecked.current = user.id;
     const key = `floura:last-seen:${user.id}`;
+    const noteKey = `floura:return-note:${user.id}`;
     (async () => {
       try {
+        const today = todayKey();
         const previous = await AsyncStorage.getItem(key);
-        const status = returnStatus(previous, todayKey());
+        const status = returnStatus(previous, today);
+        let note = null;
         if (status.kind === "hibernation" || (status.kind === "back" && status.daysAway >= 2)) {
-          setReturnNote(status);
-          setPetReaction("love");
+          note = status;
+        } else if (status.kind === "same-day") {
+          const saved = JSON.parse((await AsyncStorage.getItem(noteKey)) || "null");
+          if (saved && saved.day === today && saved.status) note = saved.status;
         }
-        await AsyncStorage.setItem(key, nextLastSeen(previous, todayKey()));
+        if (note) {
+          setReturnNote({ ...note, day: today });
+          setPetReaction("love");
+          await AsyncStorage.setItem(noteKey, JSON.stringify({ day: today, status: note }));
+        }
+        await AsyncStorage.setItem(key, nextLastSeen(previous, today));
       } catch (_error) {
       } finally {
         setReturnChecked(true);
       }
     })();
   }, [user?.id]);
+  // the welcome belongs to the day it was shown
+  useEffect(() => {
+    if (returnNote?.day && returnNote.day !== homeDateKey) setReturnNote(null);
+  }, [homeDateKey, returnNote?.day]);
 
   // ---- reminders in the pet's voice (rate-limited inside; immediate when memorial flips) ---------------
   useReminderTaps();
@@ -418,6 +456,7 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [loadSideData, user?.id]
   );
+  syncQueuedRef.current = syncQueued;
   useEffect(() => {
     if (!user?.id) return undefined;
     void syncQueued("startup");

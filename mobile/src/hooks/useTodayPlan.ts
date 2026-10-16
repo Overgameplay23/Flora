@@ -4,8 +4,19 @@ import { supabase } from "../lib/supabase";
 import { buildDailyPlan, catalogById, catalogIdForTitle, renderTitle } from "../domain/plan";
 import { DEFAULT_PLAN_SETTINGS } from "../domain/plan/focusAreas";
 import type { CatalogTask, Energy, PlanInput, PlanSettings, PlannedTask } from "../domain/plan/types";
-import { ensurePlanTaskRows, loadPlanHistory, loadPlanSettings, recordPlanShown, savePlanSettings } from "../services/planStore";
-import { completionDateKey } from "../services/taskCompletion";
+import {
+  addPendingPlanTick,
+  ensurePlanTaskRows,
+  flushPendingPlanTicks,
+  loadPendingPlanTicks,
+  loadPlanHistory,
+  loadPlanSettings,
+  pendingPlanTickIds,
+  recordPlanShown,
+  savePlanSettings,
+  tasksSafeToCreate,
+} from "../services/planStore";
+import { enqueuePendingCompletion } from "../services/taskCompletion";
 
 export type TodayPlanItem = {
   planned: PlannedTask;
@@ -19,6 +30,11 @@ export type TodayPlanItem = {
 type Options = {
   userId: string | null;
   petName: string;
+  /**
+   * true once the pet's real name is known. Until then no row whose title carries the name is written
+   * ("Play with Your pet" would be stored for good); the plan still shows those tasks.
+   */
+  petKnown: boolean;
   dateKey: string;
   energy: Energy | null;
   returning: boolean;
@@ -30,6 +46,8 @@ type Options = {
    * logged as "shown" and create task rows for tasks nobody saw.
    */
   ready: boolean;
+  /** ticks kept on this device got their rows and are in the offline queue now: time to sync it */
+  onPendingQueued?: () => void;
 };
 
 type CachedPlan = { signature: string; planned: Array<{ id: string; slot: PlannedTask["slot"]; reason: string }> };
@@ -70,14 +88,17 @@ function revive(cached: CachedPlan): PlannedTask[] {
  * and then held still (cached per day), so it does not reshuffle while the person is using it; changing
  * the battery check, the focus areas or the part of the day rebuilds it, always keeping what is already
  * done. Each item is backed by a row in `tasks`, so completing it goes through the existing complete_task
- * path (and the offline queue) and earns Sprouts like any other task.
+ * path (and the offline queue) and earns Sprouts like any other task. A tick made before a row exists is
+ * kept on the device (tickPending) and queued as soon as the row can be made.
  */
-export function useTodayPlan({ userId, petName, dateKey, energy, returning, memorial, cyclePhase, ready }: Options) {
+export function useTodayPlan({ userId, petName, petKnown, dateKey, energy, returning, memorial, cyclePhase, ready, onPendingQueued }: Options) {
   const [settings, setSettings] = useState<(PlanSettings & { chosen: boolean }) | null>(null);
   const [items, setItems] = useState<TodayPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
+  const onPendingQueuedRef = useRef(onPendingQueued);
+  onPendingQueuedRef.current = onPendingQueued;
   // ticks made on this device today; a reload that started before a tick can never un-tick it
   const localDone = useRef<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
   const doneKey = `${userId ?? "guest"}:${dateKey}`;
@@ -107,10 +128,12 @@ export function useTodayPlan({ userId, petName, dateKey, energy, returning, memo
 
       const stored = await loadPlanSettings(userId);
       if (superseded()) return;
-      const [rowsResult, completionsResult, history] = await Promise.all([
+      const [rowsResult, completionsResult, history, pendingToday] = await Promise.all([
         supabase.from("tasks").select("id, title").eq("user_id", userId),
-        supabase.from("task_completions").select("task_id").eq("user_id", userId).eq("completed_date", completionDateKey()),
+        // the same day the plan is for (not "now"): past midnight with Home still open they can differ
+        supabase.from("task_completions").select("task_id").eq("user_id", userId).eq("completed_date", dateKey),
         loadPlanHistory(userId, dateKey, petName),
+        loadPendingPlanTicks(userId, dateKey),
       ]);
       if (superseded()) return;
       // Offline (or a failing read) is not an error screen: the plan is still built (from today's cache when
@@ -119,6 +142,8 @@ export function useTodayPlan({ userId, petName, dateKey, energy, returning, memo
       if (offline) console.warn("TODAY_PLAN_READ_FAILED", rowsResult.error?.message || completionsResult.error?.message);
       const rows = (rowsResult.error ? [] : rowsResult.data || []) as Array<{ id: number; title: string }>;
       const doneTaskIds = new Set(((completionsResult.error ? [] : completionsResult.data) || []).map((row: any) => String(row.task_id)));
+      // ticks kept on this device (no row yet when they were made) count as done today
+      pendingToday.forEach((catalogId) => localDone.current.ids.add(catalogId));
       // whatever is already done today stays on the list, whichever list it came from
       const pinned = new Set<string>(localDone.current.ids);
       rows.forEach((row) => {
@@ -152,8 +177,24 @@ export function useTodayPlan({ userId, petName, dateKey, energy, returning, memo
         void pruneOldPlans(userId, dateKey);
       }
 
-      const taskIds = await ensurePlanTaskRows(userId, planned.map((p) => p.task), petName);
+      // today's rows (made or matched); other plan rows go quiet so "All tasks" shows today's plan
+      const taskIds = await ensurePlanTaskRows(userId, tasksSafeToCreate(planned.map((p) => p.task), petKnown), petName, { deactivateStale: true });
       if (superseded()) return;
+
+      // ticks made before a row existed: make their rows now that we may be online, then queue them
+      try {
+        const waiting = await pendingPlanTickIds(userId);
+        if (waiting.length > 0) {
+          const missing = waiting.filter((catalogId) => taskIds[catalogId] == null).map((catalogId) => catalogById(catalogId)).filter(Boolean) as CatalogTask[];
+          const extra = missing.length > 0 ? await ensurePlanTaskRows(userId, tasksSafeToCreate(missing, petKnown), petName) : {};
+          const queued = await flushPendingPlanTicks(userId, { ...taskIds, ...extra }, enqueuePendingCompletion, dateKey);
+          if (queued > 0) onPendingQueuedRef.current?.();
+        }
+      } catch (flushError: any) {
+        console.warn("TODAY_PLAN_PENDING_FLUSH_FAILED", flushError?.message || String(flushError));
+      }
+      if (superseded()) return;
+
       const finalPlan = planned;
       setSettings(stored);
       setItems((prev) => {
@@ -172,7 +213,7 @@ export function useTodayPlan({ userId, petName, dateKey, energy, returning, memo
     } finally {
       if (!superseded()) setLoading(false);
     }
-  }, [cyclePhase, dateKey, energy, memorial, petName, ready, returning, userId]);
+  }, [cyclePhase, dateKey, energy, memorial, petKnown, petName, ready, returning, userId]);
 
   useEffect(() => {
     void reload();
@@ -193,17 +234,30 @@ export function useTodayPlan({ userId, petName, dateKey, energy, returning, memo
     setItems((prev) => prev.map((item) => (item.planned.task.id === catalogId ? { ...item, done: true } : item)));
   }, []);
 
+  /**
+   * Tick a task that has no row yet (offline before it ever had one, or the pet unnamed): kept on this device
+   * and queued for the server as soon as the row can be made.
+   */
+  const tickPending = useCallback(
+    async (catalogId: string) => {
+      if (userId) await addPendingPlanTick(userId, dateKey, catalogId);
+      markDone(catalogId);
+    },
+    [dateKey, markDone, userId]
+  );
+
   /** Makes sure one task has a row (the batch call may have missed it on a flaky network); returns its id. */
   const ensureRow = useCallback(
     async (task: CatalogTask): Promise<number | null> => {
       if (!userId) return null;
+      if (tasksSafeToCreate([task], petKnown).length === 0) return null;
       const ids = await ensurePlanTaskRows(userId, [task], petName);
       const taskId = ids[task.id] ?? null;
       if (taskId != null) setItems((prev) => prev.map((item) => (item.planned.task.id === task.id ? { ...item, taskId } : item)));
       return taskId;
     },
-    [petName, userId]
+    [petKnown, petName, userId]
   );
 
-  return { settings, items, loading, error, reload, saveSettings, markDone, ensureRow };
+  return { settings, items, loading, error, reload, saveSettings, markDone, tickPending, ensureRow };
 }

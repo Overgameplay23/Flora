@@ -98,12 +98,16 @@ async function readShownLog(userId: string): Promise<ShownLog> {
   }
 }
 
-/** Adds today's plan to the log (a day that re-plans keeps every id it showed) and drops days past the window. */
+/**
+ * Records today's plan in the log and drops days past the window. A day that re-plans (the battery answer,
+ * a focus change, the evening) keeps only its latest list: a task the evening plan replaced was not passed
+ * over, so it must not collect a skip penalty (done tasks stay pinned, so they are always in the list).
+ */
 export async function recordPlanShown(userId: string, dateKey: string, catalogIds: string[]): Promise<void> {
   if (!userId || !parseDateKey(dateKey)) return;
   try {
     const log = await readShownLog(userId);
-    const today = new Set(log[dateKey] || []);
+    const today = new Set<string>();
     for (const id of Array.isArray(catalogIds) ? catalogIds : []) if (typeof id === "string" && id) today.add(id);
 
     const oldest = addDaysToDateKey(dateKey, -HISTORY_DAYS);
@@ -115,6 +119,115 @@ export async function recordPlanShown(userId: string, dateKey: string, catalogId
   } catch (error) {
     warn("PLAN_SHOWN_SAVE_FAILED", error);
   }
+}
+
+// ---------- ticks made before a row existed ----------
+// Offline on a task's first day, or before the pet's name is known, there is no tasks row to queue a
+// completion against. The tick is kept here by catalog id and day (and shown as done) until a row exists;
+// flushPendingPlanTicks then turns it into a queued completion stamped with the time of the tap.
+
+type PendingTick = { id: string; at: string };
+type PendingTicks = Record<string, PendingTick[]>;
+const pendingTicksKey = (userId: string) => `floura:plan-pending-ticks:${userId}`;
+
+async function readPendingTicks(userId: string): Promise<PendingTicks> {
+  try {
+    const raw = await AsyncStorage.getItem(pendingTicksKey(userId));
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const ticks: PendingTicks = {};
+    for (const [day, list] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!parseDateKey(day) || !Array.isArray(list)) continue;
+      const clean = list
+        .map((tick: any) => (tick && typeof tick === "object" ? { id: String(tick.id || ""), at: String(tick.at || "") } : null))
+        .filter((tick): tick is PendingTick => !!tick && !!catalogById(tick.id));
+      if (clean.length > 0) ticks[day] = clean;
+    }
+    return ticks;
+  } catch {
+    return {};
+  }
+}
+
+async function writePendingTicks(userId: string, ticks: PendingTicks) {
+  try {
+    if (Object.keys(ticks).length === 0) await AsyncStorage.removeItem(pendingTicksKey(userId));
+    else await AsyncStorage.setItem(pendingTicksKey(userId), JSON.stringify(ticks));
+  } catch (error) {
+    warn("PLAN_PENDING_TICKS_SAVE_FAILED", error);
+  }
+}
+
+/** Catalog ids ticked on `dateKey` that still wait for a row (shown as done meanwhile). */
+export async function loadPendingPlanTicks(userId: string, dateKey: string): Promise<string[]> {
+  if (!userId) return [];
+  const ticks = await readPendingTicks(userId);
+  return (ticks[dateKey] || []).map((tick) => tick.id);
+}
+
+/** Every catalog id waiting for a row, over all days, so rows can be made for them once online. */
+export async function pendingPlanTickIds(userId: string): Promise<string[]> {
+  if (!userId) return [];
+  const ticks = await readPendingTicks(userId);
+  const ids = new Set<string>();
+  for (const list of Object.values(ticks)) for (const tick of list) ids.add(tick.id);
+  return [...ids];
+}
+
+export async function addPendingPlanTick(userId: string, dateKey: string, catalogId: string, at: Date = new Date()): Promise<void> {
+  if (!userId || !parseDateKey(dateKey) || !catalogById(catalogId)) return;
+  const ticks = await readPendingTicks(userId);
+  const day = ticks[dateKey] || [];
+  if (!day.some((tick) => tick.id === catalogId)) ticks[dateKey] = [...day, { id: catalogId, at: at.toISOString() }];
+  await writePendingTicks(userId, ticks);
+}
+
+export type EnqueueCompletion = (
+  taskId: number,
+  dateKey: string,
+  eventMeta: { category: string | null; difficulty: number; points: null },
+  createdAt: string
+) => Promise<unknown>;
+
+/**
+ * Queues a completion for every pending tick whose catalog id now has a row (`rowIds`: catalog id ->
+ * tasks.id), dated by the tap, and forgets ticks older than the history window. Ticks still without a row
+ * stay. Returns how many were queued. The cycle category is never written (the cycle stays on the device).
+ */
+export async function flushPendingPlanTicks(userId: string, rowIds: Record<string, number>, enqueue: EnqueueCompletion, todayDateKey: string): Promise<number> {
+  if (!userId || !parseDateKey(todayDateKey)) return 0;
+  const ticks = await readPendingTicks(userId);
+  const oldest = addDaysToDateKey(todayDateKey, -HISTORY_DAYS);
+  const next: PendingTicks = {};
+  let queued = 0;
+  let changed = false;
+  for (const [day, list] of Object.entries(ticks)) {
+    if (day < oldest) {
+      changed = true;
+      continue;
+    }
+    const left: PendingTick[] = [];
+    for (const tick of list) {
+      const rowId = rowIds[tick.id];
+      const task = catalogById(tick.id);
+      if (rowId == null || !task) {
+        left.push(tick);
+        continue;
+      }
+      try {
+        const at = tick.at && !Number.isNaN(new Date(tick.at).getTime()) ? tick.at : new Date().toISOString();
+        await enqueue(rowId, day, { category: task.category === "cycle" ? null : task.category, difficulty: task.effort, points: null }, at);
+        queued += 1;
+        changed = true;
+      } catch (error) {
+        warn("PLAN_PENDING_TICK_QUEUE_FAILED", error);
+        left.push(tick);
+      }
+    }
+    if (left.length > 0) next[day] = left;
+  }
+  if (changed) await writePendingTicks(userId, next);
+  return queued;
 }
 
 // ---------- history ----------
@@ -274,7 +387,26 @@ async function insertRows(payload: Array<{ user_id: string; title: string; activ
   }
 }
 
-async function ensureRowsNow(userId: string, tasks: CatalogTask[], petName: string): Promise<Record<string, number>> {
+/**
+ * The catalog tasks whose rows may be written now. A title with {pet} in it is written with the pet's
+ * name, so until the name is known ("Your pet" would be stored for good) those wait; the plan still shows
+ * them and a tick is kept on the device meanwhile (addPendingPlanTick).
+ */
+export function tasksSafeToCreate(tasks: CatalogTask[], petKnown: boolean): CatalogTask[] {
+  const list = Array.isArray(tasks) ? tasks : [];
+  return petKnown ? list : list.filter((task) => !String(task?.title || "").includes("{pet}"));
+}
+
+export type EnsureRowsOptions = {
+  /**
+   * Deactivate the person's other plan rows (catalog titles not in `tasks`, never their own tasks and never
+   * the play row the games complete), so "All tasks" shows today's plan rather than every plan ever built.
+   * A deactivated row comes back the day its task is picked again (matched rows are reactivated).
+   */
+  deactivateStale?: boolean;
+};
+
+async function ensureRowsNow(userId: string, tasks: CatalogTask[], petName: string, options: EnsureRowsOptions = {}): Promise<Record<string, number>> {
   const wanted: CatalogTask[] = [];
   for (const task of Array.isArray(tasks) ? tasks : []) {
     if (task?.id && catalogById(task.id) && !wanted.some((other) => other.id === task.id)) wanted.push(task);
@@ -312,6 +444,24 @@ async function ensureRowsNow(userId: string, tasks: CatalogTask[], petName: stri
       const row = matched.get(task.id);
       if (row) ids[task.id] = row.id;
     }
+
+    if (options.deactivateStale) {
+      const keep = new Set(Object.values(ids));
+      const stale = rows
+        .filter((row) => {
+          if (row.active === false || keep.has(row.id)) return false;
+          const catalogId = catalogIdForTitle(row.title, petName);
+          if (!catalogId) return false; // the person's own task
+          const task = catalogById(catalogId);
+          return !!task && task.kind !== "play"; // the play row is what the games complete
+        })
+        .map((row) => row.id);
+      if (stale.length > 0) {
+        const { error } = await supabase.from("tasks").update({ active: false }).eq("user_id", userId).in("id", stale);
+        if (error) warn("PLAN_TASK_ROWS_DEACTIVATE_FAILED", error);
+      }
+    }
+
     await writeRowCache(userId, ids);
     return ids;
   } catch (error) {
@@ -332,10 +482,10 @@ const ensureQueue = new Map<string, Promise<unknown>>();
  * inactive rows, inserts the rest. Idempotent; calls for the same user run one after another. Never
  * throws: a task missing from the result has no row yet.
  */
-export async function ensurePlanTaskRows(userId: string, tasks: CatalogTask[], petName: string): Promise<Record<string, number>> {
+export async function ensurePlanTaskRows(userId: string, tasks: CatalogTask[], petName: string, options: EnsureRowsOptions = {}): Promise<Record<string, number>> {
   if (!userId) return {};
   const previous = ensureQueue.get(userId) ?? Promise.resolve();
-  const run = previous.catch(() => undefined).then(() => ensureRowsNow(userId, tasks, petName));
+  const run = previous.catch(() => undefined).then(() => ensureRowsNow(userId, tasks, petName, options));
   ensureQueue.set(userId, run);
   try {
     return await run;

@@ -8,6 +8,7 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { patchPetLocally, setPetNameLocally } from "../../src/services/petStore";
 import { fetchCatalog, fetchUserPlants } from "../../src/services/garden";
+import { fetchDaysTogether } from "../../src/services/homeStats";
 import { savePetName, upsertPet, upsertPetResult } from "../../src/services/petService";
 import { stylizePet } from "../../src/services/petStylize";
 import { sanitizeLegacyPetUrl } from "../../src/utils/petImages";
@@ -34,14 +35,6 @@ import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
 
 const PET_NAME_MAX_CHARS = 24;
-
-function daysTogether(profile) {
-  const raw = profile?.created_at;
-  if (!raw) return null;
-  const start = new Date(raw);
-  if (Number.isNaN(start.getTime())) return null;
-  return Math.max(1, Math.floor((Date.now() - start.getTime()) / 86_400_000) + 1);
-}
 
 function buildProcessingError(error) {
   const raw = error?.userMessage || error?.message || "Stylize failed.";
@@ -78,6 +71,8 @@ function ActionTile({ icon, category, label, hint, onPress, disabled }) {
  */
 export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
+  // Days Together, the same number Home shows: days with any care, over all time (never the account's age)
+  const [together, setTogether] = useState(null);
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -140,13 +135,17 @@ export default function PetScreen() {
       recomputePetState()
         .then((state) => setServerStreak(state?.streak_days ?? null))
         .catch(() => {});
-    }, [refresh, loadPlants])
+      if (user?.id) {
+        fetchDaysTogether(user.id)
+          .then((count) => setTogether(count))
+          .catch(() => {});
+      }
+    }, [refresh, loadPlants, user?.id])
   );
 
   useEffect(() => () => petTimer.current && clearTimeout(petTimer.current), []);
 
   const mood = petMoodFromStores({ liveState: petEmotionState, dailyMood: userStats?.pet_mood_state, hour: new Date().getHours() });
-  const together = daysTogether(profile);
   const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? userStats?.streak ?? 0);
   const isProcessing = processingStatus === "processing";
   const isError = processingStatus === "error";

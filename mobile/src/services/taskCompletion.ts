@@ -128,7 +128,10 @@ async function writePendingCompletions(items: PendingCompletion[]) {
 export async function enqueuePendingCompletion(
   taskId: string | number,
   dateKey = completionDateKey(),
-  eventMeta?: CompleteTaskEventMeta | null
+  eventMeta?: CompleteTaskEventMeta | null,
+  // when the tap happened, if earlier than now (a tick kept on the device before its row existed); the
+  // server dates the completion by this instant
+  createdAt?: string | null
 ) {
   const normalizedTaskId = String(taskId);
   const queue = await readPendingCompletions();
@@ -138,12 +141,13 @@ export async function enqueuePendingCompletion(
     return { queued: false, queueSize: queue.length };
   }
 
+  const tappedAt = createdAt && !Number.isNaN(new Date(createdAt).getTime()) ? new Date(createdAt).toISOString() : new Date().toISOString();
   const nextQueue = [
     ...queue,
     {
       taskId: normalizedTaskId,
       dateKey,
-      createdAt: new Date().toISOString(),
+      createdAt: tappedAt,
       attempts: 0,
       nextRetryAt: null,
       category: eventMeta?.category ?? null,

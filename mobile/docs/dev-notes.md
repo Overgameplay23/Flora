@@ -356,3 +356,51 @@ Decisions made and conflicts left for Donovan:
   `src/components/GardenScene.js` and `src/components/habits/EditHabitsModal.tsx` are no longer used.
 - Dev previews pin a fixture pet through `pinPetForPreview` (petStore) and `PreviewAuthProvider` (AuthContext);
   both are only reached from `src/screens/dev/DesignPreview.tsx` under `__DEV__` on web.
+
+## 2026-10-16 — integration of the SDK 57 upgrade, the home redesign and the sign-up fix; review fixes
+
+`main` now carries, in order: the Expo SDK 57 upgrade (PR #1, `82e0599`), the two home-redesign commits
+(`18f0d8c`, `9304a0c`, fast-forwarded) and `fix/auth-signup-honesty` (`de5a978`, merged as `37ce370`). The two
+branches had rewritten the same sign-in and sign-up screens; the merge keeps the design-system layout and the
+honest messages, the in-flight lock and the redacted logs. Verified on this PC: `npm run check` green at every
+step (SDK 57 tree 33 suites / 192 tests; merged tree 40 / 284), the web app against the local stack (sign-in,
+Home, Garden, Pet, Profile, All tasks on the demo account).
+
+Two independent read-only reviews of the redesign (plan engine + Home data layer; theme, kit and every reskinned
+screen) found no dropped handlers or routes. What they did find, and what changed:
+
+- **Offline tick with no row id failed hard.** A task that never had a `tasks` row while online (first day
+  offline, or a title with the pet's name before the name was known) threw "No task row" and the tick never
+  reached the offline queue. Now the tick is kept on the device by catalog id and day
+  (`planStore.addPendingPlanTick`, key `floura:plan-pending-ticks:<uid>`), shows as done with the "Saved on this
+  phone" note, and `useTodayPlan` turns it into a queued completion stamped with the tap time as soon as the row
+  can be made (`flushPendingPlanTicks` → `enqueuePendingCompletion(..., createdAt)`), then asks Home to sync.
+- **"Your pet" written into rows for good.** The plan's 2.5 s readiness fallback could build the plan before the
+  pet row arrived, so rows like "Play with Your pet" were inserted. Rows whose title carries `{pet}` now wait
+  until the pet's name is known (`tasksSafeToCreate`, `petKnown` from Home); the plan still shows those tasks and
+  a tick on them is kept on the device meanwhile.
+- **Day rollover used yesterday's battery.** The readiness fallback was sticky; after midnight the new day's plan
+  was built with the old energy, logged as shown and given rows, then rebuilt. The fallback is now per day and
+  user, and the battery resets to unanswered when the day changes.
+- **Welcome-back reshuffled the day.** `returning` is part of the plan's cache signature, and a second launch
+  the same day read as "same day", so a gentle 3-task morning became a full plan at noon. The return note is
+  now kept for the whole day (`floura:return-note:<uid>`) and cleared when the day changes.
+- **Every rebuild inflated skip penalties.** The shown log unioned each rebuild, so a morning task replaced by
+  the evening plan counted as passed over. `recordPlanShown` now keeps a day's latest list only (done tasks are
+  pinned, so they are always in it).
+- **Rows piled up.** Every plan row ever created stayed active, so "All tasks" grew by a few rows a day and its
+  bulk tick covered all of them. The daily ensure now deactivates the person's other plan rows
+  (`ensurePlanTaskRows(..., { deactivateStale: true })`): never their own tasks, never the play row the games
+  complete; a row comes back the day its task is picked again. The single-task ensure never deactivates.
+- Completions for the plan are read for the plan's own day (`dateKey`), not "now", so a reload after midnight
+  with Home still open cannot untick the day. A ref guards the card's two targets against a double completion.
+- Smaller: the dev design-preview `require` is behind `__DEV__` again so the release bundle drops it; the app
+  shows the sky of the hour instead of a white frame while the fonts register; the All-tasks toast now says
+  "+N Sprouts" like Home; the Check-in save button is disabled during the 1.6 s leave; the Pet tab's "days
+  together" uses the same Days Together count as Home (it used to count calendar days since the account was
+  made, so it said 15 where Home said 5).
+
+Left as found (for Donovan): the breathing session now waits for a Start tap (it used to start on open, also
+in protected mode); `@react-native-community/slider` and `app/screens/LoginScreen.js` are unused; the proposed
+`user_plans` migration is still not applied and `normalizePlanSettings` still accepts `cycle` from the
+snake_case shape (strip before any sync).

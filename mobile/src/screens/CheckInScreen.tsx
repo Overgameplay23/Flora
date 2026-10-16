@@ -379,6 +379,7 @@ export default function CheckInScreen() {
           label={checkinCopy.submitLabel}
           onPress={handleSubmit}
           loading={saving}
+          disabled={leaving}
           containerStyle={styles.submit}
         />
 
