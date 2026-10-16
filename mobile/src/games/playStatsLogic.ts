@@ -1,7 +1,7 @@
 // Pure rules for play statistics and the play task; no storage or network here so they are unit-testable.
 
-export type GameId = "fetch" | "bubbles" | "petting";
-export const GAME_IDS: GameId[] = ["fetch", "bubbles", "petting"];
+export type GameId = "fetch" | "bubbles" | "petting" | "treats";
+export const GAME_IDS: GameId[] = ["fetch", "bubbles", "petting", "treats"];
 
 export type PlayStats = {
   best: Partial<Record<GameId, number>>;

@@ -261,3 +261,93 @@ describe("pet the pet", () => {
     expect(normalizePlayStats({ best: { petting: 12 } }, "2026-10-16").best.petting).toBe(12);
   });
 });
+
+// ---------- treat catch ----------
+import {
+  CATCH_RADIUS_RATIO,
+  GOLDEN_SHARE,
+  TREATS_ROUND_MS,
+  clampPetX,
+  endTreatsRound,
+  fallDurationMs,
+  isCaught,
+  isTreatsOver,
+  newTreatsRound,
+  nextTreatDelayMs,
+  recordCatch,
+  recordTreatMiss,
+  shouldCheerTreats,
+  spawnTreat,
+  treatPoints,
+  treatsSecondsLeft,
+  treatsSummary,
+} from "../games/treats/treatsLogic";
+
+describe("treat catch", () => {
+  it("spawns treats inside the lawn, about one in seven golden, faster as the round goes on", () => {
+    let golden = 0;
+    for (let i = 0; i < 400; i++) {
+      const treat = spawnTreat(i, i / 400, 0, 1000);
+      expect(treat.xRatio).toBeGreaterThanOrEqual(0.12);
+      expect(treat.xRatio).toBeLessThanOrEqual(0.88);
+      if (treat.kind === "golden") golden += 1;
+    }
+    expect(golden / 400).toBeGreaterThan(GOLDEN_SHARE - 0.06);
+    expect(golden / 400).toBeLessThan(GOLDEN_SHARE + 0.06);
+    expect(spawnTreat(1, 0.3, 0, 0)).toEqual(spawnTreat(1, 0.3, 0, 0));
+    expect(nextTreatDelayMs(0)).toBe(1100);
+    expect(nextTreatDelayMs(TREATS_ROUND_MS)).toBe(650);
+    expect(nextTreatDelayMs(TREATS_ROUND_MS * 5)).toBe(650);
+    expect(fallDurationMs(0)).toBe(2800);
+    expect(fallDurationMs(TREATS_ROUND_MS)).toBe(1800);
+    expect(spawnTreat(2, Number.NaN, Number.NaN, 0).xRatio).toBeGreaterThanOrEqual(0.12);
+  });
+
+  it("keeps the pet inside the margins and catches within the radius", () => {
+    expect(clampPetX(-50, 390, 44)).toBe(44);
+    expect(clampPetX(1000, 390, 44)).toBe(346);
+    expect(clampPetX(200, 390, 44)).toBe(200);
+    expect(clampPetX(Number.NaN, 390, 44)).toBe(44);
+    const radius = 150 * 1.2 * CATCH_RADIUS_RATIO;
+    expect(isCaught(200, 200 + radius, radius)).toBe(true);
+    expect(isCaught(200, 200 + radius + 1, radius)).toBe(false);
+    expect(isCaught(10, 300, -5)).toBe(false);
+  });
+
+  it("scores catches (golden triple), never punishes a miss, and cheers every fifth in a row", () => {
+    let round = newTreatsRound(0);
+    const biscuit = spawnTreat(1, 0.5, 0, 0);
+    const golden = { ...spawnTreat(2, 0.5, 0, 0), kind: "golden" as const };
+    expect(treatPoints("biscuit")).toBe(1);
+    expect(treatPoints("golden")).toBe(3);
+    for (let i = 0; i < 4; i++) round = recordCatch(round, biscuit);
+    round = recordCatch(round, golden);
+    expect(round.score).toBe(7);
+    expect(round.caught).toBe(5);
+    expect(round.golden).toBe(1);
+    expect(round.streak).toBe(5);
+    expect(shouldCheerTreats(round.streak)).toBe(true);
+    round = recordTreatMiss(round);
+    expect(round.score).toBe(7);
+    expect(round.missed).toBe(1);
+    expect(round.streak).toBe(0);
+    expect(round.bestStreak).toBe(5);
+    expect(shouldCheerTreats(0)).toBe(false);
+    const ended = endTreatsRound(round, 10);
+    expect(recordCatch(ended, biscuit)).toBe(ended);
+    expect(recordTreatMiss(ended)).toBe(ended);
+  });
+
+  it("runs forty-five seconds and tells the round's story", () => {
+    const round = newTreatsRound(1000);
+    expect(treatsSecondsLeft(round, 1000)).toBe(45);
+    expect(isTreatsOver(round, 1000 + TREATS_ROUND_MS - 1)).toBe(false);
+    expect(isTreatsOver(round, 1000 + TREATS_ROUND_MS)).toBe(true);
+    expect(treatsSummary(round, "Maple")).toMatch(/Maple/);
+    let perfect = newTreatsRound(0);
+    for (let i = 0; i < 6; i++) perfect = recordCatch(perfect, spawnTreat(i, 0.5, 0, 0));
+    expect(treatsSummary(perfect, "Maple")).toMatch(/Every single treat/);
+    expect(GAME_IDS).toContain("treats");
+    expect(normalizePlayStats({ best: { treats: 9 } }, "2026-10-16").best.treats).toBe(9);
+  });
+});

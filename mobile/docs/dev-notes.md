@@ -526,3 +526,14 @@ the title/colour rules and the device meta.
   Journeys list badges "PART TWO". The chapter is also what Keepsakes lists (the journey entry).
 - Started by the linked session that hit its limit (the sequel content was its uncommitted work); finished
   here. Tests: `journeys.test.ts` (one part one per area, sequel invariants, gating, kept dates, chapter).
+
+## 2026-10-16 — Treat Catch (the second active game)
+
+`src/games/treats/`: treats fall from the top of the lawn and the person drags anywhere to slide the pet along
+the ground under them; golden ones (about one in seven) count triple; forty-five seconds; a missed treat floats
+off and takes nothing away (no way to lose). The whole lawn is the slider (a full-field PanResponder under the
+HUD, which is `box-none`), the pet faces the way it moves, every fifth catch in a row and every golden treat
+gets a cheer. Pure rules in `treatsLogic.ts` (spawn from one random number, delay and fall time that quicken
+over the round, catch radius as a share of the pet's width), tested in `games.test.ts`. Route `PlayTreats`;
+listed on the Play hub, the Pet tab caption and the dev previews (`?preview=treats`). `GameId` gained `treats`.
+Verified on web: treats fall and land, the score counts, a drag moves the pet, the end card shows a new best.
