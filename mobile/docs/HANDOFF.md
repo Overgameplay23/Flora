@@ -13,6 +13,17 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 17 October 2026, later** (details in `docs/dev-notes.md`, the two last entries, and `docs/ROADMAP.md`):
+> two more change sets are on `main`. **Memory Match** (the third active game: care-glyph cards face down on the
+> lawn, three boards of four, six and eight pairs, no clock, "Finish here" any time; score = pairs found) and the
+> **Sunday scrapbook** (every Sunday the pet keeps one page about the week: a note in its voice, stickers for a
+> milestone, journey steps, the fullest day, the battery and heavier days, the wins as taped notes; kept on the
+> phone as a growing book; Profile › Scrapbook, Our week, Home's week card on Sunday and Monday, the Sunday
+> reminder). Both are device-side plus existing tables; no schema change. `npm run check`: 46 suites / 365 tests,
+> typecheck, Deno check and web export green. Verified on web against the local stack as the demo user; nothing
+> new on a phone yet. For the owner: Memory Match's cards could become the pet's moods and outfits once the
+> wardrobe exists; scrapbook pages do not follow a person to a new phone (that would need a table).
+
 > **Update, 17 October 2026** (details in `docs/dev-notes.md`, entries dated 2026-10-16 night and 2026-10-17, and
 > `docs/ROADMAP.md`): three more change sets are on `main`: journey **chapters and sequels** (a finished journey keeps
 > the days it was walked; part two for sleep, calm and burnout), **Treat Catch** (the second active game) and
