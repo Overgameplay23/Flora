@@ -65,7 +65,7 @@ one is something a real-pet app can beat:
   kept on the phone as a growing book; Profile › Scrapbook, from Our week, Home's week card on Sunday, the Sunday
   reminder. Room items and voice notes on the page wait for the wardrobe and recording.
 - **2026-10-17, later:** launch plumbing, tracked in `docs/LAUNCH.md`: **delete account** in the app (Apple
-  requirement; the RPC waits for the owner's push to Bloom), **forgot password** with an emailed code, and the
+  requirement; the RPC is on Bloom), **forgot password** with an emailed code, and the
   **privacy policy** (in the app and as a hostable page; a draft for the owner to read).
 
 ## Next, in order

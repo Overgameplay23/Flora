@@ -14,7 +14,7 @@ prepares, owner approves or finishes.
 
 | # | Item | Who | State |
 |---|---|---|---|
-| 1 | **In-app account deletion** (Guideline 5.1.1(v): any app with sign-up must offer it in the app) | [both] Claude builds the RPC + screen; owner approves applying the migration to Bloom | **built** (Profile › Delete account, verified locally); migration `20261017000000_delete_my_account` waits for your OK to push to Bloom |
+| 1 | **In-app account deletion** (Guideline 5.1.1(v): any app with sign-up must offer it in the app) | [both] Claude builds the RPC + screen; owner approves applying the migration to Bloom | **done**: Profile › Delete account (verified locally); migration `20261017160138_delete_my_account` applied to Bloom 2026-10-17 with the owner's OK |
 | 2 | **Privacy policy** reachable in the app and on the store page (Guideline 5.1.1(i)) | [both] Claude drafts from the real data flows; owner reviews the wording and picks where it is hosted | **drafted**: in the app (Profile › Privacy) and as `docs/legal/privacy-policy.html` to host; needs your read, a contact email in `src/legal/privacy.json`, and a host |
 | 3 | **Support URL** on the store page | [owner] a page or a mailto-backed site (can be the same host as the policy) | pending |
 | 4 | **App identity**: final name (Floura vs Luna, app.json still says Luna), bundle id (e.g. `com.floura.app`), URL scheme, icon + splash | [owner] decides the name and id · [claude] wires app.json/eas.json and every "Luna" in the UI | waiting on the name |
@@ -32,7 +32,7 @@ prepares, owner approves or finishes.
 | 11 | **Bloom on a paid plan** (free projects pause after a week without traffic and have no backups) | [owner] Supabase Pro, $25/mo | pending |
 | 12 | **A real-phone pass** on a TestFlight build: reminders, haptics, games, painting, sign-up to deletion | [both] | pending |
 | 13 | **Crash reporting** (e.g. Sentry) so launch-week crashes are visible | [owner] account + DSN · [claude] wiring | pending |
-| 14 | **Apply the pending SQL to Bloom** (account deletion; later the plan engine table) | [owner] approves each push | pending |
+| 14 | **Apply the pending SQL to Bloom** (account deletion; later the plan engine table) | [owner] approves each push | account deletion applied 2026-10-17; plan engine table not yet. Note: Bloom also holds a `wardrobe_v1` migration (16 Oct) that is in no branch of this repo |
 
 ## 3. Can wait for 1.1
 

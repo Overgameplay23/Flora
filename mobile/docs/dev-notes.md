@@ -677,7 +677,7 @@ blockers that needed no owner input.
 "delete"; works the same on phones and web, no dialog), "Keep my account". `src/services/accountDeletion.ts` runs
 the order that keeps a failure harmless: (1) remove the person's photos in the private `pets` bucket through the
 Storage API (SQL may not delete storage rows); (2) the new `delete_my_account()` RPC
-(`local-backend/sql/delete_my_account.sql`, migration `20261017000000_delete_my_account`), SECURITY DEFINER,
+(`local-backend/sql/delete_my_account.sql`, migration `20261017160138_delete_my_account`), SECURITY DEFINER,
 deletes `auth.users` for `auth.uid()`, every public row cascades; (3) wipe every AsyncStorage key that carries the
 user id (cycle, journal, plan, journeys, scrapbook, milestones...) plus the two legacy global keys, and cancel the
 reminders; (4) a local sign-out. A failure at (1) or (2) leaves everything, phone included, as it was.
@@ -686,8 +686,19 @@ auth.users (new tables are covered automatically), that A's delete removes every
 that anon / a token without a user id cannot call it. Verified on web against the local stack with a throwaway
 user (pet, check-in, tasks, two photos): after "Delete my account" the database held 0 users, pets, tasks,
 check-ins and photos for it, the demo user was untouched, the phone keys were gone and the app was on sign-in.
-**Not on Bloom yet:** applying the migration there is the owner's go-ahead (`supabase db push`); until then the
-button on a Bloom build removes the photos and then answers "Your account is still here" (the RPC does not exist).
+**On Bloom since 2026-10-17** (owner's OK in chat; applied through the Supabase MCP, which recorded it as
+`20261017160138`, so the local file was renamed to match). Checked there, read-only: security definer, `search_path`
+pinned, owner `postgres` may delete from `auth.users`, `authenticated` may execute and `anon`/`public` may not,
+all 23 public `user_id` columns cascade from `auth.users`, and no foreign key in any schema blocks deleting a user.
+The security advisor's only new line is lint 0029 (signed-in users can execute a SECURITY DEFINER function), the
+same expected flag `complete_task` and the garden RPCs carry: the function only deletes the caller.
+
+**For the owner, found while applying it:** Bloom holds a 30th migration this repo does not have,
+`20261016014418_wardrobe_v1` (tables `wardrobe_items`, `user_wardrobe`, `wardrobe_purchases`, `pet_outfits`; RPCs
+`buy_wardrobe_item`, `equip_outfit`). It is in no branch on GitHub, so it was applied from somewhere else (a
+claude.ai cloud session or the second PC). Nothing was changed; its tables cascade from `auth.users`, so account
+deletion covers them. Its SQL should be committed (from wherever it was written) before anyone runs `db push` from
+this repo, or the CLI will report the remote has a migration the repo lacks.
 
 **Forgot password.** "Forgot your password?" on sign-in opens `ForgotPassword`
 (`src/screens/ForgotPasswordScreen.js`): email → a one-time code by email → code + new password. A code rather

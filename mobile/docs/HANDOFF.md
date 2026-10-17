@@ -15,7 +15,7 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 
 > **Update, 17 October 2026, launch** (details in `docs/dev-notes.md`, last entry, and the new `docs/LAUNCH.md`, the
 > road to the App Store): **delete account** in the app (Profile › Delete account; a `delete_my_account()` RPC whose
-> migration waits for the owner's push to Bloom), **forgot password** with an emailed code (Bloom's reset email
+> migration applied to Bloom on the owner's OK as `20261017160138`), **forgot password** with an emailed code (Bloom's reset email
 > template must carry the code), and a **privacy policy** shown in the app and exported as a hostable page (a draft
 > for the owner). `npm run check`: 48 suites / 378 tests, typecheck, Deno check and web export green; `npm run
 > backend:test` 5 files / 295 pgTAP tests. Verified on web against the local stack with throwaway users.
