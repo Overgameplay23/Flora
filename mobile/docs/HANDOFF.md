@@ -13,6 +13,16 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 17 October 2026** (details in `docs/dev-notes.md`, entries dated 2026-10-16 night and 2026-10-17, and
+> `docs/ROADMAP.md`): three more change sets are on `main`: journey **chapters and sequels** (a finished journey keeps
+> the days it was walked; part two for sleep, calm and burnout), **Treat Catch** (the second active game) and
+> **This month** (insights v1: the weekday care happens on, the longest stretch, the battery set against the small
+> things done, told by the pet; Profile › This month and from Our week). An adversarial review over the block was
+> applied (memorial never cheers in journeys; failed fetches no longer read as an empty week or month; tokens
+> instead of hex; slider accessibility actions). `npm run check`: 45 suites / 349 tests, typecheck, Deno check and
+> web export green. Verified on web against the local stack; nothing new on a phone yet. Cycle stays out of the
+> insights until the owner decides.
+
 > **Update, 16 October 2026** (details in `docs/dev-notes.md`, five entries dated 2026-10-16, and `docs/ROADMAP.md`):
 > `main` now carries the SDK 57 upgrade, the home redesign + plan engine (reviewed; the review fixes are on main) and
 > the honest sign-up messages, plus five change sets built the same day: **Onboarding v2** (pet first, quiz, plan
