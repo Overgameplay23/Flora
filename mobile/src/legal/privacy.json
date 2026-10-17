@@ -1,0 +1,89 @@
+{
+  "title": "Privacy policy",
+  "updated": "2026-10-17",
+  "contactEmail": "",
+  "intro": "Floura is a self-care app built around your pet. This page says, in plain words, what the app keeps, where it goes and how to make it disappear. It covers the Floura app on iPhone, Android and the web.",
+  "sections": [
+    {
+      "heading": "The short version",
+      "bullets": [
+        "We don't sell your data, show ads, or track you across other apps and websites.",
+        "There are no third-party analytics or advertising tools in the app.",
+        "Cycle tracking never leaves your phone.",
+        "You can delete your account and everything in it from inside the app, at any time (Profile, Delete account)."
+      ]
+    },
+    {
+      "heading": "What we keep, and why",
+      "paragraphs": [
+        "To give you an account that works on any phone, some things are stored on our servers, tied to your account:"
+      ],
+      "bullets": [
+        "Your account: your email address and your password (stored only as a secure hash by our sign-in provider).",
+        "Your pet: its name, species and look, the photos you choose to share, and the painted portrait made from them. Photos are kept in private storage that only your account can reach.",
+        "Your care: daily check-ins (how you feel, and a note if you write one), care tasks and the ones you finish, habits, your garden and Sprouts, and your journal entries (kept on your phone and backed up to your account).",
+        "How you use it: simple app events, such as finishing a task or checking in, used to count Days Together and to write your weekly recap.",
+        "Talking to your pet, when that feature is on: the messages you write, plus a short summary of the moment (your pet's name, the time of day, whether you checked in today and a few lines from your week), so the reply fits."
+      ]
+    },
+    {
+      "heading": "What stays on your phone",
+      "paragraphs": [
+        "Some things are never sent to us: cycle tracking, your reminder settings, your daily plan and focus areas, journeys, the Sunday scrapbook, keepsakes and your care preferences. They live only on this phone, so they won't follow you to a new one, and they go away when you delete the app or your account."
+      ]
+    },
+    {
+      "heading": "Who helps us run the app",
+      "paragraphs": [
+        "We use a few service providers. Each gets only what it needs for its job and handles it under its own terms:"
+      ],
+      "bullets": [
+        "Supabase hosts our database, sign-in and photo storage, in the United States (AWS us-east-1).",
+        "Google (the Gemini API) paints your pet from the photos you choose. Photos are sent only when you ask for a painting.",
+        "OpenAI writes your pet's replies, only when you use the talk feature, from the messages and summary described above."
+      ]
+    },
+    {
+      "heading": "Notifications",
+      "paragraphs": [
+        "Reminders are scheduled on your phone. We don't collect push tokens or send notifications from a server. You can turn reminders off in the app or in your phone's settings."
+      ]
+    },
+    {
+      "heading": "Your health and wellbeing",
+      "paragraphs": [
+        "Floura is a gentle self-care companion, not a medical device, and nothing in it is medical advice. Cycle tracking is optional, stays on your phone and never predicts fertility. If you are in crisis or thinking about harming yourself, please contact your local emergency number or a crisis line right away."
+      ]
+    },
+    {
+      "heading": "Keeping it safe",
+      "paragraphs": [
+        "Everything sent between the app and our servers is encrypted in transit. Each account can read and change only its own data, which the database itself enforces, and pet photos sit in private storage reached through short-lived links."
+      ]
+    },
+    {
+      "heading": "How long we keep it",
+      "paragraphs": [
+        "We keep your data while your account exists. When you delete your account, your photos, your account and every record tied to it are removed from our live systems straight away. Copies in encrypted backups, if any, expire within 30 days."
+      ]
+    },
+    {
+      "heading": "Your choices",
+      "paragraphs": [
+        "You can see and change most of your data in the app, and delete all of it from Profile, Delete account. You can also ask us for a copy of your data, a correction, or deletion by writing to us. Depending on where you live (for example under the GDPR, the UK GDPR or California law) you may have further rights, including to object or complain to a regulator; we will help with any of them."
+      ]
+    },
+    {
+      "heading": "Children",
+      "paragraphs": [
+        "Floura is not meant for children under 13, and we don't knowingly collect data from them. If you think a child has made an account, write to us and we will delete it."
+      ]
+    },
+    {
+      "heading": "Changes",
+      "paragraphs": [
+        "If this policy changes, we'll update the date at the top, and tell you in the app when the change matters."
+      ]
+    }
+  ]
+}

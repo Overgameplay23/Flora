@@ -1,0 +1,34 @@
+-- Forward migration (2026-10-17): a person can delete their own account from inside the app.
+-- Why: App Store Review Guideline 5.1.1(v), any app that lets people create an account must let them delete it
+-- in the app. docs/LAUNCH.md item 1.
+--
+-- What goes: the auth.users row. Every public table keyed by user_id references auth.users ON DELETE CASCADE, so
+-- the pet, check-ins, tasks and completions, habits, garden, journal mirror, retention tables and talk quota go
+-- with it (local-backend/supabase/tests/05_delete_my_account.test.sql proves it table by table).
+-- What this cannot do: remove the photos in the private `pets` bucket. Supabase forbids deleting storage.objects
+-- rows from SQL, so the app removes <uid>/... through the Storage API first (pets_owner_delete policy) and only
+-- then calls this function (src/services/accountDeletion.ts). Data kept on the phone (cycle, journal, plan,
+-- scrapbook...) is wiped by the app after this succeeds.
+
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := (select auth.uid());
+begin
+  if v_uid is null then
+    raise exception 'delete_my_account: not signed in' using errcode = '42501';
+  end if;
+
+  delete from auth.users where id = v_uid;
+end;
+$$;
+
+comment on function public.delete_my_account() is
+  'Deletes the calling user''s auth account; public rows cascade. Storage objects are removed by the client first.';
+
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

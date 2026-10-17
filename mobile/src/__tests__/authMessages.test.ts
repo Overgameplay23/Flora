@@ -1,4 +1,12 @@
-import { AUTH_TEXT, signinErrorOutcome, signupOutcome } from "../utils/authMessages";
+import {
+  AUTH_TEXT,
+  isResetCodeComplete,
+  normalizeResetCode,
+  resetRequestOutcome,
+  resetVerifyOutcome,
+  signinErrorOutcome,
+  signupOutcome,
+} from "../utils/authMessages";
 
 const newUser = { id: "u1", identities: [{ id: "i1", provider: "email" }] };
 
@@ -90,5 +98,38 @@ describe("signinErrorOutcome", () => {
   it("shares the rate-limit and service messages", () => {
     expect(signinErrorOutcome({ status: 429, message: "Too many requests" }).kind).toBe("rate_limited");
     expect(signinErrorOutcome({ status: 502, message: "x" }).kind).toBe("service_unavailable");
+  });
+});
+
+describe("password reset", () => {
+  it("never says whether an email has an account", () => {
+    expect(resetRequestOutcome(null)).toMatchObject({ kind: "sent", tone: "notice", message: AUTH_TEXT.resetCodeSent });
+    // an unknown address and a known one read the same
+    expect(resetRequestOutcome({ status: 400, code: "user_not_found", message: "User not found" }).kind).toBe("sent");
+  });
+
+  it("still reports the problems the person can do something about", () => {
+    expect(resetRequestOutcome({ status: 429, code: "over_email_send_rate_limit", message: "email rate limit exceeded" }).message).toBe(AUTH_TEXT.emailRateLimited);
+    expect(resetRequestOutcome({ status: 400, code: "email_address_invalid", message: "invalid" })).toMatchObject({ kind: "invalid_email", emailField: true });
+    expect(resetRequestOutcome({ status: 503, message: "down" }).kind).toBe("service_unavailable");
+  });
+
+  it("keeps codes to digits and knows when one is complete", () => {
+    expect(normalizeResetCode(" 724 779 ")).toBe("724779");
+    expect(normalizeResetCode("72-47-79")).toBe("724779");
+    expect(normalizeResetCode("12345678901234")).toBe("1234567890");
+    expect(normalizeResetCode(undefined)).toBe("");
+    expect(isResetCodeComplete("12345")).toBe(false);
+    expect(isResetCodeComplete("123456")).toBe(true);
+    expect(isResetCodeComplete("1234567890")).toBe(true);
+  });
+
+  it("explains a wrong or old code, a reused password and a weak one", () => {
+    expect(resetVerifyOutcome({ status: 403, code: "otp_expired", message: "Token has expired or is invalid" }).kind).toBe("code_invalid");
+    expect(resetVerifyOutcome({ status: 422, code: "same_password", message: "New password should be different from the old password." }).kind).toBe("same_password");
+    const weak = resetVerifyOutcome({ status: 422, code: "weak_password", message: "Password should be at least 8 characters." });
+    expect(weak.kind).toBe("weak_password");
+    expect(weak.message).toMatch(/at least 8/);
+    expect(resetVerifyOutcome({ status: 500, message: "boom" }).message).toBe(AUTH_TEXT.resetFailed);
   });
 });

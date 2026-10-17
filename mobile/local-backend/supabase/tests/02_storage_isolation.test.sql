@@ -4,6 +4,9 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
+-- Newer storage images refuse every direct SQL delete on storage.objects (storage.protect_delete) unless this
+-- is set, as the Storage API itself does; without it the delete probes below test that guard, not RLS.
+select set_config('storage.allow_delete_query', 'true', true);
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   ('aaaaaaaa-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'a@photos.test', now(), now()),

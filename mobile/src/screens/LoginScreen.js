@@ -119,6 +119,14 @@ export default function LoginScreen({ navigation }) {
         </Text>
       ) : null}
       <Button label={busy ? "Signing in…" : "Sign in"} onPress={handleLogin} loading={busy} disabled={busy} containerStyle={styles.cta} />
+      <Pressable
+        onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })}
+        hitSlop={8}
+        accessibilityRole="link"
+        style={styles.linkTight}
+      >
+        <Text style={[type.callout, { color: theme.link, fontFamily: fonts.bodyBold }]}>Forgot your password?</Text>
+      </Pressable>
       <Pressable onPress={() => navigation.navigate("Signup")} hitSlop={8} accessibilityRole="link" style={styles.link}>
         <Text style={[type.callout, { color: theme.surface.textSecondary }]}>
           New here? <Text style={{ color: theme.link, fontFamily: fonts.bodyBold }}>Create an account</Text>
@@ -131,4 +139,5 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   cta: { marginTop: 6 },
   link: { alignSelf: "center", marginTop: 8, paddingVertical: 6 },
+  linkTight: { alignSelf: "center", marginTop: 4, paddingVertical: 6 },
 });

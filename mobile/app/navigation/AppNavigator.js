@@ -34,6 +34,8 @@ import JourneyScreen from '../../src/screens/JourneyScreen';
 import KeepsakesScreen from '../../src/screens/KeepsakesScreen';
 import InsightsScreen from '../../src/screens/InsightsScreen';
 import ScrapbookScreen from '../../src/screens/ScrapbookScreen';
+import DeleteAccountScreen from '../../src/screens/DeleteAccountScreen';
+import PrivacyScreen from '../../src/screens/PrivacyScreen';
 import {
   finchTabBarItemStyle,
   finchTabBarLabelStyle,
@@ -143,6 +145,8 @@ export default function AppNavigator({ initialRoute = null }) {
       <Stack.Screen name="Keepsakes" component={KeepsakesScreen} options={{ title: "Keepsakes", headerShown: true }} />
       <Stack.Screen name="Insights" component={InsightsScreen} options={{ title: "This month", headerShown: true }} />
       <Stack.Screen name="Scrapbook" component={ScrapbookScreen} options={{ title: "Scrapbook", headerShown: true }} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} options={{ title: "Delete account", headerShown: true }} />
+      <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy", headerShown: true }} />
     </Stack.Navigator>
   );
 }

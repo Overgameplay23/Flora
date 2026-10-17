@@ -13,6 +13,13 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 17 October 2026, launch** (details in `docs/dev-notes.md`, last entry, and the new `docs/LAUNCH.md`, the
+> road to the App Store): **delete account** in the app (Profile › Delete account; a `delete_my_account()` RPC whose
+> migration waits for the owner's push to Bloom), **forgot password** with an emailed code (Bloom's reset email
+> template must carry the code), and a **privacy policy** shown in the app and exported as a hostable page (a draft
+> for the owner). `npm run check`: 48 suites / 378 tests, typecheck, Deno check and web export green; `npm run
+> backend:test` 5 files / 295 pgTAP tests. Verified on web against the local stack with throwaway users.
+
 > **Update, 17 October 2026, later** (details in `docs/dev-notes.md`, the two last entries, and `docs/ROADMAP.md`):
 > two more change sets are on `main`. **Memory Match** (the third active game: care-glyph cards face down on the
 > lawn, three boards of four, six and eight pairs, no clock, "Finish here" any time; score = pairs found) and the

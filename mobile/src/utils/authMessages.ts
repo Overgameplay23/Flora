@@ -15,7 +15,7 @@ export type SignupOutcomeKind =
   | "error";
 
 export type AuthOutcome = {
-  kind: SignupOutcomeKind | "email_not_confirmed" | "wrong_details";
+  kind: SignupOutcomeKind | "email_not_confirmed" | "wrong_details" | "sent" | "code_invalid" | "same_password";
   // "notice" is good news or a next step; "error" means the attempt did not work.
   tone: "notice" | "error";
   message: string;
@@ -40,7 +40,46 @@ export const AUTH_TEXT = {
   emailNotConfirmed:
     "Your email isn't confirmed yet. Open the link we sent you (check your spam folder too), then log in.",
   signinFailed: "Unable to sign in. Please check your details.",
+  resetCodeSent:
+    "If there's an account for that email, a code is on its way. It can take a minute; take a peek in your spam folder too.",
+  resetCodeInvalid: "That code didn't work. Codes expire after an hour, so ask for a new one if it's been a while.",
+  resetSamePassword: "That's the password you already have. Pick a new one.",
+  resetFailed: "Something went wrong. Please try again.",
 } as const;
+
+/** One-time codes are digits only; hosted projects can be set to 6-10 of them. */
+export function normalizeResetCode(raw: string | null | undefined): string {
+  return String(raw ?? "").replace(/\D/g, "").slice(0, 10);
+}
+
+export function isResetCodeComplete(code: string): boolean {
+  return code.length >= 6 && code.length <= 10;
+}
+
+// Asking for the code: never says whether the email has an account (that would let anyone probe for users).
+export function resetRequestOutcome(error: MaybeAuthError): AuthOutcome {
+  if (!error) return { kind: "sent", tone: "notice", message: AUTH_TEXT.resetCodeSent };
+  const common = commonErrorOutcome(error);
+  if (common) return common;
+  return { kind: "sent", tone: "notice", message: AUTH_TEXT.resetCodeSent };
+}
+
+// Using the code (verifyOtp) and then setting the new password (updateUser).
+export function resetVerifyOutcome(error: MaybeAuthError): AuthOutcome {
+  const common = commonErrorOutcome(error);
+  if (common && common.kind !== "invalid_email") return common;
+  const { code, rawMessage, message } = readError(error);
+  if (code === "otp_expired" || code === "otp_disabled" || message.includes("token has expired") || message.includes("invalid")) {
+    return { kind: "code_invalid", tone: "error", message: AUTH_TEXT.resetCodeInvalid };
+  }
+  if (code === "same_password" || message.includes("different from the old password")) {
+    return { kind: "same_password", tone: "error", message: AUTH_TEXT.resetSamePassword };
+  }
+  if (code === "weak_password" || message.includes("password should be")) {
+    return { kind: "weak_password", tone: "error", message: rawMessage ? `${AUTH_TEXT.weakPassword} ${rawMessage}` : AUTH_TEXT.weakPassword };
+  }
+  return { kind: "error", tone: "error", message: AUTH_TEXT.resetFailed };
+}
 
 function readError(error: MaybeAuthError) {
   const status = typeof error?.status === "number" ? error.status : undefined;

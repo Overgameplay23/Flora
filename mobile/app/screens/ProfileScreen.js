@@ -190,6 +190,13 @@ export default function ProfileScreen({ navigation }) {
       <Eyebrow style={styles.sectionTitle}>Account</Eyebrow>
       <ListGroup>
         <ListRow
+          icon="shield-checkmark-outline"
+          category="calm"
+          label="Privacy"
+          hint="What we keep, and what stays on this phone"
+          onPress={() => navigation.navigate("Privacy")}
+        />
+        <ListRow
           icon="log-out-outline"
           label="Sign out"
           tone="danger"
@@ -201,6 +208,13 @@ export default function ProfileScreen({ navigation }) {
               notify("Error", "Could not sign out. Please try again.");
             }
           }}
+        />
+        <ListRow
+          icon="trash-outline"
+          label="Delete account"
+          hint="Removes your account and everything in it"
+          tone="danger"
+          onPress={() => navigation.navigate("DeleteAccount")}
         />
       </ListGroup>
 

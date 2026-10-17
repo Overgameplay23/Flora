@@ -8,6 +8,7 @@ import { useAuth } from "../../src/contexts/AuthContext";
 import { deriveAppGate } from "../../src/domain/appGate";
 import LoginScreen from "../../src/screens/LoginScreen";
 import SignupScreen from "../../src/screens/SignupScreen";
+import ForgotPasswordScreen from "../../src/screens/ForgotPasswordScreen";
 import PetSetupScreen from "../../src/screens/PetSetupScreen.tsx";
 import OnboardingScreen from "../../src/screens/onboarding/OnboardingScreen";
 import PetStylizeLoadingScreen from "../screens/PetStylizeLoadingScreen";
@@ -65,6 +66,7 @@ function AuthStack() {
     <AuthStackNav.Navigator screenOptions={{ headerShown: false }}>
       <AuthStackNav.Screen name="Login" component={LoginScreen} />
       <AuthStackNav.Screen name="Signup" component={SignupScreen} />
+      <AuthStackNav.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </AuthStackNav.Navigator>
   );
 }

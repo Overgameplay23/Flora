@@ -664,3 +664,53 @@ notes; neither exists yet (wardrobe/room items are roadmap item 4, voice notes n
 neither. Pages live on the phone they were made on, so a new phone starts a new book; keeping them across devices
 would need a table (a schema change, so the owner's call). The shareable card of the real pet next to the
 painting (roadmap item 8) is still to come.
+
+## 2026-10-17 — Launch blockers: account deletion, forgot password, privacy policy
+
+The owner asked how close the app is to launch. Features are well past the strategy's MVP; what stands between
+`main` and the App Store is plumbing and owner accounts. The living checklist is now `docs/LAUNCH.md` (what blocks
+App Review, what blocks a good launch, what can wait for 1.1, and who does each item). This set builds the three
+blockers that needed no owner input.
+
+**Delete account (App Store Guideline 5.1.1(v)).** Profile › Account › Delete account opens `DeleteAccount`
+(`src/screens/DeleteAccountScreen.tsx`): what goes, in plain words (memorial-aware), one deliberate step (type
+"delete"; works the same on phones and web, no dialog), "Keep my account". `src/services/accountDeletion.ts` runs
+the order that keeps a failure harmless: (1) remove the person's photos in the private `pets` bucket through the
+Storage API (SQL may not delete storage rows); (2) the new `delete_my_account()` RPC
+(`local-backend/sql/delete_my_account.sql`, migration `20261017000000_delete_my_account`), SECURITY DEFINER,
+deletes `auth.users` for `auth.uid()`, every public row cascades; (3) wipe every AsyncStorage key that carries the
+user id (cycle, journal, plan, journeys, scrapbook, milestones...) plus the two legacy global keys, and cancel the
+reminders; (4) a local sign-out. A failure at (1) or (2) leaves everything, phone included, as it was.
+`local-backend/supabase/tests/05_delete_my_account.test.sql` proves every `user_id` column in public cascades from
+auth.users (new tables are covered automatically), that A's delete removes every row of A and none of B's, and
+that anon / a token without a user id cannot call it. Verified on web against the local stack with a throwaway
+user (pet, check-in, tasks, two photos): after "Delete my account" the database held 0 users, pets, tasks,
+check-ins and photos for it, the demo user was untouched, the phone keys were gone and the app was on sign-in.
+**Not on Bloom yet:** applying the migration there is the owner's go-ahead (`supabase db push`); until then the
+button on a Bloom build removes the photos and then answers "Your account is still here" (the RPC does not exist).
+
+**Forgot password.** "Forgot your password?" on sign-in opens `ForgotPassword`
+(`src/screens/ForgotPasswordScreen.js`): email → a one-time code by email → code + new password. A code rather
+than a link because a link needs a deep link back into the app (no scheme yet; Expo Go and the web preview cannot
+do it). Never says whether an address has an account. A correct code signs the person in (Supabase recovery), the
+new password is set right after, a dialog says how it went. Messages in `src/utils/authMessages.ts`
+(`resetRequestOutcome`, `resetVerifyOutcome`, tested). The email: `local-backend/supabase/templates/recovery.html`
+(just the code). Locally the stack now runs Mailpit (`[inbucket]`, http://127.0.0.1:56324) to catch it. Verified
+on web: code arrived in Mailpit, the new password signs in (200), the old one is refused (400). **For Bloom:** paste
+that template into Authentication › Emails › Reset password, or the email only has a link the app can't use.
+
+**Privacy policy.** One source, `src/legal/privacy.json`, written from what the code actually does (what is on the
+server, what stays on the phone, Supabase us-east-1 for hosting, Google Gemini only when a painting is asked for,
+OpenAI only for Pet Talk, no analytics/ads/tracking, local notifications, deletion in the app). Shown in the app at
+Profile › Account › Privacy (`src/screens/PrivacyScreen.tsx`, works offline) and exported as a hostable page
+`docs/legal/privacy-policy.html` by `node scripts/export-privacy.js`; `privacyPolicy.test.ts` fails if the page
+drifts from the JSON. **It is a draft, not legal advice**: the owner should read it (ideally a lawyer too), fill in
+`contactEmail` (the contact block stays hidden while it is empty) and host the HTML page for App Store Connect.
+
+Also: `02_storage_isolation.test.sql` sets `storage.allow_delete_query` at the top. Newer local storage images
+refuse any direct SQL delete on storage.objects (`storage.protect_delete`), so its delete probes were testing that
+guard instead of RLS and the file failed before this change set (pre-existing, unrelated to the new code).
+
+For the owner: Delete account is reachable from Profile, so someone stuck part-way through onboarding cannot reach
+it (they can sign out); Apple only asks that it is in the app, which it is. Terms of Use: Apple's standard EULA
+covers a free 1.0; the Club (auto-renewing subscription) will need a Terms link on the paywall.
