@@ -537,3 +537,52 @@ gets a cheer. Pure rules in `treatsLogic.ts` (spawn from one random number, dela
 over the round, catch radius as a share of the pet's width), tested in `games.test.ts`. Route `PlayTreats`;
 listed on the Play hub, the Pet tab caption and the dev previews (`?preview=treats`). `GameId` gained `treats`.
 Verified on web: treats fall and land, the score counts, a drag moves the pet, the end card shows a new best.
+
+## 2026-10-16 — "This month": insights v1
+
+What it reads: `daily_user_metrics` for the last thirty days under the existing owner-read RLS
+(`fetchDailyMetrics(start, end)` in `src/services/retention.ts`; `fetchLast7DaysMetrics` is now a thin wrapper
+with the same seven-row shape, so Home, pet-talk and Our week are unchanged) and the battery answers kept on the
+device (`loadEnergyHistory` in `planStore.ts`, the `floura:energy:<uid>:<date>` keys; read only, nothing leaves
+the phone). Pure rules in `src/domain/insights.ts`, tested in `insights.test.ts`: the weekday care happens on
+(named only when one weekday clearly leads with two or more active days), the longest stretch of days in a row
+(two or more; "at least" when it touches the start of the window), the battery set against the small things done
+on those days (rounded to "about N"), a headline by the share of active days, at most three observations, memorial
+never cheers, nothing counts a miss. UI: `InsightsScreen` (route `Insights`, header "This month"), a Profile ›
+Reflect row, a "See the whole month" button at the end of Our week, `?preview=insights`.
+
+What it does not do: no cycle data (the roadmap's mood x energy x cycle insight is the owner's call; the
+`cycleOnDevice` allow-list is unchanged), nothing new sent to the server or to pet-talk, no second streak number
+(Profile already shows one; the month's longest stretch lives in the pet's narrative instead).
+
+Caveat: `day` is assigned server-side from the client's local day only when it is within a day of the UTC date,
+so care logged late at night can land on the next weekday; the copy stays at observations for that reason.
+
+Open for the owner: own route (shipped) versus a section inside Our week; the battery keys are never pruned
+(one short entry per day).
+
+## 2026-10-17 — Review fixes for the sequels, Treat Catch and This month block
+
+An adversarial read-only review (five readers, three refuters per finding) over the three change sets; what
+it confirmed and what changed:
+
+- **This month** no longer makes a quiet month up out of a failed request: on a failed refetch the month already
+  on screen stays and an error line shows; on a failed first load there is an empty state with "Try again"
+  instead of "Nothing logged this month". **Our week** got the same treatment for its metrics fetch (it used to
+  swallow the failure and tell an empty week). The weekday chart's screen-reader label names only the weekdays
+  with care on them; today counts as a weekday only once something happened on it; "mostly" is said only when
+  one battery answer clearly leads with more than half the checks; the "at least" stretch line hedges ("may have
+  begun before the month did"); the stretch line and the empty battery card stay out of memorial; rows round
+  the tasks-per-day once.
+- **Journeys:** memorial never cheers (no success haptic, no ding, no "so proud of you" on a journey step or
+  start; the hub drops "with {pet}" lines); the done-day check uses `ink.primary` instead of a hex literal; when
+  part two is offered the bottom "Walk it again" button is secondary so the page has one primary action; the
+  active card says "about <date>, a step a day" rather than "at this pace".
+- **Treat Catch:** the end card never counts the misses; the biscuit sprite colours moved to tokens (`brand.biscuit*`,
+  `brand.goldRim`); the lawn slider has increment/decrement accessibility actions so a screen-reader user can
+  move the pet; Reduce Motion no longer makes treats fall faster (it only drops the flourishes); the catch-radius
+  test sits on the boundary on both sides.
+
+Not changed, for the owner: the review also noted that the journey screens compute `today` once per mount (a
+step finished after midnight is stamped with the previous date key), the same pattern Home uses; and that
+`chapterFor` measures the walked span from the day the journey was started, not from the first step done.

@@ -55,6 +55,9 @@ one is something a real-pet app can beat:
 - **2026-10-16, night:** journey **chapters** (a finished journey keeps the days it was walked and shows them) and
   **sequels** (part two for sleep, calm and burnout, offered once part one is walked); **Treat Catch** (item 6):
   slide the pet under falling treats, golden ones count triple, nothing to lose.
+- **2026-10-16, late:** **This month** (item 8, insights v1): the weekday care happens on, the longest stretch, the
+  battery set against the small things done, told by the pet (Profile › This month, and from the end of Our week).
+  Cycle stays out of it until the owner decides.
 
 ## Next, in order
 

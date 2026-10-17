@@ -308,9 +308,11 @@ describe("treat catch", () => {
     expect(clampPetX(1000, 390, 44)).toBe(346);
     expect(clampPetX(200, 390, 44)).toBe(200);
     expect(clampPetX(Number.NaN, 390, 44)).toBe(44);
-    const radius = 150 * 1.2 * CATCH_RADIUS_RATIO;
-    expect(isCaught(200, 200 + radius, radius)).toBe(true);
-    expect(isCaught(200, 200 + radius + 1, radius)).toBe(false);
+    expect(CATCH_RADIUS_RATIO).toBeGreaterThan(0);
+    expect(isCaught(200, 299, 99)).toBe(true);
+    expect(isCaught(200, 101, 99)).toBe(true);
+    expect(isCaught(200, 300, 99)).toBe(false);
+    expect(isCaught(200, 100, 99)).toBe(false);
     expect(isCaught(10, 300, -5)).toBe(false);
   });
 
@@ -347,6 +349,9 @@ describe("treat catch", () => {
     let perfect = newTreatsRound(0);
     for (let i = 0; i < 6; i++) perfect = recordCatch(perfect, spawnTreat(i, 0.5, 0, 0));
     expect(treatsSummary(perfect, "Maple")).toMatch(/Every single treat/);
+    const partial = recordTreatMiss(recordCatch(newTreatsRound(0), spawnTreat(0, 0.5, 0, 0)));
+    expect(treatsSummary(partial, "Maple")).toMatch(/^1 treat caught./);
+    expect(treatsSummary(partial, "Maple")).not.toMatch(/floated|missed/);
     expect(GAME_IDS).toContain("treats");
     expect(normalizePlayStats({ best: { treats: 9 } }, "2026-10-16").best.treats).toBe(9);
   });

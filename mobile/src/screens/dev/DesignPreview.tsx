@@ -14,8 +14,8 @@ import SignupScreen from "../SignupScreen";
 import OnboardingScreen from "../onboarding/OnboardingScreen";
 
 // Dev-only design previews on web, so every screen can be checked in a browser without signing in:
-//   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, cycle, reminders,
-//                     memorial, play, fetch, bubbles, petting, tasks, habits, journeys, keepsakes, talk,
+//   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, insights, cycle,
+//                     reminders, memorial, play, fetch, bubbles, petting, treats, tasks, habits, journeys, keepsakes, talk,
 //                     painting, painted, onboarding, login, signup, splash, unreachable
 //   &hour=21          pin the time of day (night paper from 21:00 to 05:00)
 //   &pet=cat|none     which fixture pet (default: a golden dog called Biscuit)
@@ -33,6 +33,7 @@ const ROUTES: Record<string, string> = {
   journal: "Journal",
   breathing: "Breathing",
   week: "WeeklyReflection",
+  insights: "Insights",
   cycle: "Cycle",
   reminders: "Reminders",
   memorial: "Memorial",

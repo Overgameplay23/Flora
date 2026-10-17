@@ -114,5 +114,5 @@ export function treatsSummary(round: TreatsRound, petName: string): string {
   if (round.golden >= 3) return `${round.caught} treats, ${round.golden} of them golden. ${petName} is beside themselves.`;
   if (round.bestStreak >= 10) return `${round.caught} treats and a run of ${round.bestStreak} in a row. ${petName} could not be happier.`;
   if (round.missed === 0) return `Every single treat caught. ${petName} is in awe of you.`;
-  return `${round.caught} caught, ${round.missed} floated off. ${petName} is full and happy.`;
+  return `${round.caught} ${round.caught === 1 ? "treat" : "treats"} caught. ${petName} is full and happy.`;
 }

@@ -78,6 +78,27 @@ export async function saveTodayEnergy(userId: string, dateKey: string, energy: E
   }
 }
 
+/**
+ * The battery answers for the `days` days ending on `endDateKey`, by date key; days without an answer are left
+ * out. Read only, on the device, for "This month"; nothing here leaves the phone.
+ */
+export async function loadEnergyHistory(userId: string, endDateKey: string, days = 30): Promise<Record<string, Energy>> {
+  const history: Record<string, Energy> = {};
+  if (!userId || !endDateKey || !parseDateKey(endDateKey)) return history;
+  const span = Math.max(1, Math.floor(Number(days) || 1));
+  const dateKeys: string[] = [];
+  for (let offset = -(span - 1); offset <= 0; offset += 1) dateKeys.push(addDaysToDateKey(endDateKey, offset));
+  try {
+    const pairs = await AsyncStorage.multiGet(dateKeys.map((dateKey) => energyKey(userId, dateKey)));
+    pairs.forEach(([, raw], index) => {
+      if (ENERGIES.includes(raw as Energy)) history[dateKeys[index]] = raw as Energy;
+    });
+  } catch (error) {
+    warn("PLAN_ENERGY_HISTORY_FAILED", error);
+  }
+  return history;
+}
+
 // ---------- what was shown ----------
 
 type ShownLog = Record<string, string[]>;

@@ -32,7 +32,7 @@ function humanDate(dateKey: string): string {
 export default function JourneysScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { displayName } = usePet();
+  const { displayName, memorial } = usePet();
   const cycle = useCycle();
   const theme = useTheme();
   const { surface, night } = theme;
@@ -61,7 +61,7 @@ export default function JourneysScreen() {
   return (
     <Screen>
       <ScreenTitle>Journeys</ScreenTitle>
-      <Lead>Seven-day arcs with {displayName}: one small step a day. Miss a day and it simply waits for you.</Lead>
+      <Lead>{memorial ? "Seven-day arcs, one small step a day. Miss a day and it simply waits for you." : `Seven-day arcs with ${displayName}: one small step a day. Miss a day and it simply waits for you.`}</Lead>
 
       {active && state.active ? (
         <Card tone={active.category} onPress={() => open(active)} accessibilityLabel={`Continue ${active.title}`} style={styles.activeCard}>
@@ -77,7 +77,7 @@ export default function JourneysScreen() {
                   : "All done."}
               </Text>
               <Text style={[type.meta, { color: surface.textTertiary }]}>
-                {journeyDoneCount(state.active)} of {JOURNEY_DAYS} days · about {humanDate(expectedFinish(state.active, today))} at this pace
+                {journeyDoneCount(state.active)} of {JOURNEY_DAYS} days · about {humanDate(expectedFinish(state.active, today))}, a step a day
               </Text>
             </View>
             <PetMascot size={72} mood="happy" showShadow={false} night={night} />
@@ -90,7 +90,7 @@ export default function JourneysScreen() {
             <View style={styles.activeText}>
               <Text style={[type.bodyStrong, { color: surface.text }]}>Pick one to begin</Text>
               <Text style={[type.meta, { color: surface.textSecondary }]}>
-                Each journey is seven small steps around one thing you asked for help with. One at a time; {displayName} walks it with you.
+                Each journey is seven small steps around one thing you asked for help with. One at a time{memorial ? "." : `; ${displayName} walks it with you.`}
               </Text>
             </View>
             <PetMascot size={72} mood="calm" showShadow={false} night={night} />

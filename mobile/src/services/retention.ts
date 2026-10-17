@@ -156,10 +156,16 @@ export async function recomputePetState(): Promise<RetentionPetState | null> {
   return row as RetentionPetState;
 }
 
-export async function fetchLast7DaysMetrics(): Promise<DailyUserMetric[]> {
-  const endDay = getLocalDateKey();
-  const startDay = addDaysToDateKey(endDay, -6);
+function emptyMetric(day: string): DailyUserMetric {
+  return { day, tasks_completed: 0, tasks_created: 0, checkins_completed: 0, points_earned: 0, last_activity_at: null, activity_count: 0 };
+}
 
+/**
+ * The daily roll-up for every day from `startDay` to `endDay` (both YYYY-MM-DD, inclusive), one row per day with
+ * zeros where nothing was logged. RLS scopes the rows to the signed-in person. `day` is assigned server-side from
+ * the person's local day when it is within a day of the UTC date, so late-night care can land on the next day.
+ */
+export async function fetchDailyMetrics(startDay: string, endDay: string): Promise<DailyUserMetric[]> {
   const { data, error } = await supabase
     .from("daily_user_metrics")
     .select("day, tasks_completed, tasks_created, checkins_completed, points_earned, last_activity_at")
@@ -187,23 +193,22 @@ export async function fetchLast7DaysMetrics(): Promise<DailyUserMetric[]> {
     });
   }
 
+  // date keys sort as dates; the guard keeps a malformed range from looping
   const rows: DailyUserMetric[] = [];
-  for (let offset = -6; offset <= 0; offset += 1) {
-    const dayKey = addDaysToDateKey(endDay, offset);
-    const existing = byDay.get(dayKey);
-    if (existing) {
-      rows.push(existing);
-      continue;
-    }
-    rows.push({
-      day: dayKey,
-      tasks_completed: 0,
-      tasks_created: 0,
-      checkins_completed: 0,
-      points_earned: 0,
-      last_activity_at: null,
-      activity_count: 0,
-    });
+  for (let dayKey = startDay, guard = 0; dayKey <= endDay && guard < 400; dayKey = addDaysToDateKey(dayKey, 1), guard += 1) {
+    rows.push(byDay.get(dayKey) ?? emptyMetric(dayKey));
   }
   return rows;
+}
+
+/** The last seven days ending today, zero-filled (Home, pet-talk and "Our week" rely on the 7-row shape). */
+export async function fetchLast7DaysMetrics(): Promise<DailyUserMetric[]> {
+  const endDay = getLocalDateKey();
+  return fetchDailyMetrics(addDaysToDateKey(endDay, -6), endDay);
+}
+
+/** The last thirty days ending today, zero-filled ("This month"). */
+export async function fetchLast30DaysMetrics(): Promise<DailyUserMetric[]> {
+  const endDay = getLocalDateKey();
+  return fetchDailyMetrics(addDaysToDateKey(endDay, -29), endDay);
 }

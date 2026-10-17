@@ -51,7 +51,8 @@ function TreatView({
   const { treat, progress, gone } = live;
   const landed = useRef(false);
   useEffect(() => {
-    const duration = reducedMotion ? Math.round(treat.fallMs * 0.8) : treat.fallMs;
+    // Reduce Motion keeps the same pace (a faster fall would make the game harder); only the flourishes go
+    const duration = treat.fallMs;
     const fall = Animated.timing(progress, { toValue: 1, duration, easing: Easing.in(Easing.quad), useNativeDriver: true });
     fall.start(({ finished }) => {
       if (!finished || landed.current) return;
@@ -72,8 +73,8 @@ function TreatView({
   const golden = treat.kind === "golden";
   return (
     <Animated.View pointerEvents="none" style={[styles.treat, { left, width: TREAT_SIZE, height: TREAT_SIZE, opacity, transform: [{ translateY: Animated.add(translateY, drift) }, { scale }] }]}>
-      <View style={[styles.treatBody, { backgroundColor: golden ? brand.gold : "#C98B5A", borderColor: golden ? "#FFE9A8" : "#F2D9BF" }]}>
-        <Ionicons name={golden ? "star" : "ellipse"} size={golden ? 16 : 10} color={golden ? brand.goldStrong : "#8A5A3A"} />
+      <View style={[styles.treatBody, { backgroundColor: golden ? brand.gold : brand.biscuit, borderColor: golden ? brand.goldRim : brand.biscuitRim }]}>
+        <Ionicons name={golden ? "star" : "ellipse"} size={golden ? 16 : 10} color={golden ? brand.goldStrong : brand.biscuitCrumb} />
       </View>
     </Animated.View>
   );
@@ -230,7 +231,19 @@ export default function TreatsGameScreen({ navigation }: any) {
         return (
           <>
             {/* the whole lawn is the slider: drag anywhere to move the pet */}
-            <View style={StyleSheet.absoluteFill} {...responder.panHandlers} accessible accessibilityRole="adjustable" accessibilityLabel={`Slide ${displayName} left and right to catch treats`} />
+            <View
+              style={StyleSheet.absoluteFill}
+              {...responder.panHandlers}
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel={`Slide ${displayName} left and right to catch treats`}
+              accessibilityActions={[{ name: "increment", label: "Move right" }, { name: "decrement", label: "Move left" }]}
+              onAccessibilityAction={(event) => {
+                const width = fieldRef.current?.width ?? 0;
+                const stepX = width / 6;
+                movePet(petXRef.current + (event.nativeEvent.actionName === "increment" ? stepX : -stepX), true);
+              }}
+            />
             {treats.map((live) => (
               <TreatView key={live.treat.id} live={live} field={field} groundY={groundY} reducedMotion={reducedMotion} onLand={handleLand} />
             ))}

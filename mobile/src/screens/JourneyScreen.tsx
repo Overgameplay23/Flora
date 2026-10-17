@@ -22,7 +22,7 @@ import { getLocalDateKey } from "../utils/dateKeys";
 import { playDing } from "../utils/sfx";
 import * as haptics from "../utils/haptics";
 import { useTheme } from "../theme/theme";
-import { brand, type } from "../theme/tokens";
+import { brand, ink, type } from "../theme/tokens";
 
 function humanDate(dateKey: string): string {
   try {
@@ -41,6 +41,7 @@ export default function JourneyScreen() {
   const { user } = useAuth();
   const pet = usePet();
   const petName = pet.displayName;
+  const memorial = !!pet.memorial;
   const theme = useTheme();
   const { surface, night } = theme;
   const today = getLocalDateKey();
@@ -70,12 +71,13 @@ export default function JourneyScreen() {
     setStarting(true);
     try {
       await start(journey.id);
-      haptics.success();
-      setToast({ id: Date.now(), text: `${petName} is ready. Day one is waiting below.` });
+      if (memorial) haptics.tapSoft();
+      else haptics.success();
+      setToast({ id: Date.now(), text: memorial ? "Day one is waiting below." : `${petName} is ready. Day one is waiting below.` });
     } finally {
       setStarting(false);
     }
-  }, [active, journey, petName, start, starting, user?.id]);
+  }, [active, journey, memorial, petName, start, starting, user?.id]);
 
   const handleLeave = useCallback(async () => {
     if (!journey) return;
@@ -100,10 +102,19 @@ export default function JourneyScreen() {
         return;
       }
       await completeToday();
-      playDing();
+      if (!memorial) playDing();
       haptics.tapSoft();
       const points = outcome.state === "success" ? outcome.points : 0;
-      setToast({ id: Date.now(), text: step.index + 1 >= JOURNEY_DAYS ? `${journey.title}: done. ${petName} is so proud of you.` : careDoneLine(petName, points, Date.now() / 1000) });
+      const lastDay = step.index + 1 >= JOURNEY_DAYS;
+      // memorial never cheers: a quiet acknowledgement instead of the pet's delight
+      const text = memorial
+        ? lastDay
+          ? `${journey.title}: walked all the way through, with ${petName} remembered.`
+          : "Done for today. That's enough."
+        : lastDay
+          ? `${journey.title}: done. ${petName} is so proud of you.`
+          : careDoneLine(petName, points, Date.now() / 1000);
+      setToast({ id: Date.now(), text });
       if (outcome.state === "queued") setNotice({ type: "queued", message: "Saved on this phone. It syncs when you're back online." });
     } catch (error) {
       console.error("JOURNEY_STEP_ERROR", error);
@@ -112,7 +123,7 @@ export default function JourneyScreen() {
     } finally {
       setSaving(false);
     }
-  }, [completeToday, journey, pet.status, petName, saving, step, user?.id]);
+  }, [completeToday, journey, memorial, pet.status, petName, saving, step, user?.id]);
 
   if (!journey) {
     return (
@@ -203,7 +214,7 @@ export default function JourneyScreen() {
           return (
             <View key={day.title} style={[styles.dayRow, { borderColor: surface.hairline }]} accessible accessibilityLabel={`Day ${index + 1}: ${day.title}${doneOn ? ", done" : isToday ? ", today" : ""}`}>
               <View style={[styles.dayDot, { borderColor: doneOn || isToday ? tone.accent : surface.track, backgroundColor: doneOn ? tone.accent : "transparent" }]}>
-                {doneOn ? <Ionicons name="checkmark" size={14} color={night ? "#1F2542" : brand.cream} /> : <Text style={[type.micro, { color: isToday ? tone.accent : surface.textTertiary }]}>{index + 1}</Text>}
+                {doneOn ? <Ionicons name="checkmark" size={14} color={night ? ink.primary : brand.cream} /> : <Text style={[type.micro, { color: isToday ? tone.accent : surface.textTertiary }]}>{index + 1}</Text>}
               </View>
               <View style={styles.dayBody}>
                 <Text style={[type.bodyStrong, { color: locked && !doneOn ? surface.textSecondary : surface.text }]}>{day.title}</Text>
@@ -219,7 +230,13 @@ export default function JourneyScreen() {
           {isActive ? (
             <Button label="Leave this journey" variant="quiet" size="md" onPress={() => void handleLeave()} />
           ) : (
-            <Button label={finished.length > 0 ? "Walk it again" : active ? `Switch to this journey` : "Start this journey"} onPress={() => void handleStart()} loading={starting} />
+            <Button
+              label={finished.length > 0 ? "Walk it again" : active ? `Switch to this journey` : "Start this journey"}
+              // when part two is offered above, that is the primary step; walking part one again is the alternative
+              variant={sequel && chapter && active?.id !== sequel.id ? "secondary" : "primary"}
+              onPress={() => void handleStart()}
+              loading={starting}
+            />
           )}
         </View>
       </Screen>

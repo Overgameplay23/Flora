@@ -46,11 +46,22 @@ export default function WeeklyReflectionScreen() {
     const endDateKey = getLocalDateKey();
     try {
       setErrorMessage("");
+      let metricsFailed = false;
       const [checkins, metrics] = await Promise.all([
         fetchWeeklyCheckins(user.id, endDateKey),
-        fetchLast7DaysMetrics().catch(() => []),
+        fetchLast7DaysMetrics().catch(() => {
+          metricsFailed = true;
+          return [];
+        }),
       ]);
-      setStory(buildWeekStory({ endDateKey, checkins, metrics, petName: displayName, memorial: !!memorial }));
+      const built = buildWeekStory({ endDateKey, checkins, metrics, petName: displayName, memorial: !!memorial });
+      if (metricsFailed) {
+        // say so, and keep the week already on screen rather than telling an empty one
+        setErrorMessage("Couldn't reach the week's small things just now.");
+        setStory((prev) => prev ?? built);
+      } else {
+        setStory(built);
+      }
       const viewedWeek = await markWeeklyReflectionViewed(user.id, getISOWeekKey(new Date())).catch(() => null);
       if (viewedWeek) {
         setProfile?.((prev: any) => ({ ...(prev || {}), last_reflection_viewed_week: viewedWeek }));
@@ -58,7 +69,7 @@ export default function WeeklyReflectionScreen() {
     } catch (error: any) {
       console.error("WEEKLY_REFLECTION_LOAD_ERROR", error?.message);
       setErrorMessage("Couldn't load the week just now.");
-      setStory(buildWeekStory({ endDateKey, checkins: [], metrics: [], petName: displayName, memorial: !!memorial }));
+      setStory((prev) => prev ?? buildWeekStory({ endDateKey, checkins: [], metrics: [], petName: displayName, memorial: !!memorial }));
     } finally {
       setLoading(false);
     }
@@ -193,6 +204,15 @@ export default function WeeklyReflectionScreen() {
       {story.points > 0 && !memorial ? (
         <Text style={[type.meta, styles.statsFoot, { color: surface.textSecondary }]}>{story.points} points went into the garden.</Text>
       ) : null}
+      <Button
+        label="See the whole month"
+        icon="calendar-outline"
+        variant="secondary"
+        size="sm"
+        onPress={() => navigation.navigate("Insights")}
+        accessibilityLabel="See the whole month"
+        containerStyle={styles.monthButton}
+      />
 
       <View style={styles.closing}>
         <Text style={[type.petVoice, styles.closingText, { color: surface.textSecondary }]}>{story.closing}</Text>
@@ -239,6 +259,7 @@ const styles = StyleSheet.create({
   keptText: { flex: 1 },
   smallTitle: { marginTop: 8, marginBottom: 10, marginLeft: 4 },
   statsFoot: { marginTop: 10, textAlign: "center" },
+  monthButton: { marginTop: 14, alignSelf: "center" },
   closing: { alignItems: "center", paddingTop: 22, paddingHorizontal: 10 },
   closingText: { textAlign: "center" },
   closingButton: { marginTop: 14, alignSelf: "center" },

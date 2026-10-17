@@ -88,6 +88,11 @@ export const brand = {
   /** Sprouts, the soft currency */
   sprout: "#4E8A3E",
   sproutTint: "#E7F1E0",
+  /** the Treat Catch biscuit: body, rim and crumb (sprite fills, never text) */
+  biscuit: "#C98B5A",
+  biscuitRim: "#F2D9BF",
+  biscuitCrumb: "#8A5A3A",
+  goldRim: "#FFE9A8",
   /** Days Together; fill only, never text (2.1:1 as text) */
   gold: "#E9A23B",
   /** icons and text on goldTint */
