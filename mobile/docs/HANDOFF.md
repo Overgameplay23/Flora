@@ -13,6 +13,12 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 17 October 2026, evening: Cozy Run** (owner approved the ROADMAP rules; details in `docs/dev-notes.md`,
+> last entry): days of care in a row with 2 Nap Days a week, Warm Blankets, period days and Cozy Pauses covered, a
+> 3 a.m. day, and a run that rests and mends or is kept as a chapter, never broken. A chip on Home under Days
+> Together, the numbers on Profile and Pet, its own screen, a scrapbook sticker. Also a calm crash screen
+> (`AppErrorBoundary`) and the App Review notes in `docs/LAUNCH.md`.
+
 > **Update, 17 October 2026: the app is Luna** (owner's decision; details in `docs/dev-notes.md`, last entry, and
 > `docs/LAUNCH.md`): `app.json` carries the store identity (Luna, `com.lunapet.app`, scheme `luna`, iPhone only), a
 > real icon and splash (the app's dog under a full moon, `scripts/build-app-icon.js`) replace Expo's placeholder,

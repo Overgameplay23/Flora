@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import GardenStage from "../garden/GardenStage";
@@ -11,7 +11,7 @@ import type { PetLook } from "../../domain/petLook";
 import type { ScenePlantInput } from "../../domain/gardenScene";
 import type { DayPhase } from "../../domain/timeOfDay";
 import type { SanctuaryTheme } from "../../domain/sanctuary";
-import { brand, fonts, radius, skyFor, surfaces, type } from "../../theme/tokens";
+import { brand, categories, fonts, radius, skyFor, surfaces, type } from "../../theme/tokens";
 
 export type HomeHeroProps = {
   height: number;
@@ -26,6 +26,9 @@ export type HomeHeroProps = {
   petLine: string | null;
   daysTogether: number | null;
   sprouts: number | null;
+  /** the Cozy Run under Days Together (src/domain/cozyRun.ts); null hides it (memorial, no run yet) */
+  cozyRun?: { days: number; resting: boolean } | null;
+  onOpenCozyRun?: () => void;
   theme: SanctuaryTheme;
   petName: string;
   petSources?: PetImageSources | null;
@@ -40,23 +43,38 @@ export type HomeHeroProps = {
   petResting?: boolean;
 };
 
-function StatChip({ icon, iconColor, iconTint, value, label, night }: { icon: string; iconColor: string; iconTint: string; value: string; label: string; night: boolean }) {
+type StatChipProps = { icon: string; iconColor: string; iconTint: string; value: string; label: string; night: boolean; onPress?: () => void };
+
+function StatChip({ icon, iconColor, iconTint, value, label, night, onPress }: StatChipProps) {
   const surface = night ? surfaces.night : surfaces.light;
-  return (
-    <View style={[styles.chip, { backgroundColor: surface.paperOverScene, boxShadow: surface.shadow }]} accessible accessibilityLabel={`${value} ${label}`}>
+  const body = (
+    <>
       <View style={[styles.chipIcon, { backgroundColor: iconTint }]}>
         <Ionicons name={icon as any} size={14} color={iconColor} />
       </View>
       <Text style={[styles.chipValue, { color: surface.text }]}>{value}</Text>
       <Text style={[styles.chipLabel, { color: surface.textSecondary }]}>{label}</Text>
+    </>
+  );
+  const look = [styles.chip, { backgroundColor: surface.paperOverScene, boxShadow: surface.shadow }];
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [look, pressed && styles.chipPressed]} accessibilityRole="button" accessibilityLabel={`${value} ${label}`}>
+        {body}
+      </Pressable>
+    );
+  }
+  return (
+    <View style={look} accessible accessibilityLabel={`${value} ${label}`}>
+      {body}
     </View>
   );
 }
 
 /**
  * The top of Home: the pet's sanctuary as a full-bleed painting with the pet large in the lower third,
- * a time-of-day sky veil so the greeting stays readable, two quiet chips (Days Together, Sprouts) and the
- * pet's line for today in a bubble beside its head.
+ * a time-of-day sky veil so the greeting stays readable, quiet chips (Days Together, Sprouts, and the Cozy Run,
+ * which opens its screen) and the pet's line for today in a bubble beside its head.
  */
 export default function HomeHero({
   height,
@@ -68,6 +86,8 @@ export default function HomeHero({
   petLine,
   daysTogether,
   sprouts,
+  cozyRun = null,
+  onOpenCozyRun,
   theme,
   petName,
   petSources,
@@ -157,6 +177,17 @@ export default function HomeHero({
           {daysTogether != null ? (
             <StatChip icon="flower" iconColor={brand.goldStrong} iconTint={brand.goldTint} value={String(daysTogether)} label={daysTogether === 1 ? "day" : "days"} night={night} />
           ) : null}
+          {cozyRun ? (
+            <StatChip
+              icon="moon"
+              iconColor={categories.rest.strong}
+              iconTint={categories.rest.tint}
+              value={String(cozyRun.days)}
+              label={cozyRun.resting ? "resting" : "cozy run"}
+              night={night}
+              onPress={onOpenCozyRun}
+            />
+          ) : null}
           {sprouts != null ? (
             <StatChip icon="leaf" iconColor={brand.sprout} iconTint={brand.sproutTint} value={String(sprouts)} label="Sprouts" night={night} />
           ) : null}
@@ -204,6 +235,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minHeight: 32,
     borderRadius: radius.pill,
+  },
+  chipPressed: {
+    opacity: 0.8,
   },
   chipIcon: {
     width: 24,

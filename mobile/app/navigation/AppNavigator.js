@@ -36,6 +36,7 @@ import InsightsScreen from '../../src/screens/InsightsScreen';
 import ScrapbookScreen from '../../src/screens/ScrapbookScreen';
 import DeleteAccountScreen from '../../src/screens/DeleteAccountScreen';
 import PrivacyScreen from '../../src/screens/PrivacyScreen';
+import CozyRunScreen from '../../src/screens/CozyRunScreen';
 import {
   finchTabBarItemStyle,
   finchTabBarLabelStyle,
@@ -147,6 +148,7 @@ export default function AppNavigator({ initialRoute = null }) {
       <Stack.Screen name="Scrapbook" component={ScrapbookScreen} options={{ title: "Scrapbook", headerShown: true }} />
       <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} options={{ title: "Delete account", headerShown: true }} />
       <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy", headerShown: true }} />
+      <Stack.Screen name="CozyRun" component={CozyRunScreen} options={{ title: "Cozy Run", headerShown: true }} />
     </Stack.Navigator>
   );
 }

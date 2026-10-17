@@ -204,3 +204,23 @@ describe("scrapbook: the book on the device", () => {
     expect(messy.lastSeenEnd).toBeNull();
   });
 });
+
+describe("scrapbook: Cozy Run chapters", () => {
+  const story = buildWeekStory({ endDateKey: SUNDAY, checkins: [], metrics: [], petName: "Biscuit" });
+
+  it("puts a run that came to rest this week on the page as a chapter", () => {
+    const cozyChapters = [
+      { start: "2026-09-20", end: "2026-10-14", days: 21 },
+      { start: "2026-08-01", end: "2026-08-20", days: 18 },
+    ];
+    const page = buildScrapbookPage({ story, petName: "Biscuit", cozyChapters, madeAt: "" });
+    expect(page.stickers).toEqual([{ id: "cozy-run", icon: "moon-outline", category: "rest", label: "A 21-day cozy run", detail: "Kept as a chapter" }]);
+  });
+
+  it("leaves it off for other weeks and in memorial", () => {
+    const earlier = [{ start: "2026-08-01", end: "2026-08-20", days: 18 }];
+    expect(buildScrapbookPage({ story, petName: "Biscuit", cozyChapters: earlier, madeAt: "" }).stickers).toEqual([]);
+    const thisWeek = [{ start: "2026-09-20", end: "2026-10-14", days: 21 }];
+    expect(buildScrapbookPage({ story, petName: "Biscuit", cozyChapters: thisWeek, memorial: true, madeAt: "" }).stickers).toEqual([]);
+  });
+});

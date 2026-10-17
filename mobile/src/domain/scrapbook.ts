@@ -10,6 +10,7 @@ import type { Voice } from "./onboarding";
 import { journeyById, type JourneyState } from "./journeys";
 import { isMilestoneDays, milestoneIcon, milestoneTitle, normalizeMilestoneRecord, type MilestoneRecord } from "./milestones";
 import { addDaysToDateKey, parseDateKey } from "../utils/dateKeys";
+import type { CozyChapter } from "./cozyRun";
 
 export type ScrapbookSticker = {
   id: string;
@@ -181,10 +182,12 @@ export type PageInput = {
   memorial?: boolean;
   journeys?: JourneyState | null;
   milestones?: MilestoneRecord | null;
+  /** Cozy Runs kept as chapters (services/cozyRunStore.ts); one that came to rest this week gets its sticker */
+  cozyChapters?: readonly CozyChapter[] | null;
   madeAt: string;
 };
 
-export function buildScrapbookPage({ story, petName, voice, memorial = false, journeys, milestones, madeAt }: PageInput): ScrapbookPage {
+export function buildScrapbookPage({ story, petName, voice, memorial = false, journeys, milestones, cozyChapters, madeAt }: PageInput): ScrapbookPage {
   const pet = (petName || "Your pet").trim() || "Your pet";
   const start = story.startDateKey;
   const end = story.endDateKey;
@@ -194,6 +197,12 @@ export function buildScrapbookPage({ story, petName, voice, memorial = false, jo
   const milestone = memorial ? null : milestoneInWeek(milestones, start, end);
   if (milestone != null) {
     stickers.push({ id: "milestone", icon: milestoneIcon(milestone), category: "play", label: milestoneTitle(milestone), detail: "Days Together" });
+  }
+
+  // a run that came to rest this week becomes a chapter of the book, never a "broken" streak
+  const chapter = memorial ? null : (cozyChapters ?? []).find((c) => c.end >= start && c.end <= end) ?? null;
+  if (chapter) {
+    stickers.push({ id: "cozy-run", icon: "moon-outline", category: "rest", label: `A ${chapter.days}-day cozy run`, detail: "Kept as a chapter" });
   }
 
   const walk = journeyWeek(journeys, start, end);

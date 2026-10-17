@@ -30,7 +30,7 @@ import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isAdopted } from "../../src/domain/shelter";
 import { petTalkAvailable } from "../../src/services/petTalk";
-import { unifiedStreak } from "../../src/domain/streaks";
+import { useCozyRun } from "../../src/hooks/useCozyRun";
 import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
 
@@ -103,7 +103,6 @@ export default function PetScreen() {
   const [nameError, setNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [serverStreak, setServerStreak] = useState(null);
   const petTimer = useRef(null);
 
   const loadPlants = useCallback(async () => {
@@ -132,8 +131,8 @@ export default function PetScreen() {
     useCallback(() => {
       void refresh();
       void loadPlants();
+      // keeps the server's pet_state fresh for Talk; the run shown here is the Cozy Run
       recomputePetState()
-        .then((state) => setServerStreak(state?.streak_days ?? null))
         .catch(() => {});
       if (user?.id) {
         fetchDaysTogether(user.id)
@@ -146,7 +145,7 @@ export default function PetScreen() {
   useEffect(() => () => petTimer.current && clearTimeout(petTimer.current), []);
 
   const mood = petMoodFromStores({ liveState: petEmotionState, dailyMood: userStats?.pet_mood_state, hour: new Date().getHours() });
-  const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? userStats?.streak ?? 0);
+  const { state: cozy } = useCozyRun();
   const isProcessing = processingStatus === "processing";
   const isError = processingStatus === "error";
   const sceneHeight = Math.round(Math.min(460, Math.max(340, width * 0.95)));
@@ -316,7 +315,7 @@ export default function PetScreen() {
         <View style={[styles.sheet, { backgroundColor: surface.canvas }]}>
           <StatStrip
             items={[
-              { value: streak, label: streak === 1 ? "day in a row" : "days in a row", icon: "flame-outline", category: "energy" },
+              { value: cozy ? cozy.days : "—", label: cozy?.days === 1 ? "day in your cozy run" : "days in your cozy run", icon: "moon-outline", category: "rest" },
               { value: together ?? "—", label: together === 1 ? "day together" : "days together", icon: "heart-outline", category: "connection" },
               { value: plantsGrowing, label: place.plantsStat, icon: "leaf-outline", category: "body" },
             ]}

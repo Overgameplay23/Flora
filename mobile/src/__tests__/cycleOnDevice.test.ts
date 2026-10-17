@@ -29,10 +29,12 @@ describe("cycle data stays on the device", () => {
     // Adding a reader here is fine for display; if it also talks to the backend, ask the owner first.
     // OnboardingScreen only flips the on/off flag (setCycleEnabled) after the person's explicit yes on the
     // "keep your rhythm private on this phone?" step; it never reads cycle data. JourneysScreen reads the
-    // on/off flag alone, to decide whether to list the rhythm journey.
+    // on/off flag alone, to decide whether to list the rhythm journey. useCozyRun turns logged period days into
+    // covered days of the Cozy Run on the phone; it reads user_events but sends nothing about the cycle anywhere.
     expect(readers).toEqual([
       "app/screens/HomeScreen.js",
       "app/screens/ProfileScreen.js",
+      "src/hooks/useCozyRun.ts",
       "src/hooks/useCycle.ts",
       "src/screens/CycleScreen.tsx",
       "src/screens/JourneysScreen.tsx",

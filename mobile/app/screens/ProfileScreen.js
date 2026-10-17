@@ -20,7 +20,8 @@ import { remindersSummary } from "../../src/domain/reminders";
 import { loadReminderSettings, remindersSupported } from "../../src/services/reminders";
 import { petTalkAvailable } from "../../src/services/petTalk";
 import { getISOWeekKey, getLocalDateKey } from "../../src/utils/dateKeys";
-import { unifiedStreak } from "../../src/domain/streaks";
+import { useCozyRun } from "../../src/hooks/useCozyRun";
+import { cozyCover } from "../../src/domain/cozyRun";
 import { recomputePetState } from "../../src/services/retention";
 import { loadScrapbook } from "../../src/services/scrapbookStore";
 import { loadCarePrefs } from "../../src/services/carePrefs";
@@ -73,7 +74,6 @@ export default function ProfileScreen({ navigation }) {
   const [profile, setLocalProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [versionTapCount, setVersionTapCount] = useState(0);
-  const [serverStreak, setServerStreak] = useState(null);
   const versionTapResetRef = useRef(null);
   const appVersion = Constants?.expoConfig?.version || "dev";
 
@@ -99,9 +99,8 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
-      recomputePetState()
-        .then((state) => setServerStreak(state?.streak_days ?? null))
-        .catch(() => {});
+      // keeps the server's pet_state fresh for Talk; the run shown here is the Cozy Run
+      recomputePetState().catch(() => {});
     }, [fetchProfile])
   );
 
@@ -123,8 +122,17 @@ export default function ProfileScreen({ navigation }) {
     versionTapResetRef.current = setTimeout(() => setVersionTapCount(0), 1500);
   }, [navigation, versionTapCount]);
 
-  const streak = unifiedStreak(serverStreak, profile?.current_streak ?? profile?.streak_count ?? 0);
-  const bestStreak = Math.max(Number(profile?.best_streak) || 0, streak);
+  // the Cozy Run (src/domain/cozyRun.ts): days of care in a row, with naps, blankets and pauses keeping it safe
+  const { state: cozy } = useCozyRun();
+  const cozyHint = !cozy
+    ? "Days of care in a row, kindly counted"
+    : cozy.status === "resting"
+      ? "Resting · a few days of care mend it"
+      : cozy.status === "none"
+        ? "Your first day of care starts one"
+        : cozy.pause
+          ? "Paused · quiet days are covered"
+          : cozyCover(cozy);
   const currentWeekKey = getISOWeekKey(new Date());
   const showReflectionBadge = (profile?.last_reflection_viewed_week ?? null) !== currentWeekKey;
 
@@ -150,8 +158,8 @@ export default function ProfileScreen({ navigation }) {
       <StatStrip
         style={styles.stats}
         items={[
-          { value: streak, label: streak === 1 ? "day in a row" : "days in a row", icon: "flame-outline", category: "energy" },
-          { value: bestStreak, label: "best run", icon: "ribbon-outline", category: "play" },
+          { value: cozy ? cozy.days : "–", label: cozy?.days === 1 ? "day in your cozy run" : "days in your cozy run", icon: "moon-outline", category: "rest" },
+          { value: cozy ? cozy.best : "–", label: "longest run", icon: "ribbon-outline", category: "play" },
         ]}
       />
 
@@ -160,6 +168,7 @@ export default function ProfileScreen({ navigation }) {
         <ListRow icon="book-outline" category="connection" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
         <ListRow icon="images-outline" category="connection" label="Scrapbook" hint={`A page a week from ${displayName}`} badge={scrapbookNew ? "New" : null} onPress={() => navigation.navigate("Scrapbook")} />
         <ListRow icon="calendar-outline" category="calm" label="This month" hint={`Patterns ${displayName} noticed`} onPress={() => navigation.navigate("Insights")} />
+        <ListRow icon="moon-outline" category="rest" label="Cozy Run" hint={cozyHint} onPress={() => navigation.navigate("CozyRun")} />
         <ListRow icon="map-outline" category="focus" label="Journeys" hint="Seven-day arcs, one small step a day" onPress={() => navigation.navigate("Journeys")} />
         <ListRow icon="ribbon-outline" category="play" label="Keepsakes" hint={`The moments ${displayName} keeps for you`} onPress={() => navigation.navigate("Keepsakes")} />
         <ListRow icon="sunny-outline" category="energy" label="Log a check-in" hint="How today is going" onPress={() => navigation.navigate("CheckIn")} />

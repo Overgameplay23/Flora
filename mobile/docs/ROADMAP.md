@@ -64,6 +64,10 @@ one is something a real-pet app can beat:
   stickers for a milestone, journey steps, the fullest day, the battery, heavier days; the wins as taped notes),
   kept on the phone as a growing book; Profile › Scrapbook, from Our week, Home's week card on Sunday, the Sunday
   reminder. Room items and voice notes on the page wait for the wardrobe and recording.
+- **2026-10-17, evening:** **Cozy Run** (item 2): days of care in a row with 2 Nap Days a week, Warm Blankets
+  (1 per 7 days, up to 3, never sold), logged period days covered, Cozy Pause (1-30 days), a 3 a.m. day, and a run
+  that rests, mends with 3 days of care in 5, or is kept as a chapter (scrapbook sticker, Earlier runs). On Home as
+  a chip under Days Together, on Profile and Pet, and its own screen.
 - **2026-10-17, later:** launch plumbing, tracked in `docs/LAUNCH.md`: **delete account** in the app (Apple
   requirement; the RPC is on Bloom), **forgot password** with an emailed code, and the
   **privacy policy** (in the app and as a hostable page; a draft for the owner to read).
@@ -80,7 +84,7 @@ one is something a real-pet app can beat:
 - Breathing, rebuilt once: the pet breathes with you (4-2-6), haptics on each phase, patterns, logged as care.
 - Focus timer task kind: "body-double with {pet}" (pet sits with you for 5/10/25 min).
 
-### 2. Cozy Run (streaks without shame) (1 session, needs owner's yes on the rules)
+### 2. Cozy Run (streaks without shame): **built 2026-10-17** with the owner's yes on these rules
 - **Days Together** (lifetime, never resets) stays the headline.
 - **Cozy Run**: any care action counts; the day ends at 3 a.m.; 2 automatic Nap Days per week; Warm Blankets earned
   1 per 7 days (max 3), never sold; logged period days covered; Cozy Pause 1-30 days; a run that runs out of
@@ -144,7 +148,7 @@ while the quiz runs, so the "building your plan" wait is honest.
 - Monthly recap; insights (mood x energy x cycle x tasks); exportable PDF for a therapist.
 
 ## Decisions waiting on Donovan
-1. Cozy Run rules and dropping "Never a streak" from onboarding copy.
+1. ~~Cozy Run rules~~ Approved and built 2026-10-17 (the "Never a streak" line had already left onboarding with v2).
 2. Tabs. Proposal: **Today · Garden · Play · Wardrobe · You** (Rhythm and Journal inside You and on Home).
 3. Paywall: soft offer at the end of onboarding in addition to the 3rd check-in? Price test ($6.99/$44.99 vs
    $9.99/$59.99)?

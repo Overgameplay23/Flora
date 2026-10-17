@@ -22,6 +22,7 @@ import { loadCarePrefs } from "../services/carePrefs";
 import { loadJourneyState } from "../services/journeyStore";
 import { loadMilestones } from "../services/milestoneStore";
 import { keepScrapbookPage, loadScrapbook, markScrapbookSeen } from "../services/scrapbookStore";
+import { loadKeptChapters } from "../services/cozyRunStore";
 import { buildWeekStory } from "../domain/week";
 import { buildScrapbookPage, earlierPages, hasPageFor, latestPageEnd, pageFor, type Scrapbook, type ScrapbookPage } from "../domain/scrapbook";
 import { addDaysToDateKey, getISOWeekKey, getLocalDateKey } from "../utils/dateKeys";
@@ -144,7 +145,13 @@ export default function ScrapbookScreen() {
     }
     const userId = user.id;
     const today = getLocalDateKey();
-    const [stored, prefs, journeys, milestones] = await Promise.all([loadScrapbook(userId), loadCarePrefs(userId), loadJourneyState(userId), loadMilestones(userId)]);
+    const [stored, prefs, journeys, milestones, cozyChapters] = await Promise.all([
+      loadScrapbook(userId),
+      loadCarePrefs(userId),
+      loadJourneyState(userId),
+      loadMilestones(userId),
+      loadKeptChapters(userId),
+    ]);
     setBook(stored);
 
     // an earlier page opens from the book, exactly as it was kept
@@ -166,7 +173,7 @@ export default function ScrapbookScreen() {
       setErrorMessage("");
       const [checkins, metrics] = await Promise.all([fetchWeeklyCheckins(userId, end), fetchDailyMetrics(addDaysToDateKey(end, -6), end)]);
       const story = buildWeekStory({ endDateKey: end, checkins, metrics, petName: displayName, memorial: !!memorial });
-      const built = buildScrapbookPage({ story, petName: displayName, voice: prefs.voice, memorial: !!memorial, journeys, milestones, madeAt: new Date().toISOString() });
+      const built = buildScrapbookPage({ story, petName: displayName, voice: prefs.voice, memorial: !!memorial, journeys, milestones, cozyChapters, madeAt: new Date().toISOString() });
       setPage(built);
       setBook(await keepScrapbookPage(userId, built));
       // on its Sunday the page is this week's look back, so Profile's "Our week" stops saying New too

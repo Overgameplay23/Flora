@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../lib/supabase";
 import { getLocalDateKey } from "../utils/dateKeys";
 import { completeTaskWithResilience } from "../services/taskCompletion";
+import { noteCare } from "../services/cozyRunStore";
 import { applySession, isPlayTask, normalizePlayStats, playTaskTitle, type GameId, type PlayStats } from "./playStatsLogic";
 
 export * from "./playStatsLogic";
@@ -83,15 +84,18 @@ export async function recordPlaySession(options: { userId: string | null | undef
   }
 
   try {
-    await supabase.rpc("log_event_and_rollup", {
+    const playedAt = new Date().toISOString();
+    const { error: eventError } = await supabase.rpc("log_event_and_rollup", {
       p_event_type: "pet_played",
-      p_occurred_at: new Date().toISOString(),
+      p_occurred_at: playedAt,
       p_task_id: null,
       p_category: game,
       p_difficulty: null,
       p_points: null,
       p_meta: { game, score, best_beaten: bestBeaten },
     });
+    // a game is care too: the Cozy Run counts the day at once
+    if (!eventError) noteCare(playedAt);
   } catch (error) {
     console.warn("PLAY_EVENT_LOG_FAILED", (error as any)?.message || String(error));
   }

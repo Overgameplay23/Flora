@@ -19,6 +19,7 @@ import BreathingModal from "../../src/components/checkin/BreathingModal";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { usePet } from "../../src/hooks/usePet";
 import { useCycle } from "../../src/hooks/useCycle";
+import { useCozyRun } from "../../src/hooks/useCozyRun";
 import { useReminderTaps } from "../../src/hooks/useReminderTaps";
 import { useTodayPlan } from "../../src/hooks/useTodayPlan";
 import { useJourney } from "../../src/hooks/useJourney";
@@ -108,6 +109,9 @@ export default function HomeScreen() {
   const theme = sanctuaryFor(petLook?.species);
   const place = sanctuaryCopy(theme).place;
   const inMemorial = !!memorial;
+  // the Cozy Run chip under Days Together: not before the first day of care, never in memorial
+  const { state: cozyState } = useCozyRun();
+  const cozyChip = !inMemorial && cozyState && cozyState.status !== "none" && cozyState.days > 0 ? { days: cozyState.days, resting: cozyState.status === "resting" } : null;
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
   const protectedMode = isProtectedMood(toHomeMoodScore(moodState));
@@ -882,6 +886,8 @@ export default function HomeScreen() {
         petLine={petLine}
         daysTogether={daysTogether}
         sprouts={sprouts}
+        cozyRun={cozyChip}
+        onOpenCozyRun={() => navigation.navigate("CozyRun")}
         theme={theme}
         petName={petDisplayName}
         petSources={petSources}

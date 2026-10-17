@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { addDaysToDateKey, getLocalDateKey } from "../utils/dateKeys";
+import { CARE_EVENTS, noteCare } from "./cozyRunStore";
 
 /** PostgREST could not match the call to a function signature (older database without a newer parameter). */
 export function isMissingRpcSignature(error: any) {
@@ -106,6 +107,8 @@ async function logEventAndRollup(params: LogEventParams) {
     ({ error } = await supabase.rpc("log_event_and_rollup", payload));
   }
   if (error) throw error;
+  // the Cozy Run counts this day straight away, without waiting for its next fetch
+  if ((CARE_EVENTS as readonly string[]).includes(params.eventType)) noteCare(occurredAt);
 }
 
 export async function logTaskCompleted(params: TaskEventParams) {

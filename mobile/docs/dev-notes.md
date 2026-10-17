@@ -784,3 +784,49 @@ previews also gained `privacy`, `delete` and `forgot`.
 `docs/LAUNCH.md` gained "App Review: demo account and notes": the review account the owner creates on the TestFlight
 build, and reviewer notes pointing at Delete account, Privacy, the on-device cycle tracking and the camera/photos
 use.
+
+## 2026-10-17 — Cozy Run (streaks without shame)
+
+Owner's decision in chat: build Cozy Run "using the rules in ROADMAP as written" and drop the "Never a streak" line
+from onboarding. That line ("One gentle hello a day, in their voice. Never a streak, never a nag.") had already left
+with Onboarding v2 (`b99d97f`); nothing in the app promises "no streaks" now. The closest line, the quiz's "They never
+scold and never count what was missed", stays true: the run counts days of care, never misses.
+
+**Rules (`src/domain/cozyRun.ts`, pure, 20 tests in `cozyRun.test.ts`).** Where the ROADMAP left room, my reading:
+- A day of care is a cozy day (03:00 to 02:59) with a task or journey step done, a check-in or a game
+  (`task_completed`, `checkin_submitted`, `pet_played` in `user_events`, bucketed on the phone by local time).
+- The run is the number of days of care. Covered days keep it going without adding to it.
+- A quiet day is covered, in order, by a logged period day (only while Cycle tracking is on), a Cozy Pause, one of
+  the week's 2 Nap Days (calendar week, Monday to Sunday, per run), or a Warm Blanket (1 per 7 days of care in the
+  run, at most 3 held). Today is never judged until it is over.
+- With no cover the run rests. The 5 days after it are the mending window; 3 days of care in it mend the run (the
+  resting days show as mended, the days of care join the run). Period and paused days in the window extend it by a
+  day instead of using it up. When mending can no longer happen the run is kept as a chapter (3 days or more; a
+  1-2 day beginning is not a chapter) and the next run starts with the first day of care after the rest.
+- Cozy Pause: 1, 3, 7, 14 or 30 days from today; ending it early keeps the days already paused.
+
+**Where it lives.** `services/cozyRunStore.ts` reads only `occurred_at` of those events (paginated, last 200 days),
+keeps the last good list on the phone (a failed fetch never shows a run as resting) and stores pauses and kept
+chapters per user (`floura:cozy-days|cozy-pauses|cozy-chapters:<uid>`; account deletion wipes them, since its key
+filter matches the user id). `services/retention.ts` and `games/playStats.ts` call `noteCare` after a care event is
+logged, so the chip moves at once. `hooks/useCozyRun.ts` adds period days from the cycle tracker on the phone, which
+is why it joins the `cycleOnDevice.test.ts` reader list (it sends nothing about the cycle anywhere; a test checks
+the store never writes to the server and never reads the cycle store).
+
+**Where it shows.** Home: a third chip under Days Together and Sprouts ("12 cozy run" or "resting"), which opens the
+Cozy Run screen; hidden in memorial and before the first day of care. Profile: the stat strip is now "days in your
+cozy run" and "longest run" (it was the server's strict "days in a row"), plus a Cozy Run row. Pet: the same number.
+`CozyRun` screen (`src/screens/CozyRunScreen.tsx`, `?preview=cozy`): the count, a line that never mentions what was
+missed, the last two weeks as small marks (care, nap, blanket, period, pause, mended, resting), Warm Blankets,
+the pause card, how it works, earlier runs kept. Scrapbook: a run that came to rest that week becomes a "A 21-day
+cozy run, Kept as a chapter" sticker. The server's `recompute_pet_state` streak is still computed (Talk uses
+`pet_state`); it is no longer shown.
+
+Verified on web as the demo user: the demo's care days (30 Sep, 1 Oct, 15-16 Oct) gave a 2-day run exactly as the
+rules say (naps on 2-3 Oct, rest on the 4th, no mending, 2 days not kept as a chapter); marking a task done moved the
+Home chip from 2 to 3 at once; Profile showed 3 / 3 and the row; a 3-day pause read "Paused until Monday. Your 2-day
+run waits for you." and ending it on its first day removed it.
+
+For the owner: runs live on each phone (pauses, kept chapters), like journeys and the scrapbook; the count itself is
+rebuilt from the server's events, so a new phone shows the same run but not older chapters or past pauses. Nap Days
+are per run, so a run that starts mid-week gets two fresh ones.
