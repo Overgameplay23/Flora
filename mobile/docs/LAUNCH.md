@@ -31,7 +31,7 @@ prepares, owner approves or finishes.
 | 10 | **Auth email delivery**: Supabase's built-in mailer sends only a few emails an hour, so sign-up confirmations fail once more than a handful of people join | [owner] custom SMTP (e.g. Resend, free tier) on a domain you own, or turn email confirmation off for launch | pending |
 | 11 | **Bloom on a paid plan** (free projects pause after a week without traffic and have no backups) | [owner] Supabase Pro, $25/mo | pending |
 | 12 | **A real-phone pass** on a TestFlight build: reminders, haptics, games, painting, sign-up to deletion | [both] | pending |
-| 13 | **Crash reporting** (e.g. Sentry) so launch-week crashes are visible | [owner] account + DSN · [claude] wiring | pending |
+| 13 | **Crash reporting** (e.g. Sentry) so launch-week crashes are visible | [owner] account + DSN · [claude] wiring | first half done: an app-wide crash screen (`src/components/AppErrorBoundary.tsx`) replaces the blank screen and logs to Diagnostics; forwarding to Sentry waits for the account |
 | 14 | **Apply the pending SQL to Bloom** (account deletion; later the plan engine table) | [owner] approves each push | account deletion applied 2026-10-17; plan engine table not yet. Note: Bloom also holds a `wardrobe_v1` migration (16 Oct) that is in no branch of this repo |
 
 ## 3. Can wait for 1.1
@@ -67,3 +67,31 @@ review sees); the app declares no encryption beyond HTTPS (`usesNonExemptEncrypt
 export-compliance question; it asks only for photos and the camera, with Luna's own wording, and declares no
 microphone, background audio or Face ID (guarded by `src/__tests__/appIdentity.test.ts`). The old `ios/` and
 `android/` folders are stale; EAS builds from the config, so they can stay until someone deletes them on purpose.
+
+## App Review: demo account and notes
+
+Luna needs an account, so App Review needs one too (Guideline 2.1: a reviewer who cannot get in rejects the
+build). Before submitting:
+
+1. **[owner]** On the TestFlight build, sign up a dedicated review account on Bloom (an address you control, e.g.
+   `review@<your domain>`; never your own account), finish onboarding with a pet photo so the painting is there,
+   do a check-in and a task so Home is not empty. Do not delete it while a review is open; the reviewer may try
+   Delete account on their own sign-up instead.
+2. **[owner]** App Store Connect > the version > App Review Information: that email and password, a contact
+   phone and email, and the notes below.
+
+Notes for the reviewer (paste and adjust):
+
+> Luna is a gentle self-care app built around the user's own pet. The demo account already has a pet. To try the
+> full first run, sign up with any email instead: onboarding asks for 1-3 photos of a dog or cat, which are
+> painted into an illustration (this takes up to a minute; the drawn pet stands in meanwhile).
+> Account deletion: Profile > Account > Delete account (type "delete"). Privacy policy: Profile > Account > Privacy.
+> Cycle tracking is optional, stays on the device, and makes no medical or fertility predictions; the app makes
+> no medical claims. There are no in-app purchases in this version. The app uses the photo library and camera only
+> to paint the user's pet.
+
+The painting sentence assumes item 8 is done (the Gemini key set and `pet-stylize` deployed); without it, cut that
+sentence, since the drawn pet is all a reviewer would see.
+
+If something breaks during testing, the crash screen ("Something went sideways") logs the error to Diagnostics:
+Profile, tap the version line five times, Copy.

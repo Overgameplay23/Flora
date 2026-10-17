@@ -767,3 +767,20 @@ and folder names, and historical records (dev-notes, RESTORATION_*).
 For the owner: the App Store *listing* name must be unique across the whole store, so plain "Luna" will very likely
 be refused; plan on a subtitle-style name such as "Luna: Self-Care With Your Pet" (the name under the icon stays
 "Luna"). A trademark check on "Luna" in the wellness/app classes is still worth doing before launch.
+
+## 2026-10-17 — A crash screen instead of a blank app; App Review notes
+
+Nothing in the app caught a rendering error: one failing screen meant a white page on web and a closed app in a
+release build. `src/components/AppErrorBoundary.tsx` now wraps everything in `App.js`: a calm dusk screen (the
+splash's sky, a moon, "Something went sideways", "Everything you've saved is safe", "Try again"), drawn with plain
+views and token values only, because the error may come from the theme, the pet or navigation. "Try again"
+remounts the tree with fresh state. Each crash goes to `diagLog` (`APP_CRASH`, message and the first six
+component-stack lines, nothing more, since props can hold user text), which TestFlight testers can copy from
+Diagnostics (Profile, tap the version five times). Crash reporting proper (Sentry) waits for the owner's account;
+it hooks into `componentDidCatch`. Tests: `appErrorBoundary.test.tsx` (fallback shown, crash logged, retry
+remounts, copy never blames or mentions loss). Verified on web with the new dev preview `?preview=crash`; the
+previews also gained `privacy`, `delete` and `forgot`.
+
+`docs/LAUNCH.md` gained "App Review: demo account and notes": the review account the owner creates on the TestFlight
+build, and reviewer notes pointing at Delete account, Privacy, the on-device cycle tracking and the camera/photos
+use.

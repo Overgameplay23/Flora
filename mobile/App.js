@@ -3,6 +3,7 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 import { AuthProvider } from './src/contexts/AuthContext';
 import RootNavigator from './app/navigation/RootNavigator';
+import AppErrorBoundary from './src/components/AppErrorBoundary';
 import { runStartupNetworkDiagnostics } from "./src/utils/net";
 import { useAppFonts } from "./src/theme/fonts";
 import { ThemeProvider } from "./src/theme/theme";
@@ -29,12 +30,15 @@ export default function App() {
     const DesignPreview = require("./src/screens/dev/DesignPreview").default;
     return <DesignPreview name={DESIGN_PREVIEW.toLowerCase()} />;
   }
-  // the theme (light or night paper by the local hour) wraps everything, navigation included
+  // the theme (light or night paper by the local hour) wraps everything, navigation included; a rendering error
+  // anywhere below shows the calm crash screen instead of a blank app (src/components/AppErrorBoundary.tsx)
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <RootNavigator />
-      </AuthProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
 }

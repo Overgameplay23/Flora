@@ -12,11 +12,14 @@ import { SplashScreen, UnreachableScreen } from "../../../app/navigation/RootNav
 import LoginScreen from "../LoginScreen";
 import SignupScreen from "../SignupScreen";
 import OnboardingScreen from "../onboarding/OnboardingScreen";
+import ForgotPasswordScreen from "../ForgotPasswordScreen";
+import AppErrorBoundary from "../../components/AppErrorBoundary";
 
 // Dev-only design previews on web, so every screen can be checked in a browser without signing in:
 //   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, insights, cycle,
 //                     reminders, memorial, play, fetch, bubbles, petting, treats, tasks, habits, journeys, keepsakes, talk,
-//                     painting, painted, onboarding, login, signup, splash, unreachable
+//                     painting, painted, onboarding, login, signup, forgot, privacy, delete, splash, unreachable,
+//                     crash (the app-wide crash screen, src/components/AppErrorBoundary.tsx)
 //   &hour=21          pin the time of day (night paper from 21:00 to 05:00)
 //   &pet=cat|none     which fixture pet (default: a golden dog called Biscuit)
 //   &memorial=1       the pet has passed away
@@ -51,6 +54,8 @@ const ROUTES: Record<string, string> = {
   talk: "PetTalk",
   painting: "PetStylizeLoading",
   painted: "PetStylizeResult",
+  privacy: "Privacy",
+  delete: "DeleteAccount",
 };
 
 const PREVIEW_USER = { id: "00000000-0000-4000-8000-00000000d351", email: "preview@floura.app" };
@@ -66,18 +71,30 @@ function queryParam(name: string): string | null {
 
 const AuthStack = createNativeStackNavigator();
 
+function Crash(): React.ReactElement {
+  throw new Error("preview: a screen failed to render");
+}
+
 function PreviewBody({ name }: { name: string }) {
   const theme = useTheme();
   const navigationTheme = useMemo(() => navigationThemeFor(theme), [theme]);
   if (name === "home") return <HomePreviewScreen />;
   if (name === "splash") return <SplashScreen />;
   if (name === "unreachable") return <UnreachableScreen retrying={false} onRetry={() => {}} onSignOut={() => {}} />;
-  if (name === "login" || name === "signup") {
+  if (name === "crash") {
+    return (
+      <AppErrorBoundary>
+        <Crash />
+      </AppErrorBoundary>
+    );
+  }
+  if (name === "login" || name === "signup" || name === "forgot") {
     return (
       <NavigationContainer theme={navigationTheme}>
-        <AuthStack.Navigator id="preview-auth" initialRouteName={name === "signup" ? "Signup" : "Login"} screenOptions={{ headerShown: false }}>
+        <AuthStack.Navigator id="preview-auth" initialRouteName={name === "signup" ? "Signup" : name === "forgot" ? "ForgotPassword" : "Login"} screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Login" component={LoginScreen} />
           <AuthStack.Screen name="Signup" component={SignupScreen} />
+          <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         </AuthStack.Navigator>
       </NavigationContainer>
     );
@@ -103,7 +120,7 @@ function PreviewBody({ name }: { name: string }) {
 export default function DesignPreview({ name }: { name: string }) {
   const hourParam = queryParam("hour");
   const hour = hourParam !== null && Number.isFinite(Number(hourParam)) ? Number(hourParam) : null;
-  const signedOut = name === "login" || name === "signup" || name === "splash";
+  const signedOut = name === "login" || name === "signup" || name === "forgot" || name === "splash";
   // pin the fixture pet once, before the first render reads the store
   useState(() => {
     const kind = queryParam("pet");
