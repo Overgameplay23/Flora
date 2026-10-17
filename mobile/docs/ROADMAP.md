@@ -60,6 +60,10 @@ one is something a real-pet app can beat:
   Cycle stays out of it until the owner decides.
 - **2026-10-17:** **Memory Match** (item 6): cards face down on the lawn, each a care glyph; turn two, pairs stay,
   three boards (four, six, eight pairs), no clock, finish whenever it feels like enough. Play now has five games.
+  The **Sunday scrapbook** (item 8): every Sunday the pet keeps one page about the week (a note in its voice,
+  stickers for a milestone, journey steps, the fullest day, the battery, heavier days; the wins as taped notes),
+  kept on the phone as a growing book; Profile › Scrapbook, from Our week, Home's week card on Sunday, the Sunday
+  reminder. Room items and voice notes on the page wait for the wardrobe and recording.
 
 ## Next, in order
 

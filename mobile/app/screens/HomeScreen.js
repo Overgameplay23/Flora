@@ -12,6 +12,8 @@ import MilestoneSheet from "../../src/components/home/MilestoneSheet";
 import { createCustomTask, removeCustomTask } from "../../src/services/customTasks";
 import { reconcileMilestonesForUser } from "../../src/services/milestoneStore";
 import { loadCarePrefs } from "../../src/services/carePrefs";
+import { loadScrapbook } from "../../src/services/scrapbookStore";
+import { shouldNudgeHome } from "../../src/domain/scrapbook";
 import PressableScale from "../../src/components/common/PressableScale";
 import BreathingModal from "../../src/components/checkin/BreathingModal";
 import { useAuth } from "../../src/contexts/AuthContext";
@@ -246,6 +248,26 @@ export default function HomeScreen() {
       alive = false;
     };
   }, [homeDateKey, user?.id]);
+
+  // ---- the Sunday scrapbook: on its Sunday and the Monday after, the week card says a page is waiting ---
+  const [weekPageReady, setWeekPageReady] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || inMemorial) {
+        setWeekPageReady(false);
+        return undefined;
+      }
+      let alive = true;
+      Promise.all([loadScrapbook(user.id), loadCarePrefs(user.id)])
+        .then(([book, prefs]) => {
+          if (alive) setWeekPageReady(shouldNudgeHome(book, homeDateKey, prefs.completedAt ? prefs.completedAt.slice(0, 10) : null));
+        })
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [homeDateKey, inMemorial, user?.id])
+  );
 
   // ---- Days Together milestones: one moment when a threshold is reached, kept as a keepsake -----------
   useEffect(() => {
@@ -918,6 +940,8 @@ export default function HomeScreen() {
         week={weekMetrics}
         loadingWeek={loadingWeek}
         onOpenWeek={() => navigation.navigate("WeeklyReflection")}
+        weekPageReady={weekPageReady}
+        onOpenWeekPage={() => navigation.navigate("Scrapbook")}
         footerLinks={footerLinks}
         toast={inMemorial ? null : toast}
         toastBottom={16}

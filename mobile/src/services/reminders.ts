@@ -128,10 +128,10 @@ export async function syncReminders(userId: string | null | undefined, ctx: Remi
 }
 
 /** Which screen a tapped reminder should open. */
-export function screenForReminder(data: unknown): "CheckIn" | "WeeklyReflection" | null {
+export function screenForReminder(data: unknown): "CheckIn" | "Scrapbook" | null {
   const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   if (d.tag !== LUNA_TAG) return null;
   if (d.kind === "evening") return "CheckIn";
-  if (d.kind === "weekly") return "WeeklyReflection";
+  if (d.kind === "weekly") return "Scrapbook";
   return null;
 }

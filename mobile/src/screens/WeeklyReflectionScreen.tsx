@@ -213,6 +213,15 @@ export default function WeeklyReflectionScreen() {
         accessibilityLabel="See the whole month"
         containerStyle={styles.monthButton}
       />
+      <Button
+        label="Open the scrapbook"
+        icon="images-outline"
+        variant="quiet"
+        size="sm"
+        onPress={() => navigation.navigate("Scrapbook")}
+        accessibilityLabel="Open the scrapbook"
+        containerStyle={styles.scrapbookButton}
+      />
 
       <View style={styles.closing}>
         <Text style={[type.petVoice, styles.closingText, { color: surface.textSecondary }]}>{story.closing}</Text>
@@ -260,6 +269,7 @@ const styles = StyleSheet.create({
   smallTitle: { marginTop: 8, marginBottom: 10, marginLeft: 4 },
   statsFoot: { marginTop: 10, textAlign: "center" },
   monthButton: { marginTop: 14, alignSelf: "center" },
+  scrapbookButton: { marginTop: 6, alignSelf: "center" },
   closing: { alignItems: "center", paddingTop: 22, paddingHorizontal: 10 },
   closingText: { textAlign: "center" },
   closingButton: { marginTop: 14, alignSelf: "center" },

@@ -33,6 +33,7 @@ const ROUTES: Record<string, string> = {
   journal: "Journal",
   breathing: "Breathing",
   week: "WeeklyReflection",
+  scrapbook: "Scrapbook",
   insights: "Insights",
   cycle: "Cycle",
   reminders: "Reminders",

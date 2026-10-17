@@ -19,9 +19,12 @@ import { isAdopted } from "../../src/domain/shelter";
 import { remindersSummary } from "../../src/domain/reminders";
 import { loadReminderSettings, remindersSupported } from "../../src/services/reminders";
 import { petTalkAvailable } from "../../src/services/petTalk";
-import { getISOWeekKey } from "../../src/utils/dateKeys";
+import { getISOWeekKey, getLocalDateKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
+import { loadScrapbook } from "../../src/services/scrapbookStore";
+import { loadCarePrefs } from "../../src/services/carePrefs";
+import { isPageNew } from "../../src/domain/scrapbook";
 
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
@@ -49,6 +52,22 @@ export default function ProfileScreen({ navigation }) {
         alive = false;
       };
     }, [displayName, user?.id])
+  );
+  // the Sunday scrapbook page says New until it is opened (device-side, src/domain/scrapbook.ts)
+  const [scrapbookNew, setScrapbookNew] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!user?.id) return undefined;
+      Promise.all([loadScrapbook(user.id), loadCarePrefs(user.id)])
+        .then(([book, prefs]) => {
+          if (alive) setScrapbookNew(isPageNew(book, getLocalDateKey(), prefs.completedAt ? prefs.completedAt.slice(0, 10) : null));
+        })
+        .catch(() => {});
+      return () => {
+        alive = false;
+      };
+    }, [user?.id])
   );
   const { enabled: cycleEnabled } = useCycle();
   const [profile, setLocalProfile] = useState(null);
@@ -139,6 +158,7 @@ export default function ProfileScreen({ navigation }) {
       <Eyebrow style={styles.sectionTitle}>Reflect</Eyebrow>
       <ListGroup>
         <ListRow icon="book-outline" category="connection" label="Our week" hint={`What ${displayName} noticed`} badge={showReflectionBadge ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
+        <ListRow icon="images-outline" category="connection" label="Scrapbook" hint={`A page a week from ${displayName}`} badge={scrapbookNew ? "New" : null} onPress={() => navigation.navigate("Scrapbook")} />
         <ListRow icon="calendar-outline" category="calm" label="This month" hint={`Patterns ${displayName} noticed`} onPress={() => navigation.navigate("Insights")} />
         <ListRow icon="map-outline" category="focus" label="Journeys" hint="Seven-day arcs, one small step a day" onPress={() => navigation.navigate("Journeys")} />
         <ListRow icon="ribbon-outline" category="play" label="Keepsakes" hint={`The moments ${displayName} keeps for you`} onPress={() => navigation.navigate("Keepsakes")} />

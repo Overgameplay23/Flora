@@ -53,6 +53,9 @@ export type HomeViewProps = Omit<HomeHeroProps, "height" | "petLine"> & {
   week: WeekDay[];
   loadingWeek: boolean;
   onOpenWeek: () => void;
+  /** a new Sunday scrapbook page is waiting; the week card opens it */
+  weekPageReady?: boolean;
+  onOpenWeekPage?: () => void;
   footerLinks: Array<{ label: string; onPress: () => void }>;
   toast: { id: number; text: string } | null;
   /** distance from the bottom of this view to keep the toast above (tab bar) */
@@ -140,7 +143,7 @@ export default function HomeView(props: HomeViewProps) {
               <MoreCarousel items={props.more} surface={surface} />
 
               <View style={styles.week}>
-                <WeekCard petName={props.petName} days={props.week} loading={props.loadingWeek} daysTogether={props.daysTogether} onPress={props.onOpenWeek} surface={surface} />
+                <WeekCard petName={props.petName} days={props.week} loading={props.loadingWeek} daysTogether={props.daysTogether} onPress={props.onOpenWeek} surface={surface} pageReady={props.weekPageReady} onOpenPage={props.onOpenWeekPage} />
               </View>
             </>
           )}

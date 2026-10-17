@@ -13,6 +13,9 @@ type WeekCardProps = {
   daysTogether: number | null;
   onPress: () => void;
   surface: Surface;
+  /** a new scrapbook page is waiting (src/domain/scrapbook.ts shouldNudgeHome); the card opens it */
+  pageReady?: boolean;
+  onOpenPage?: () => void;
 };
 
 function weekdayInitials(dateKey: string) {
@@ -25,18 +28,20 @@ function weekdayInitials(dateKey: string) {
  * The last seven days as stems that grow with activity. Quiet days are blank paper, never a red mark;
  * the headline is days together, which only ever goes up.
  */
-export default function WeekCard({ petName, days, loading, daysTogether, onPress, surface }: WeekCardProps) {
+export default function WeekCard({ petName, days, loading, daysTogether, onPress, surface, pageReady = false, onOpenPage }: WeekCardProps) {
   const max = days.reduce((m, row) => Math.max(m, row.activity_count), 0);
   const active = days.filter((row) => row.activity_count > 0).length;
   const sentence =
     active === 0
       ? "A fresh week. One small thing is plenty to start."
       : `${active} ${active === 1 ? "day" : "days"} of care this week.`;
+  const page = pageReady && !!onOpenPage;
+  const link = page ? `${petName} put together the week's page` : `What ${petName} noticed`;
   return (
     <PressableScale
-      onPress={onPress}
+      onPress={page ? onOpenPage : onPress}
       accessibilityRole="button"
-      accessibilityLabel={`This week with ${petName}. ${sentence}`}
+      accessibilityLabel={`This week with ${petName}. ${sentence} ${link}.`}
       style={[styles.card, { backgroundColor: surface.paper, boxShadow: surface.shadow }]}
     >
       <View style={styles.headRow}>
@@ -65,7 +70,10 @@ export default function WeekCard({ petName, days, loading, daysTogether, onPress
         {sentence}
         {daysTogether && daysTogether > 0 ? ` ${daysTogether} ${daysTogether === 1 ? "day" : "days"} together so far.` : ""}
       </Text>
-      <Text style={[type.meta, styles.link, { color: surface.isNight ? brand.bloomNight : brand.ember }]}>What {petName} noticed</Text>
+      <View style={styles.linkRow}>
+        {page ? <Ionicons name="images-outline" size={15} color={surface.isNight ? brand.bloomNight : brand.ember} /> : null}
+        <Text style={[type.meta, { color: surface.isNight ? brand.bloomNight : brand.ember }]}>{link}</Text>
+      </View>
     </PressableScale>
   );
 }
@@ -116,7 +124,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-  link: {
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: 8,
   },
 });

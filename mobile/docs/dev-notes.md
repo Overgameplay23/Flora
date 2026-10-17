@@ -620,3 +620,47 @@ and "1 game today". `npm run check` green (45 suites, 354 tests).
 For the owner: the roadmap pictures Memory Match with "your pet's moods and outfits" on the cards. That needs the
 portrait anchors and the wardrobe (items 1 and 4), so this version uses the care glyphs; the faces are one list
 (`MEMORY_FACES`) and can become the pet's moods and outfits once those exist.
+
+## 2026-10-17 — The Sunday scrapbook
+
+Once a week, on Sunday, the pet keeps one page about the week (strategy weekly loop: "[Pet] put together your
+weekly scrapbook"; roadmap item 8). `src/domain/scrapbook.ts` (pure) builds the page from the same week story as
+Our week (`buildWeekStory`: kept wins, heavier days, the fullest day, energy) plus what the phone already keeps
+(journey steps walked that week or a journey finished, the biggest Days Together milestone reached that week):
+
+- a note in the pet's chosen voice (warm / gentle / plain; full, steady, light, quiet or heavier week; memorial
+  in the third person and never cheering),
+- stickers for what happened (milestone, journey, fullest day, "mostly good", "N days of care", "Tuesday felt
+  heavier · {pet} stayed close"), each an outline glyph on its category tone with a slight static tilt,
+- the wins from the check-ins as taped notes (four on the page, "and N more" after),
+- "Nothing to fix, just a look back", or on the Sunday itself "{pet} keeps adding to this page until tonight".
+
+Which week: the newest page ends on the Sunday just gone (today on a Sunday) and covers Monday to Sunday. No page
+for a week that ended before the pet moved in (`prefs.completedAt`, as Keepsakes uses). Nothing counts a miss: no
+"of 7", no empty days listed, a quiet week still gets a page ("A quiet week, and that's allowed").
+
+Storage: pages are kept on the device (`floura:scrapbook:<uid>`, `src/services/scrapbookStore.ts`), one per
+Sunday, newest first, a year at most, plus the newest page opened. The newest page is rebuilt each time it is
+opened and replaces its stored copy; earlier pages open from the book exactly as they were kept. A failed fetch
+never makes a quiet week up: the stored page shows with an error line, or there is a "Try again" state. No schema
+change, no new RPC: it reads `checkins` and `daily_user_metrics` as Our week does, and on its Sunday it calls the
+existing `markWeeklyReflectionViewed` (the `profiles.last_reflection_viewed_week` column), so Profile's Our week
+badge clears too.
+
+Where it shows: route `Scrapbook` (`src/screens/ScrapbookScreen.tsx`, "Earlier pages" under the newest one,
+`?preview=scrapbook`); Profile › Reflect › Scrapbook with a quiet "New" until the newest page is opened; "Open the
+scrapbook" at the end of Our week; on Home the week card's link reads "{pet} put together the week's page" (and
+opens it) on its Sunday and the Monday after, only while unopened and never in memorial; the Sunday reminder
+("{pet} put together your week") now opens the Scrapbook instead of Our week.
+
+Verified on web as the seeded demo user: Profile showed Scrapbook "New"; the page for 5–11 Oct built from the
+seed (note, stickers, four notes + "and 3 more"); with the browser clock moved to Sunday 18 Oct, Home's week card
+said "Biscuit put together the week's page", which opened 12–18 Oct (a "Three days together" milestone sticker,
+the fullest day, "keeps adding to this page until tonight") with 5–11 Oct under "Earlier pages", which opened as
+kept. Day paper and memorial checked in `?preview=scrapbook`. Tests: `scrapbook.test.ts`.
+
+For the owner (strategy differences): the strategy pairs the Sunday page with a room item and, later, voice
+notes; neither exists yet (wardrobe/room items are roadmap item 4, voice notes need recording), so the page has
+neither. Pages live on the phone they were made on, so a new phone starts a new book; keeping them across devices
+would need a table (a schema change, so the owner's call). The shareable card of the real pet next to the
+painting (roadmap item 8) is still to come.
