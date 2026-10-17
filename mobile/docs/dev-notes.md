@@ -586,3 +586,37 @@ it confirmed and what changed:
 Not changed, for the owner: the review also noted that the journey screens compute `today` once per mount (a
 step finished after midnight is stamped with the previous date key), the same pattern Home uses; and that
 `chapterFor` measures the walked span from the day the journey was started, not from the first step done.
+
+## 2026-10-17 — Memory Match (the third active game)
+
+`src/games/memory/`: cards lie face down on the lawn, each hiding a care glyph (one Ionicons outline glyph per
+care category: leaf calm, moon rest, sun energy, bulb focus, walk body, water nourish, heart connection, ball
+play; the cycle category is left out). Tap two: a pair stays face up with a small check, two that differ turn
+back by themselves after a second (or at once when the next card is tapped, so nobody waits). Three boards, four,
+six and eight pairs, dealt one after another with the pairs carried over; no clock and no way to lose. A "Finish
+here" pill (shown once a pair is found) ends the round whenever it feels like enough; clearing the third board
+ends it on its own. Score = pairs found (18 at most); the end card is the usual one (best score, the first game
+of the day completes the play task). Nothing counts a mismatch: the round keeps no tally of them, and the
+summary only ever says what was found ("N pairs, M of them from memory" when the card that completed a pair had
+been turned over on an earlier turn).
+
+- Pure rules in `memoryLogic.ts` (deal with an injected random source, flip / match / mismatch / board cleared,
+  next board, layout four across between the HUD and the pet, summary), tested in `games.test.ts`.
+- `MemoryGameScreen.tsx`: GameField + cards as `PressableScale` buttons that flip on a narrowing scaleX (Reduce
+  Motion: they just switch) and deal in with a small stagger; colours only from `useTheme().tone(category)` and
+  the paper of the hour (backs are `paperOverScene` with a play-gold paw); the pet sits under the cards, faces the
+  side of the card just turned, cheers a pair and loves a cleared board; one-shot timers in refs (mismatch, next
+  board, end). Every card is a labelled button ("Card 3, face down", "Moon", "Moon, a pair").
+- Route `PlayMemory` (fullScreenModal); listed on the Play hub ("Three boards, no clock"), the Pet tab caption
+  and the dev previews (`?preview=memory`). `GameId` gained `memory`; the `pet_played` event's category is free
+  text, so nothing server-side changes.
+
+Verified on web (375x812, night and `&hour=12` day paper): cards deal, flip, match and turn back; board 1 → 2 → 3
+with the hint between boards; "Every board cleared" ends on the end card ("New best! 18"); Play again resets;
+"Finish here" ends early with the pairs so far. Signed in as the seeded demo user through Home › Play › Memory
+Match: "New best! 10 · +2 Sprouts for the garden", the play task created and completed, the hub showing "Best 10"
+and "1 game today". `npm run check` green (45 suites, 354 tests).
+
+For the owner: the roadmap pictures Memory Match with "your pet's moods and outfits" on the cards. That needs the
+portrait anchors and the wardrobe (items 1 and 4), so this version uses the care glyphs; the faces are one list
+(`MEMORY_FACES`) and can become the pet's moods and outfits once those exist.

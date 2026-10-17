@@ -42,6 +42,7 @@ const ROUTES: Record<string, string> = {
   bubbles: "PlayBubbles",
   petting: "PlayPetting",
   treats: "PlayTreats",
+  memory: "PlayMemory",
   tasks: "Tasks",
   habits: "Habits",
   journeys: "Journeys",

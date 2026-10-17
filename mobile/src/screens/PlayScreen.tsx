@@ -21,9 +21,10 @@ const GAMES = [
   { id: "bubbles" as const, route: "PlayBubbles", title: "Bubbles", blurb: "Tap them before they float away. Thirty seconds.", icon: "ellipse-outline" },
   { id: "petting" as const, route: "PlayPetting", title: "Pet the pet", blurb: "Slow strokes, floating hearts, a very content pet. One calm minute.", icon: "heart-outline" },
   { id: "treats" as const, route: "PlayTreats", title: "Treat Catch", blurb: "Slide your pet under the falling treats. Golden ones count triple. Forty-five seconds.", icon: "nutrition-outline" },
+  { id: "memory" as const, route: "PlayMemory", title: "Memory Match", blurb: "Turn the cards two at a time and find the pairs. Three boards, no clock.", icon: "grid-outline" },
 ];
 
-/** The play hub: two games, best scores, and the option to make playtime a daily task. Colour: play gold. */
+/** The play hub: the games, best scores, and the option to make playtime a daily task. Colour: play gold. */
 export default function PlayScreen({ navigation }: any) {
   const { user } = useAuth();
   const { displayName, memorial } = usePet();

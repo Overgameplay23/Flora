@@ -375,7 +375,7 @@ export default function PetScreen() {
                 <IconTile icon="tennisball-outline" category="play" on="fill" size={52} />
                 <View style={styles.bigBody}>
                   <Text style={[type.h3, { color: surface.text }]}>Play with {displayName}</Text>
-                  <Text style={[type.meta, { color: surface.textSecondary }]}>Fetch · Bubbles · Pet the pet · Treat Catch</Text>
+                  <Text style={[type.meta, { color: surface.textSecondary }]}>Fetch · Bubbles · Pet the pet · Treat Catch · Memory Match</Text>
                 </View>
                 <View style={[styles.bigGo, { backgroundColor: appTheme.bloom }]}>
                   <Ionicons name="play" size={18} color={ink.primary} />

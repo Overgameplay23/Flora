@@ -58,6 +58,8 @@ one is something a real-pet app can beat:
 - **2026-10-16, late:** **This month** (item 8, insights v1): the weekday care happens on, the longest stretch, the
   battery set against the small things done, told by the pet (Profile › This month, and from the end of Our week).
   Cycle stays out of it until the owner decides.
+- **2026-10-17:** **Memory Match** (item 6): cards face down on the lawn, each a care glyph; turn two, pairs stay,
+  three boards (four, six, eight pairs), no clock, finish whenever it feels like enough. Play now has five games.
 
 ## Next, in order
 

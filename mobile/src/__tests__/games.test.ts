@@ -356,3 +356,173 @@ describe("treat catch", () => {
     expect(normalizePlayStats({ best: { treats: 9 } }, "2026-10-16").best.treats).toBe(9);
   });
 });
+
+// ---------- memory match ----------
+import {
+  BOARD_PAIRS,
+  MEMORY_FACES,
+  MEMORY_TOTAL_PAIRS,
+  dealBoard,
+  endMemoryRound,
+  flipCard,
+  hideMismatch,
+  isBoardCleared,
+  isMemoryComplete,
+  memoryFace,
+  memoryLayout,
+  memoryScore,
+  memorySummary,
+  newMemoryRound,
+  nextBoard,
+  shuffle,
+  type MemoryRound,
+} from "../games/memory/memoryLogic";
+
+/** a small seeded generator so deals are repeatable */
+function seeded(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** the index of the other card with the same face */
+function partnerOf(round: MemoryRound, index: number) {
+  return round.cards.findIndex((card, i) => i !== index && card.face === round.cards[index].face);
+}
+
+/** an index pair whose faces differ */
+function mismatchedPair(round: MemoryRound): [number, number] {
+  const first = round.cards.findIndex((card) => !card.matched);
+  const second = round.cards.findIndex((card, i) => i !== first && !card.matched && card.face !== round.cards[first].face);
+  return [first, second];
+}
+
+/** clear the current board pair by pair, straight from the answer key */
+function clearBoard(round: MemoryRound) {
+  let next = round;
+  const events: string[] = [];
+  for (let i = 0; i < next.cards.length; i++) {
+    if (next.cards[i].matched) continue;
+    next = flipCard(next, i).round;
+    const result = flipCard(next, partnerOf(next, i));
+    next = result.round;
+    events.push(result.event);
+  }
+  return { round: next, events };
+}
+
+describe("memory match", () => {
+  it("deals pairs of care glyphs, a different layout each time, every face a real category glyph", () => {
+    const cards = dealBoard(6, seeded(1));
+    expect(cards).toHaveLength(12);
+    const counts = new Map<string, number>();
+    for (const card of cards) counts.set(card.face, (counts.get(card.face) ?? 0) + 1);
+    expect(counts.size).toBe(6);
+    for (const n of counts.values()) expect(n).toBe(2);
+    expect(new Set(cards.map((card) => card.key)).size).toBe(12);
+    expect(cards.every((card) => !card.matched && !card.seen)).toBe(true);
+    expect(dealBoard(6, seeded(1))).toEqual(cards);
+    expect(dealBoard(6, seeded(2)).map((card) => card.face)).not.toEqual(cards.map((card) => card.face));
+    for (const face of MEMORY_FACES) {
+      expect(face.icon).toMatch(/-outline$/);
+      expect(face.category).not.toBe("cycle");
+    }
+    expect(new Set(MEMORY_FACES.map((face) => face.category)).size).toBe(MEMORY_FACES.length);
+    expect(memoryFace("nope")).toBe(MEMORY_FACES[0]);
+    // a bad random source still deals a full board
+    expect(dealBoard(4, () => Number.NaN)).toHaveLength(8);
+    expect(dealBoard(99, seeded(3))).toHaveLength(MEMORY_FACES.length * 2);
+    expect(shuffle([1, 2, 3, 4], seeded(5)).sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it("keeps a pair face up and turns two different cards back without counting anything", () => {
+    let round = newMemoryRound(0, seeded(7));
+    expect(BOARD_PAIRS[0] * 2).toBe(round.cards.length);
+    const [a, b] = mismatchedPair(round);
+    const first = flipCard(round, a);
+    expect(first.event).toBe("flipped");
+    expect(flipCard(first.round, a).event).toBe("ignored");
+    const second = flipCard(first.round, b);
+    expect(second.event).toBe("mismatch");
+    expect(second.round.open).toEqual([a, b]);
+    expect(second.round.pairs).toBe(0);
+    round = hideMismatch(second.round);
+    expect(round.open).toEqual([]);
+    expect(round.cards[a].seen && round.cards[b].seen).toBe(true);
+    // tapping on while two differ turns them back at once
+    const onward = flipCard(second.round, partnerOf(second.round, a));
+    expect(onward.round.open).toEqual([partnerOf(second.round, a)]);
+
+    // the partner of a card already seen is a pair found from memory
+    let fromMemory = flipCard(round, partnerOf(round, a)).round;
+    const match = flipCard(fromMemory, a);
+    expect(match.event).toBe("match");
+    fromMemory = match.round;
+    expect(fromMemory.pairs).toBe(1);
+    expect(fromMemory.remembered).toBe(1);
+    expect(fromMemory.cards[a].matched).toBe(true);
+    expect(flipCard(fromMemory, a).event).toBe("ignored");
+    expect(flipCard(fromMemory, 999).event).toBe("ignored");
+  });
+
+  it("clears three boards (four, six, eight pairs), carrying the pairs over, then ends on its own", () => {
+    let round = newMemoryRound(0, seeded(11));
+    const one = clearBoard(round);
+    expect(one.events[one.events.length - 1]).toBe("board-cleared");
+    round = one.round;
+    expect(isBoardCleared(round)).toBe(true);
+    expect(isMemoryComplete(round)).toBe(false);
+    expect(flipCard(round, 0).event).toBe("ignored");
+    round = nextBoard(round, seeded(12));
+    expect(round.board).toBe(1);
+    expect(round.cards).toHaveLength(BOARD_PAIRS[1] * 2);
+    expect(round.pairs).toBe(BOARD_PAIRS[0]);
+    expect(nextBoard(round, seeded(13))).toBe(round);
+    round = nextBoard(clearBoard(round).round, seeded(14));
+    expect(round.cards).toHaveLength(BOARD_PAIRS[2] * 2);
+    const last = clearBoard(round);
+    expect(last.events[last.events.length - 1]).toBe("all-cleared");
+    round = last.round;
+    expect(isMemoryComplete(round)).toBe(true);
+    expect(nextBoard(round, seeded(15))).toBe(round);
+    expect(memoryScore(round)).toBe(MEMORY_TOTAL_PAIRS);
+    expect(round.boardsCleared).toBe(3);
+    expect(memorySummary(round, "Maple")).toMatch(/^Eighteen pairs, every board cleared/);
+  });
+
+  it("can be finished at any point and never mentions a miss", () => {
+    const fresh = newMemoryRound(0, seeded(21));
+    expect(memorySummary(fresh, "Maple")).toMatch(/Maple/);
+    const ended = endMemoryRound(fresh, 5);
+    expect(ended.endedAt).toBe(5);
+    expect(endMemoryRound(ended, 9)).toBe(ended);
+    expect(flipCard(ended, 0).event).toBe("ignored");
+    let partway = fresh;
+    partway = flipCard(partway, 0).round;
+    partway = flipCard(partway, partnerOf(partway, 0)).round;
+    expect(memorySummary(partway, "Maple")).toBe("1 pair found. Maple enjoyed watching the cards turn.");
+    expect(memorySummary({ ...partway, pairs: 7, remembered: 4 }, "Maple")).toMatch(/4 of them from memory/);
+    for (const r of [fresh, partway]) expect(memorySummary(r, "Maple")).not.toMatch(/miss|wrong|only/i);
+    expect(GAME_IDS).toContain("memory");
+    expect(normalizePlayStats({ best: { memory: 18 } }, "2026-10-17").best.memory).toBe(18);
+  });
+
+  it("lays the cards out four across inside the lawn", () => {
+    for (const count of [8, 12, 16]) {
+      const layout = memoryLayout(count, 375, 812, 104, 200);
+      expect(layout.columns).toBe(4);
+      expect(layout.rows).toBe(count / 4);
+      expect(layout.left).toBeGreaterThanOrEqual(16);
+      expect(layout.left + 4 * layout.cardWidth + 3 * layout.gap).toBeLessThanOrEqual(375 - 15);
+      expect(layout.top).toBeGreaterThanOrEqual(104);
+      expect(layout.top + layout.rows * layout.cardHeight + (layout.rows - 1) * layout.gap).toBeLessThanOrEqual(812 - 200);
+      expect(layout.cardHeight).toBeGreaterThan(layout.cardWidth);
+    }
+    // a short screen shrinks the cards rather than spilling them
+    const short = memoryLayout(16, 375, 560, 104, 200);
+    expect(short.top + 4 * short.cardHeight + 3 * short.gap).toBeLessThanOrEqual(560 - 200);
+    expect(memoryLayout(16, 0, 0, 104, 200).cardWidth).toBe(0);
+  });
+});
