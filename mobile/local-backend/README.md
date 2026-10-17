@@ -1,4 +1,4 @@
-# Floura local backend
+# Luna local backend
 
 The hosted Supabase project the app was built against (`gghesvpmskjlrlpoosgf`) no longer exists.
 This folder runs a **local** Supabase stack in Docker so the app can sign in, persist data and be

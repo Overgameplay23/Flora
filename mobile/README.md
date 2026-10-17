@@ -1,4 +1,4 @@
-# Floura Mobile
+# Luna Mobile
 
 ## Supabase CLI (Windows)
 

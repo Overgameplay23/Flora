@@ -1,36 +1,64 @@
 {
   "expo": {
     "name": "Luna",
-    "slug": "mobile",
+    "slug": "luna",
+    "scheme": "luna",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.lunapet.app",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.lunapet.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "com.anonymous.mobile"
+        "backgroundImage": "./assets/adaptive-icon-background.png",
+        "backgroundColor": "#3E4878"
+      }
     },
     "web": {
+      "name": "Luna",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-font",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Luna uses the photos you pick to paint your pet.",
+          "cameraPermission": "Luna uses the camera so you can take a photo of your pet to paint.",
+          "microphonePermission": false
+        }
+      ],
       "expo-asset",
       "expo-status-bar",
       [
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#3E4878"
         }
       ]
     ]

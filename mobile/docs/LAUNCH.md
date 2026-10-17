@@ -1,4 +1,4 @@
-# Floura — road to the App Store
+# Luna — road to the App Store
 
 Living checklist, started 2026-10-17. Tick items off here as they land. The product is far past the strategy's
 MVP (painted pet, adaptive plan, journeys, five games, insights, scrapbook, cycle, memorial); what stands between
@@ -17,7 +17,7 @@ prepares, owner approves or finishes.
 | 1 | **In-app account deletion** (Guideline 5.1.1(v): any app with sign-up must offer it in the app) | [both] Claude builds the RPC + screen; owner approves applying the migration to Bloom | **done**: Profile › Delete account (verified locally); migration `20261017160138_delete_my_account` applied to Bloom 2026-10-17 with the owner's OK |
 | 2 | **Privacy policy** reachable in the app and on the store page (Guideline 5.1.1(i)) | [both] Claude drafts from the real data flows; owner reviews the wording and picks where it is hosted | **drafted**: in the app (Profile › Privacy) and as `docs/legal/privacy-policy.html` to host; needs your read, a contact email in `src/legal/privacy.json`, and a host |
 | 3 | **Support URL** on the store page | [owner] a page or a mailto-backed site (can be the same host as the policy) | pending |
-| 4 | **App identity**: final name (Floura vs Luna, app.json still says Luna), bundle id (e.g. `com.floura.app`), URL scheme, icon + splash | [owner] decides the name and id · [claude] wires app.json/eas.json and every "Luna" in the UI | waiting on the name |
+| 4 | **App identity**: **Luna** (owner, 2026-10-17), bundle id and Android package `com.lunapet.app`, URL scheme `luna`, icon + adaptive icon + splash from the app's own dog under a full moon (`scripts/build-app-icon.js`) | [owner] decided the name · [claude] wired `app.json` + `eas.json` | **done in the repo**. Still yours: register `com.lunapet.app` in the Apple Developer portal (if it is taken, pick another and change both ids in `app.json`); the App Store *listing* name must be unique store-wide and plain "Luna" is almost surely taken, so plan on e.g. "Luna: Self-Care With Your Pet" (the home-screen name stays Luna); a trademark check |
 | 5 | **Apple Developer Program** ($99/yr) and a free **Expo** account for EAS builds | [owner] | pending |
 | 6 | **Privacy nutrition label** answers in App Store Connect | [claude] drafts the answers from the code; [owner] enters them | pending |
 | 7 | **Store listing**: subtitle, description, keywords, screenshots (6.9" and 6.5"), age rating | [claude] drafts copy and screenshots; [owner] uploads | pending |
@@ -36,7 +36,7 @@ prepares, owner approves or finishes.
 
 ## 3. Can wait for 1.1
 
-- **Floura Club** (RevenueCat, App Store products, the Paid Apps agreement, tax and banking). Recommendation:
+- **Luna Club** (RevenueCat, App Store products, the Paid Apps agreement, tax and banking). Recommendation:
   launch free, learn D1/D7/D30 for a month, add the Club in 1.1. The owner decides (ROADMAP "Decisions" 3).
 - Pet Talk (needs `OPENAI_API_KEY`; the screen hides itself without one).
 - Sign in with Apple / Google and the anonymous first minutes (needs the dev build; Apple only requires Sign in
@@ -45,7 +45,25 @@ prepares, owner approves or finishes.
 
 ## Owner decisions that touch launch
 
-1. Name: **Floura** or **Luna**? (Trademark check on whichever wins.) Bundle id?
+1. ~~Name~~ **Luna**, decided 2026-10-17 (bundle id `com.lunapet.app`; trademark check still to do).
 2. Launch free, or with the Club from day one?
 3. Where the privacy policy and support page live (a domain you own, GitHub Pages, or a Notion page).
 4. Email confirmation on (needs SMTP) or off for 1.0?
+
+## First build, once the Apple and Expo accounts exist
+
+The repo is ready for EAS (`mobile/eas.json`: `preview` for testers, `production` for TestFlight and the store, both
+built against the hosted backend with `APP_ENV=staging`). From `mobile/`:
+
+1. `npx eas-cli login`, then `npx eas-cli init` (links the Expo project and writes its id into the config).
+2. Give the build the hosted backend's two public values as EAS environment variables (publishable/anon key only,
+   never the service key): `npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_URL ...` and the same for
+   `EXPO_PUBLIC_SUPABASE_ANON_KEY`. `app.config.js` refuses a build without them, or with a server key.
+3. `npx eas-cli build --platform ios --profile production` (EAS asks for the Apple login and makes the certificates).
+4. `npx eas-cli submit --platform ios` sends it to App Store Connect; add yourself as a TestFlight tester.
+
+Notes: iPad is off for 1.0 (`supportsTablet: false`, so no iPad screenshots are needed and the phone layout is what
+review sees); the app declares no encryption beyond HTTPS (`usesNonExemptEncryption: false`), so uploads skip the
+export-compliance question; it asks only for photos and the camera, with Luna's own wording, and declares no
+microphone, background audio or Face ID (guarded by `src/__tests__/appIdentity.test.ts`). The old `ios/` and
+`android/` folders are stale; EAS builds from the config, so they can stay until someone deletes them on purpose.

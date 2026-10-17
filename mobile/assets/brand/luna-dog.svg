@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+<!-- Luna's golden dog at rest: the app's own PetRig (DEFAULT_LOOK.dog), its eight layers stacked back to front
+     (tail, body, legs, ears, head, eyes), captured from the web build on 2026-10-17. Used by scripts/build-app-icon.js. -->
+<path d="M 136 150 C 160 140, 166 116, 148 110" stroke="#796445" stroke-width="17.2" fill="none" stroke-linecap="round"/>
+<path d="M 136 150 C 160 140, 166 116, 148 110" stroke="#e9c184" stroke-width="12" fill="none" stroke-linecap="round"/>
+<ellipse cx="100" cy="146" rx="45" ry="39" fill="#e9c184" stroke="#796445" stroke-width="2.6"/>
+<ellipse cx="100" cy="156" rx="24.75" ry="23.4" fill="#edcc9a" opacity="0.55"/>
+<rect x="76" y="150" width="16" height="38" rx="8" fill="#e9c184" stroke="#796445" stroke-width="2.6"/>
+<ellipse cx="84" cy="185" rx="10" ry="5.5" fill="#edcc9a" stroke="#796445" stroke-width="2.08"/>
+<rect x="108" y="150" width="16" height="38" rx="8" fill="#e9c184" stroke="#796445" stroke-width="2.6"/>
+<ellipse cx="116" cy="185" rx="10" ry="5.5" fill="#edcc9a" stroke="#796445" stroke-width="2.08"/>
+<path d="M 74.6 59.5 C 62.6 47.5, 46.6 55.5, 46.6 73.5 C 46.6 95.5, 50.6 113.5, 62.6 117.5 C 74.6 119.5, 80.6 105.5 , 78.6 87.5 C 77.6 75.5, 78.6 67.5, 74.6 59.5 Z" fill="#c99a5b" stroke="#796445" stroke-width="2.6" stroke-linejoin="round"/>
+<path d="M 125.4 59.5 C 137.4 47.5, 153.4 55.5, 153.4 73.5 C 153.4 95.5, 149.4 113.5, 137.4 117.5 C 125.4 119.5, 119.4 105.5 , 121.4 87.5 C 122.4 75.5, 121.4 67.5, 125.4 59.5 Z" fill="#c99a5b" stroke="#796445" stroke-width="2.6" stroke-linejoin="round"/>
+<ellipse cx="100" cy="84" rx="42" ry="41" fill="#e9c184" stroke="#796445" stroke-width="2.6"/>
+<circle cx="75" cy="96" r="6" fill="#f49ac1" opacity="0.4"/>
+<circle cx="125" cy="96" r="6" fill="#f49ac1" opacity="0.4"/>
+<ellipse cx="100" cy="100" rx="19" ry="13" fill="#f8ecd4" opacity="0.95"/>
+<path d="M 93 92 Q 100 88 107 92 Q 104 100 100 101 Q 96 100 93 92 Z" fill="#2a2530"/>
+<circle cx="97" cy="93" r="1.6" fill="#ffffff" opacity="0.7"/>
+<path d="M 93 104 Q 100 108 107 104" stroke="#5d4d35" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+<circle cx="84" cy="86" r="8" fill="#322011" stroke="#796445" stroke-width="1.2"/>
+<circle cx="84" cy="86.5" r="5.2" fill="#5a3b1e" opacity="0.55"/>
+<circle cx="81.4" cy="83.2" r="2.6" fill="#ffffff"/>
+<circle cx="86.4" cy="88.6" r="1.2" fill="#ffffff" opacity="0.8"/>
+<circle cx="116" cy="86" r="8" fill="#322011" stroke="#796445" stroke-width="1.2"/>
+<circle cx="116" cy="86.5" r="5.2" fill="#5a3b1e" opacity="0.55"/>
+<circle cx="113.4" cy="83.2" r="2.6" fill="#ffffff"/>
+<circle cx="118.4" cy="88.6" r="1.2" fill="#ffffff" opacity="0.8"/>
+</svg>

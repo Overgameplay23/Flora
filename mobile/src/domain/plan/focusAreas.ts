@@ -1,4 +1,4 @@
-// The ten things a person can ask Floura for help with (onboarding research, "focus-area taxonomy").
+// The ten things a person can ask Luna for help with (onboarding research, "focus-area taxonomy").
 // Fresh air is not its own area: it runs through several as a task, the way the research suggests.
 import type { CareCategory, FocusArea, PlanSettings } from "./types";
 

@@ -1,4 +1,4 @@
-// Floura's design tokens. One source for colour, type, shape and motion so screens stop hard-coding hex
+// Luna's design tokens. One source for colour, type, shape and motion so screens stop hard-coding hex
 // values (the old dark-slate look had 162 of them). Direction (docs/design-system.md): the painted scene
 // and the pet carry the colour, the UI is warm paper with tinted ink, and every care category has its
 // own accent so a task list reads at a glance. Contrast figures are WCAG 2.x, computed against the

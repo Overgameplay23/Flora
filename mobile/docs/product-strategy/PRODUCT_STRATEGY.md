@@ -1,4 +1,7 @@
-# Floura Product Strategy — Reference for Claude
+# Luna Product Strategy — Reference for Claude
+
+> The app is called **Luna** (owner's decision, 2026-10-17). The research below calls it Flora / Floura; read those
+> as Luna.
 
 Source: `Flora_App_Product_Strategy_Research.pdf` (40 pages, added 2026-09-24).
 Full text (greppable): `Flora_App_Product_Strategy_Research.txt`.

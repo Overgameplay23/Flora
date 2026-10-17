@@ -1,4 +1,7 @@
-# Floura
+# Luna
+
+The app is called **Luna** (owner's decision, 2026-10-17; it was Floura / Flora before). The repo, the folder and
+the on-device storage keys (`floura:*`) keep the old name on purpose: renaming the keys would wipe people's data.
 
 Mobile app lives in `mobile/` (Expo / React Native + Supabase). See `mobile/README.md` for deploy steps.
 

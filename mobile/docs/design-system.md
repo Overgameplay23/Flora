@@ -1,4 +1,4 @@
-# Floura design system
+# Luna design system
 
 Code: `src/theme/tokens.ts` (tokens), `src/theme/fonts.ts` (font loading), `src/utils/haptics.ts`,
 `src/components/common/PressableScale.tsx`, `src/components/pet/PetMascot.tsx`, `src/components/pet/SpeechBubble.tsx`.

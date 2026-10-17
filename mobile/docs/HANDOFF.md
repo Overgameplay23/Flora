@@ -13,6 +13,12 @@ branch `main`, app in `mobile/`. Owner: Donovan.
 | On a real phone | **Not yet verified.** Targets Expo Go on iPhone. Blocked by this PC's network settings. |
 | Store launch | **Not started.** No app identity, no hosted backend, no payments. |
 
+> **Update, 17 October 2026: the app is Luna** (owner's decision; details in `docs/dev-notes.md`, last entry, and
+> `docs/LAUNCH.md`): `app.json` carries the store identity (Luna, `com.lunapet.app`, scheme `luna`, iPhone only), a
+> real icon and splash (the app's dog under a full moon, `scripts/build-app-icon.js`) replace Expo's placeholder,
+> unused microphone / background-audio / Face ID declarations are gone, and `eas.json` is ready for the first
+> TestFlight build once the Apple and Expo accounts exist. The docs say Luna; storage keys keep `floura:`.
+
 > **Update, 17 October 2026, launch** (details in `docs/dev-notes.md`, last entry, and the new `docs/LAUNCH.md`, the
 > road to the App Store): **delete account** in the app (Profile › Delete account; a `delete_my_account()` RPC whose
 > migration applied to Bloom on the owner's OK as `20261017160138`), **forgot password** with an emailed code (Bloom's reset email

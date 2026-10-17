@@ -725,3 +725,45 @@ guard instead of RLS and the file failed before this change set (pre-existing, u
 For the owner: Delete account is reachable from Profile, so someone stuck part-way through onboarding cannot reach
 it (they can sign out); Apple only asks that it is in the app, which it is. Terms of Use: Apple's standard EULA
 covers a free 1.0; the Club (auto-renewing subscription) will need a Terms link on the paywall.
+
+## 2026-10-17 — The app is Luna: store identity, icon, build config
+
+Owner's decision in chat: **launch as Luna**, set up the app identity and make the docs say Luna.
+
+**Identity (`app.json`).** Name and web name `Luna`, slug `luna`, URL scheme `luna`, iOS bundle id and Android
+package **`com.lunapet.app`** (my pick: the owner asked for an id without naming one; it can still change freely
+until it is registered in the Apple Developer portal, and `com.luna.app`-style ids are almost surely taken).
+`supportsTablet: false` for 1.0 (the layout is phone-first; no iPad screenshots or iPad review), and
+`usesNonExemptEncryption: false` (HTTPS only), which skips the export-compliance question on every upload.
+
+**Permissions, checked with `npx expo config --type introspect`.** The final Info.plist asks only for photos and
+the camera, in Luna's own words. Three defaults were removed because the app never uses them and App Review
+questions declared-but-unused capabilities: the microphone string (expo-audio and expo-image-picker both add one;
+nothing records), **background audio** (`UIBackgroundModes: audio`, expo-audio's default; Guideline 2.5.4; the
+app only plays short sound effects in the foreground) and a generic Face ID string from expo-secure-store (the
+session token is stored without biometrics). Android blocks `RECORD_AUDIO`. `src/__tests__/appIdentity.test.ts`
+keeps all of this from drifting back.
+
+**Icon.** The old `assets/icon.png` was Expo's grey placeholder grid, which App Review rejects. The new one is the
+app's own golden dog (PetRig's default dog, its eight layers captured from the web build into
+`assets/brand/luna-dog.svg`) sitting in front of a full moon on the dusk sky from the tokens, on a plum hill.
+`node scripts/build-app-icon.js` renders `icon.png` (opaque, as iOS requires), the Android adaptive foreground and
+background (dog and moon inside the launcher's safe circle), `splash-icon.png` (on dusk `#3E4878`) and the favicon,
+and writes `assets/brand/icon-source.svg` for a designer to start from. A v1 icon the owner may want a designer to
+redo; it reads clearly at 60 px.
+
+**Builds (`eas.json`).** `preview` (internal distribution) and `production` (auto-incremented build numbers, remote
+version source), both with `APP_ENV=staging`, so `app.config.js` takes the hosted backend from EAS environment
+variables and refuses a server key. `eas init` (project id) and the two EAS env vars are the owner's, once the
+Expo account exists; steps in `docs/LAUNCH.md` ("First build"). `expo-dev-client` is deliberately not added yet:
+installing it makes `expo start` default to a development build, which would break today's Expo Go workflow.
+
+**Name in the app and docs.** The privacy policy (in the app and the exported page), the root `CLAUDE.md`, ROADMAP
+(now "Luna Club"), LAUNCH, the design system, READMEs and the strategy summary (with a note that the research
+says Flora / Floura) say Luna. Left on purpose: the on-device storage keys (`floura:*`; renaming them would wipe
+everyone's journal, cycle notes, plan and scrapbook), the local stack's `floura-local` id and demo emails, the repo
+and folder names, and historical records (dev-notes, RESTORATION_*).
+
+For the owner: the App Store *listing* name must be unique across the whole store, so plain "Luna" will very likely
+be refused; plan on a subtitle-style name such as "Luna: Self-Care With Your Pet" (the name under the icon stays
+"Luna"). A trademark check on "Luna" in the wellness/app classes is still worth doing before launch.

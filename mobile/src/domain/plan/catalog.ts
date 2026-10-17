@@ -318,7 +318,7 @@ export const PLAN_CATALOG: CatalogTask[] = [
     icon: "tennisball-outline", route: "PlayFetch", act: "walk", lowEnergySafe: true, memorialSafe: false,
   },
 
-  // ---------- deeper practices (Floura Club; dropped from the plan unless premium) ----------
+  // ---------- deeper practices (Luna Club; dropped from the plan unless premium) ----------
   {
     id: "calm.body_scan", title: "Slow body scan", tinyTitle: "Body scan", petLine: "Head to toes, noticing without fixing. Ten quiet minutes.",
     focus: { sleep: 0.8, calm_mind: 0.8, burnout: 0.4 }, category: "calm", kind: "timer", minutes: 10, effort: 1,

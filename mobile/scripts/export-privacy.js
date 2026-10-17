@@ -37,7 +37,7 @@ function renderPrivacyHtml(policy) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Floura · ${escape(policy.title)}</title>
+<title>Luna · ${escape(policy.title)}</title>
 <style>
   :root { color-scheme: light dark; --ink: #2b2420; --soft: #5d534c; --paper: #fbf6ef; --accent: #b4532a; }
   @media (prefers-color-scheme: dark) { :root { --ink: #f3ece4; --soft: #c9beb4; --paper: #1d1916; --accent: #f2b489; } }

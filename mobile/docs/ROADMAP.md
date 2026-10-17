@@ -1,4 +1,4 @@
-# Floura roadmap
+# Luna roadmap
 
 Owner's goal (2026-10-15): the best self-care app in the category, by miles. A comfort / self-help app where the
 user's **real pet**, painted from their photos, is the heart of everything. This file is the working plan; the
@@ -11,7 +11,7 @@ where they drive a decision.
 Finch is huge (4.9★ from ~764K ratings, ~$2M/month on US iOS) but its reviews repeat the same complaints, and each
 one is something a real-pet app can beat:
 
-| Finch weakness (from reviews) | Floura's answer |
+| Finch weakness (from reviews) | Luna's answer |
 |---|---|
 | The bird isn't *yours* | Your actual dog or cat, painted from 1-3 photos |
 | Childish art and copy, cluttered home | Storybook-painterly world, warm adult voice, one hero (the pet) and 3-5 tasks |
@@ -111,7 +111,7 @@ while the quiz runs, so the "building your plan" wait is honest.
 - Optional "photo shoot": a Gemini repaint of the pet wearing a purchased outfit (Club perk, limited per month).
 - Server: `cosmetic_catalog`, `user_cosmetics`, `pet_outfit`, `sprout_ledger`, `buy_cosmetic` / `equip_outfit` RPCs.
 
-### 5. Floura Club (subscription) (1-2 sessions + store setup)
+### 5. Luna Club (subscription) (1-2 sessions + store setup)
 - Needs an app identity (name, bundle id), `eas.json`, a development build, RevenueCat (`react-native-purchases`),
   App Store Connect products. Expo Go can show the paywall UI but cannot buy.
 - Free forever: the painted pet, daily care, battery check, Days Together and Cozy Run protection, hibernation,
@@ -149,5 +149,6 @@ while the quiz runs, so the "building your plan" wait is honest.
 3. Paywall: soft offer at the end of onboarding in addition to the 3rd check-in? Price test ($6.99/$44.99 vs
    $9.99/$59.99)?
 4. Battery check vs 1-5 check-in: merge or keep both?
-5. App name everywhere: Floura (app.json still says "Luna").
+5. ~~App name~~ Decided 2026-10-17: **Luna** (app identity in `app.json`, see `docs/LAUNCH.md`; storage keys keep the
+   `floura:` prefix so nobody loses data).
 6. Cycle-care tasks: synced with neutral titles (current) or local-only?
