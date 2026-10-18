@@ -25,6 +25,10 @@ describe("app identity", () => {
     const picker = pluginOptions("expo-image-picker");
     expect(picker.photosPermission).toMatch(/Luna/);
     expect(picker.cameraPermission).toMatch(/Luna/);
+    // "Save Image" from the share card's share sheet writes to Photos, which needs its own add-only string
+    // (src/screens/ShareCardScreen.tsx); the image picker plugin sets only the read one
+    expect(app.ios.infoPlist.NSPhotoLibraryAddUsageDescription).toMatch(/Luna/);
+    expect(Object.keys(app.ios.infoPlist)).toEqual(["NSPhotoLibraryAddUsageDescription"]);
     // nothing records sound: no microphone prompt, no background audio (Guideline 2.5.4)
     expect(picker.microphonePermission).toBe(false);
     const audio = pluginOptions("expo-audio");

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Button, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { explainPhotoAccessDenied } from '../utils/photoAccess';
 
 export default function PetSetupScreen() {
   const [image, setImage] = useState<string | null>(null);
@@ -14,13 +15,13 @@ export default function PetSetupScreen() {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Allow camera access to take a photo.');
+          await explainPhotoAccessDenied('camera');
           return;
         }
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission needed', 'Allow photo access to choose from your library.');
+          await explainPhotoAccessDenied('library');
           return;
         }
       }

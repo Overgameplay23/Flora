@@ -1070,3 +1070,40 @@ Three small changes came out of reading the data flows:
 For the owner: tick item 6 as drafted in LAUNCH.md (I left that file alone while you edit it). Health for the mood is
 a judgement call: Apple reviewers do not object to declaring more, and leaving it out could be. Section 7 of the
 sheet lists what changes the label later (Sentry, the Club, Health steps, social sign-in).
+
+## 2026-10-18 — TestFlight readiness audit, and five fixes before testers
+
+Owner asked whether anything else is needed before TestFlight. A read-only audit (five areas, each finding re-checked
+by a skeptic) found the repo side ready: an EAS-style dry run of the files EAS uploads evaluated the config and
+plugins, Expo Doctor passed 21/21, the lockfile is in sync, the iOS Hermes bundle builds, and EAS's default SDK 57
+image (Xcode 26.6) meets Apple's Xcode 26 / iOS 26 SDK upload rule. Bloom has all 31 migrations and every table, RPC,
+bucket and function the app calls. What is left is the owner's (now spelled out in LAUNCH.md: "What each stage
+needs", "First build", "From upload to your iPhone"): the Apple membership and App Store Connect record, committing
+the release-prep work before building, sign-up email (Supabase's built-in mailer only delivers to the project's team
+addresses, 2 an hour, so other testers never get their code), both email templates, and a billing-enabled Gemini key.
+
+Fixed here, with the owner's go-ahead (including app.json and LAUNCH.md, keeping the owner's own edits in both):
+1. `NSPhotoLibraryAddUsageDescription` in app.json ("Luna saves a share card to your photos when you choose Save
+   Image."), so Save Image from the share card's share sheet works. Guarded in `appIdentity.test.ts`.
+2. Painting failures in plain words: `src/domain/paintingErrors.ts` maps the painting function's developer messages
+   ("Missing gemini_api_key secret." used to show on the Pet tab) and the client's own failures to a few sentences:
+   switched off, busy, slow (a timeout, not "check your connection", as petStylize.js intends), offline, the photo
+   never saved, the photo itself, or other. Used when storing `pet.processing_error` (onboarding, the older
+   change-photo wait) and when showing it (Pet tab, which also covers raw strings already stored on Bloom).
+   `petStylize.js` is untouched. 6 tests.
+3. The offline / auth / dev banners no longer sit under the notch: RootNavigator stacks them in one column at the
+   window's top inset plus the 44 pt native header, so Back and the title stay tappable while one shows.
+4. After "Don't Allow" for photos or the camera, `src/utils/photoAccess.ts` explains and offers Open Settings (iOS
+   never asks twice), in onboarding and pet setup.
+5. LAUNCH.md (stages, first-build steps, the email blocker, both templates, the billing-enabled key, states of items 3,
+   5, 6, 8, 9, 10, 12, 14) and TESTFLIGHT_PASS.md (the code-based sign-up, feedback through TestFlight, the build
+   number, offline journal, relaunch, a long background, Save Image, Change pet photo, Help, Diagnostics, the
+   photo-denied path, the welcome-back sheet, the memorial, section 6 moved last because it clears reminders).
+
+The fixes went through a second review (four angles, each finding re-checked), which caught a wrong timeout message,
+"your photo is safe" after a failed upload, Gemini's "rejected" blamed on the photo, the banner covering the header,
+and several script rows that could not be followed as written; all fixed before this commit. Verified on web: the
+Pet tab shows "Painting isn't switched on yet…" for a raw stored "Missing gemini_api_key secret." (local demo pet,
+restored afterwards). Phone-only: Save Image, the banner position on a notched iPhone, Open Settings.
+Watch the first upload's processing email for ITMS-90683 (microphone): expo-audio contains recording code the app
+never uses; the fix would be one purpose string and a rebuild.

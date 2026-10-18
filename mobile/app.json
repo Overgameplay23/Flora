@@ -12,6 +12,9 @@
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "Luna saves a share card to your photos when you choose Save Image."
       }
     },
     "android": {

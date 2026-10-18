@@ -7,7 +7,8 @@ type AuthStatusBannerProps = {
   onDismiss?: () => void;
 };
 
-/** A line from the auth layer (the service is briefly unavailable, a session could not refresh), dismissible. */
+/** A line from the auth layer (the service is briefly unavailable, a session could not refresh), dismissible.
+ * Stacked with the other app-wide banners under the notch by RootNavigator. */
 export default function AuthStatusBanner({ message, onDismiss }: AuthStatusBannerProps) {
   if (!message) return null;
 
@@ -25,17 +26,12 @@ export default function AuthStatusBanner({ message, onDismiss }: AuthStatusBanne
 
 const styles = StyleSheet.create({
   banner: {
-    position: "absolute",
-    top: 42,
-    left: 0,
-    right: 0,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: brand.plum,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 18,
   },
   text: {
     color: brand.cream,

@@ -53,6 +53,8 @@ import { getLocalDateKey } from "../../utils/dateKeys";
 import { playDing } from "../../utils/sfx";
 import * as haptics from "../../utils/haptics";
 import { canShareAtReveal } from "../../domain/shareCard";
+import { PHOTO_NOT_SAVED, paintingErrorMessage } from "../../domain/paintingErrors";
+import { explainPhotoAccessDenied } from "../../utils/photoAccess";
 
 type PaintingState = { status: "idle" | "running" | "done" | "kept-photo" | "failed"; message?: string };
 
@@ -220,7 +222,8 @@ export default function OnboardingScreen({ route, navigation }: any) {
       try {
         const result = await pickPetPhotos(source, remaining);
         if (result.denied) {
-          notify("Permission needed", source === "camera" ? "Allow camera access to take a photo of your pet." : "Allow photo access to choose pictures of your pet.");
+          // iOS asks once: after "Don't Allow" the way back is Settings, so offer it
+          await explainPhotoAccessDenied(source);
           return;
         }
         if (result.canceled) return;
@@ -340,11 +343,13 @@ export default function OnboardingScreen({ route, navigation }: any) {
             console.error("ONBOARDING_SAVE_ORIGINAL_FAILED", { message: (saveError as any)?.message });
           }
         }
-        const message = safeErrorMessage(error);
+        // plain words for the Pet tab later (the server's messages are for developers: src/domain/paintingErrors.ts)
+        const message = keptPhoto ? paintingErrorMessage(error) : PHOTO_NOT_SAVED;
         await upsertPet(user.id, { processing_status: "error", processing_error: message }).catch(() => {});
         patchPetLocally(user.id, { processing_status: "error", processing_error: message });
         if (!alive) return;
-        setPainting(keptPhoto ? { status: "kept-photo", message } : { status: "failed", message });
+        // "failed" means the photo itself wasn't saved: the step's own "We couldn't save the photo." says it
+        setPainting(keptPhoto ? { status: "kept-photo", message } : { status: "failed" });
       } finally {
         await refreshPet();
       }

@@ -1,10 +1,10 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { clearNetworkBlock, getNetworkBlockState, subscribeNetworkBlock } from "../utils/net";
-import { isSupabaseUrlConfigured } from "../utils/env";
 import { categories, fonts, ink } from "../theme/tokens";
 
-/** The app paused its requests because the network looks blocked (VPN, captive Wi-Fi); one tap retries. */
+/** The app paused its requests because the network looks blocked (VPN, captive Wi-Fi); one tap retries.
+ * Stacked with the other app-wide banners under the notch by RootNavigator. */
 export default function NetworkBlockBanner() {
   const [block, setBlock] = React.useState(getNetworkBlockState());
 
@@ -28,17 +28,12 @@ export default function NetworkBlockBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    position: "absolute",
-    top: __DEV__ && !isSupabaseUrlConfigured() ? 44 : 0,
-    left: 0,
-    right: 0,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: categories.energy.mid,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    zIndex: 19,
   },
   text: {
     color: ink.primary,

@@ -30,6 +30,7 @@ import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isAdopted } from "../../src/domain/shelter";
 import { canShareCard } from "../../src/domain/shareCard";
+import { paintingErrorMessage } from "../../src/domain/paintingErrors";
 import { petTalkAvailable } from "../../src/services/petTalk";
 import { useCozyRun } from "../../src/hooks/useCozyRun";
 import { recomputePetState } from "../../src/services/retention";
@@ -37,11 +38,9 @@ import { playDing } from "../../src/utils/sfx";
 
 const PET_NAME_MAX_CHARS = 24;
 
+// plain words, never the painting function's developer messages (src/domain/paintingErrors.ts)
 function buildProcessingError(error) {
-  const raw = error?.userMessage || error?.message || "Stylize failed.";
-  if (typeof raw !== "string") return "Stylize failed.";
-  const trimmed = raw.replace(/data:[^ ]+/gi, "").replace(/\s+/g, " ").trim();
-  return trimmed.length > 160 ? trimmed.slice(0, 160) : trimmed;
+  return paintingErrorMessage(error);
 }
 
 function ActionTile({ icon, category, label, hint, onPress, disabled }) {
@@ -341,7 +340,7 @@ export default function PetScreen() {
                 <IconTile icon="alert-circle-outline" category="connection" on="fill" size={40} />
                 <View style={styles.noticeBody}>
                   <Text style={[type.bodyStrong, { color: surface.text }]}>The portrait didn't finish</Text>
-                  <Text style={[type.meta, styles.noticeText, { color: surface.textSecondary }]}>{pet?.processing_error || "Something went wrong while painting."}</Text>
+                  <Text style={[type.meta, styles.noticeText, { color: surface.textSecondary }]}>{paintingErrorMessage(pet?.processing_error)}</Text>
                   <Button label={retrying ? "Retrying…" : "Try painting again"} icon="color-palette-outline" size="sm" loading={retrying} onPress={handleRetryStylize} containerStyle={styles.noticeButton} />
                 </View>
               </View>

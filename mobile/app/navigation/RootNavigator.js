@@ -19,6 +19,7 @@ import ShareCardScreen from "../../src/screens/ShareCardScreen";
 import EnvWarningBanner from "../../src/components/EnvWarningBanner";
 import NetworkBlockBanner from "../../src/components/NetworkBlockBanner";
 import AuthStatusBanner from "../../src/components/AuthStatusBanner";
+import { initialWindowMetrics } from "react-native-safe-area-context";
 import Button from "../../src/components/common/Button";
 import IconTile from "../../src/components/common/IconTile";
 import PetMascot from "../../src/components/pet/PetMascot";
@@ -161,14 +162,25 @@ export default function RootNavigator() {
       {/* one status bar for the whole app, on the paper of the hour; Home follows its sky while in front */}
       <StatusBar style={statusBar} />
       <NavigationContainer theme={navigationTheme}>{content}</NavigationContainer>
-      <EnvWarningBanner />
-      <NetworkBlockBanner />
-      <AuthStatusBanner message={authServiceMessage} onDismiss={clearAuthServiceMessage} />
+      {/* the app-wide banners, stacked by their real heights below the notch and the screen's header */}
+      <View pointerEvents="box-none" style={[styles.banners, { top: BANNER_TOP }]}>
+        <EnvWarningBanner />
+        <NetworkBlockBanner />
+        <AuthStatusBanner message={authServiceMessage} onDismiss={clearAuthServiceMessage} />
+      </View>
     </View>
   );
 }
 
+// The banners sit outside any safe-area provider, so the window's top inset is read once: Luna is portrait-only,
+// so it never changes while the app runs (0 on the web). They float just below where a native-stack header ends
+// (44 pt on an iPhone in portrait), so Back and the title stay tappable while one shows; on the tab screens, which
+// have no header, they float over the top of the content until the network is back or they are dismissed.
+const NATIVE_HEADER_HEIGHT = 44;
+const BANNER_TOP = (initialWindowMetrics?.insets?.top ?? 0) + NATIVE_HEADER_HEIGHT;
+
 const styles = StyleSheet.create({
+  banners: { position: "absolute", left: 0, right: 0, zIndex: 20 },
   splash: {
     flex: 1,
     justifyContent: "center",

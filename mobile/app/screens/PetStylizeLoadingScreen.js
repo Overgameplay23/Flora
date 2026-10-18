@@ -8,6 +8,7 @@ import Button from "../../src/components/common/Button";
 import Card from "../../src/components/common/Card";
 import { Lead, ScreenTitle } from "../../src/components/common/Headings";
 import { paintingLine } from "../../src/domain/onboarding";
+import { paintingErrorMessage, paintingTrouble } from "../../src/domain/paintingErrors";
 import { useTheme } from "../../src/theme/theme";
 import { radius, type } from "../../src/theme/tokens";
 
@@ -25,6 +26,7 @@ export default function PetStylizeLoadingScreen({ route, navigation }) {
   const [attempt, setAttempt] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
   const [errorCode, setErrorCode] = useState("");
+  const [trouble, setTrouble] = useState("");
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(null);
   const [isRetryWaiting, setIsRetryWaiting] = useState(false);
   const [isFallbackSaving, setIsFallbackSaving] = useState(false);
@@ -57,12 +59,8 @@ export default function PetStylizeLoadingScreen({ route, navigation }) {
     });
   };
 
-  const buildProcessingError = (error) => {
-    const raw = error?.userMessage || error?.message || "Stylize failed.";
-    if (typeof raw !== "string") return "Stylize failed.";
-    const trimmed = raw.replace(/data:[^ ]+/gi, "").replace(/\s+/g, " ").trim();
-    return trimmed.length > 160 ? trimmed.slice(0, 160) : trimmed;
-  };
+  // plain words, never the painting function's developer messages (src/domain/paintingErrors.ts)
+  const buildProcessingError = (error) => paintingErrorMessage(error);
 
   const updatePetProcessing = async (payload) => {
     if (!user?.id) return { savedStylized: false, fullPatchApplied: false, fallbackUsed: true };
@@ -130,9 +128,9 @@ export default function PetStylizeLoadingScreen({ route, navigation }) {
           processing_error: buildProcessingError(error),
         });
         if (isActive) {
-          const summary = error?.userMessage || "Please try again.";
-          setErrorMessage(`We couldn't paint your pet right now. ${summary}`);
+          setErrorMessage(paintingErrorMessage(error));
           setErrorCode(error?.errorCode || "");
+          setTrouble(paintingTrouble(error));
           setRetryAfterSeconds(error?.retryAfterSeconds || null);
           if (__DEV__) {
             const detailText = error?.devDetails || error?.message || JSON.stringify(error);
@@ -201,7 +199,8 @@ export default function PetStylizeLoadingScreen({ route, navigation }) {
             size="md"
             containerStyle={styles.errorButton}
           />
-          {errorCode === "RATE_LIMIT" ? (
+          {/* retrying can't help while painting is off or busy: keep the photo instead */}
+          {errorCode === "RATE_LIMIT" || trouble === "off" || trouble === "busy" ? (
             <Button label={isFallbackSaving ? "Saving original…" : "Use the original photo for now"} variant="secondary" size="md" onPress={handleUseOriginal} loading={isFallbackSaving} containerStyle={styles.errorButton} />
           ) : null}
           <Button label="Go back" variant="quiet" size="md" onPress={() => navigation.goBack()} containerStyle={styles.errorButton} />

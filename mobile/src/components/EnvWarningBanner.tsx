@@ -16,15 +16,10 @@ export default function EnvWarningBanner() {
 
 const styles = StyleSheet.create({
   banner: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: brand.ember,
     alignItems: "center",
-    zIndex: 20,
   },
   text: {
     color: brand.cream,
