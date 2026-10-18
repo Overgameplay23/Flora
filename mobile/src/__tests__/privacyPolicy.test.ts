@@ -27,8 +27,40 @@ describe("privacy policy", () => {
 
   it("keeps the promises the app makes elsewhere", () => {
     const text = JSON.stringify(policy).toLowerCase();
-    expect(text).toContain("cycle tracking never leaves your phone");
+    expect(text).toContain("cycle tracking stays on your phone");
+    // honest about the phone's own backups, and about the paid Gemini API the owner must use (docs/LAUNCH.md)
+    expect(text).toContain("icloud or google");
+    expect(text).toContain("paid api");
     expect(text).toContain("delete account");
     expect(text).not.toMatch(/fertility predictions? (are|is) available/);
+  });
+});
+
+describe("help & support", () => {
+  const support = require("../legal/support.json");
+  const { renderSupportHtml, SUPPORT_TARGET } = require("../../scripts/export-privacy.js");
+  const source = (rel: string) => fs.readFileSync(require("path").join(__dirname, "..", "..", rel), "utf8");
+
+  it("matches the exported page, with the policy's contact email", () => {
+    expect(fs.readFileSync(SUPPORT_TARGET, "utf8").replace(/\r\n/g, "\n")).toBe(renderSupportHtml(support, policy.contactEmail));
+  });
+
+  it("answers every question it asks", () => {
+    expect(support.questions.length).toBeGreaterThanOrEqual(6);
+    for (const item of support.questions) {
+      expect(item.q.trim().length).toBeGreaterThan(5);
+      expect(item.a.trim().length).toBeGreaterThan(30);
+    }
+  });
+
+  it("names buttons that exist in the app", () => {
+    const text = JSON.stringify(support);
+    expect(text).toContain("Forgot your password?");
+    expect(source("src/screens/LoginScreen.js")).toContain("Forgot your password?");
+    expect(text).toContain("Delete account");
+    expect(source("app/screens/ProfileScreen.js")).toContain('label="Delete account"');
+    expect(text).toContain("Change pet photo");
+    expect(source("app/screens/ProfileScreen.js")).toContain('label="Change pet photo"');
+    expect(text).not.toMatch(/Floura/);
   });
 });

@@ -851,3 +851,30 @@ to judge it on the phone. It is a one-line change either way.
 **Decided the same day:** the owner chose to respect the silent switch. `sfx.js` now sets
 `playsInSilentMode: false` and, explicitly, `interruptionMode: "mixWithOthers"` (expo-audio's default; a ding never
 pauses the person's music). `appIdentity.test.ts` guards both; step 3.1 of the phone pass checks it.
+
+## 2026-10-17 — Privacy policy, checked against the facts; Help & support page
+
+From the owner's TestFlight audit, gate "Privacy/support": review the policy's provider, device-backup and backup
+wording, and have a support page to host.
+
+**Provider terms, read on 2026-10-17.** Gemini API terms (effective 23 March 2026, ai.google.dev/gemini-api/terms):
+on **unpaid** use Google may use what is sent (our users' pet photos) to improve its products and human reviewers may
+read it; on **paid** use Google does not, and logs prompts and responses for a limited time only to detect abuse.
+Apps that serve users in the UK, the EEA or Switzerland may use **only** paid services. Luna's audience includes the
+UK, so **the Gemini key must come from a billing-enabled Google Cloud project** (for the law and for the policy's
+words). OpenAI's API docs: API data is not used for training by default; abuse-monitoring logs up to 30 days (only
+matters if Talk is ever turned on).
+
+**Policy changes (`src/legal/privacy.json`, re-exported).** "Cycle tracking never leaves your phone" became "stays on
+your phone: it is never sent to us or to anyone we work with", and a new paragraph says the phone's own iCloud or
+Google backup can include what Luna keeps on the phone (AsyncStorage lives in backed-up app storage on iOS). The
+providers say what Google and OpenAI do with what they receive (paid API, abuse logs). Backups: "our database
+provider's encrypted backups expire on their own, within 30 days at most" (Supabase Pro keeps daily backups 7 days).
+Cozy Run pauses join the on-phone list. Tests pin the backup sentence and the paid-API wording.
+
+**Help & support.** `src/legal/support.json` (nine questions: password, deleting, painting, Cozy Run, reminders, a new
+phone, a pet that has passed away, medical, who sees data) is shown at Profile › Account › Help & support
+(`src/screens/HelpScreen.tsx`, `?preview=help`) and exported to `docs/legal/support.html` by the same script as the
+policy (one contact email, privacy.json's; hidden while empty). A test checks the answers name buttons that exist
+("Forgot your password?", "Delete account", "Change pet photo"). Host both HTML files together (the support page links
+`privacy-policy.html`); the two URLs go into App Store Connect.

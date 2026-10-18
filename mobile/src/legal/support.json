@@ -1,0 +1,42 @@
+{
+  "title": "Help & support",
+  "intro": "Answers to the questions people ask most. If yours isn't here, write to us and a person will answer.",
+  "questions": [
+    {
+      "q": "I forgot my password",
+      "a": "On the sign-in screen, tap \"Forgot your password?\" and enter your email. We send a code (check your spam folder too); type it in with a new password and you're signed in."
+    },
+    {
+      "q": "How do I delete my account?",
+      "a": "In the app: Profile, Account, Delete account, then type \"delete\". Your account, your pet's photos and every record tied to them are removed straight away, and Luna forgets everything it kept on that phone."
+    },
+    {
+      "q": "Why isn't my pet painted yet?",
+      "a": "Painting takes up to a minute, and your pet's drawn version stands in meanwhile. A clear, well-lit photo of your pet's face works best. To try again with another photo: Profile, Change pet photo."
+    },
+    {
+      "q": "What is the Cozy Run?",
+      "a": "The days of care in a row, kindly counted. Two Nap Days a week cover quiet days on their own, Warm Blankets (one for every seven days of care) cover more, logged period days are always covered, and you can pause it for up to 30 days. If a run rests, three days of care within five mend it; if not, it is kept as a chapter. Days Together, your total, never goes down."
+    },
+    {
+      "q": "My reminders don't arrive",
+      "a": "Check Profile, Reminders, then your iPhone's Settings, Notifications, Luna. Reminders also pause themselves if you haven't opened Luna for a few days, so they never pile up; opening the app sets them going again."
+    },
+    {
+      "q": "I got a new phone",
+      "a": "Sign in with the same email: your pet, check-ins, care tasks, garden and journal come with your account. Cycle notes, the scrapbook, journeys, keepsakes and reminder settings live only on the old phone (or in that phone's own backup)."
+    },
+    {
+      "q": "My pet has passed away",
+      "a": "We're so sorry. Profile has a place for this (\"If your pet has passed away\"): your pet rests in a quiet garden, reminders stop, and you can keep memories there. It can be undone, and a new companion can move in later."
+    },
+    {
+      "q": "Is Luna medical advice?",
+      "a": "No. Luna is a gentle self-care companion, not a medical device. If you are in crisis or thinking about harming yourself, please contact your local emergency number or a crisis line right away."
+    },
+    {
+      "q": "Who sees my data?",
+      "a": "Only you. We don't sell data, show ads or use tracking tools, and cycle tracking stays on your phone. The privacy policy has the details."
+    }
+  ]
+}

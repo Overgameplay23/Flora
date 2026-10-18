@@ -18,7 +18,7 @@ import AppErrorBoundary from "../../components/AppErrorBoundary";
 // Dev-only design previews on web, so every screen can be checked in a browser without signing in:
 //   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, insights, cycle,
 //                     reminders, memorial, play, fetch, bubbles, petting, treats, tasks, habits, journeys, keepsakes, talk,
-//                     painting, painted, onboarding, login, signup, forgot, privacy, delete, cozy, splash, unreachable,
+//                     painting, painted, onboarding, login, signup, forgot, privacy, help, delete, cozy, splash, unreachable,
 //                     crash (the app-wide crash screen, src/components/AppErrorBoundary.tsx)
 //   &hour=21          pin the time of day (night paper from 21:00 to 05:00)
 //   &pet=cat|none     which fixture pet (default: a golden dog called Biscuit)
@@ -57,6 +57,7 @@ const ROUTES: Record<string, string> = {
   privacy: "Privacy",
   delete: "DeleteAccount",
   cozy: "CozyRun",
+  help: "Help",
 };
 
 const PREVIEW_USER = { id: "00000000-0000-4000-8000-00000000d351", email: "preview@floura.app" };

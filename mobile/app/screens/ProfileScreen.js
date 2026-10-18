@@ -199,6 +199,13 @@ export default function ProfileScreen({ navigation }) {
       <Eyebrow style={styles.sectionTitle}>Account</Eyebrow>
       <ListGroup>
         <ListRow
+          icon="help-buoy-outline"
+          category="rest"
+          label="Help & support"
+          hint="Passwords, reminders, a new phone"
+          onPress={() => navigation.navigate("Help")}
+        />
+        <ListRow
           icon="shield-checkmark-outline"
           category="calm"
           label="Privacy"

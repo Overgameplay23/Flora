@@ -9,7 +9,7 @@
       "bullets": [
         "We don't sell your data, show ads, or track you across other apps and websites.",
         "There are no third-party analytics or advertising tools in the app.",
-        "Cycle tracking never leaves your phone.",
+        "Cycle tracking stays on your phone: it is never sent to us or to anyone we work with.",
         "You can delete your account and everything in it from inside the app, at any time (Profile, Delete account)."
       ]
     },
@@ -29,7 +29,8 @@
     {
       "heading": "What stays on your phone",
       "paragraphs": [
-        "Some things are never sent to us: cycle tracking, your reminder settings, your daily plan and focus areas, journeys, the Sunday scrapbook, keepsakes and your care preferences. They live only on this phone, so they won't follow you to a new one, and they go away when you delete the app or your account."
+        "Some things are never sent to us: cycle tracking, your reminder settings, your daily plan and focus areas, journeys, the Sunday scrapbook, keepsakes, your Cozy Run pauses and your care preferences. They live only on this phone, so they won't follow you to a new one, and they go away when you delete the app or your account.",
+        "One exception you control: if your phone backs itself up (iCloud or Google), that backup can include what Luna keeps on the phone, protected by Apple or Google. We can't see it; your phone's backup settings decide."
       ]
     },
     {
@@ -39,8 +40,8 @@
       ],
       "bullets": [
         "Supabase hosts our database, sign-in and photo storage, in the United States (AWS us-east-1).",
-        "Google (the Gemini API) paints your pet from the photos you choose. Photos are sent only when you ask for a painting.",
-        "OpenAI writes your pet's replies, only when you use the talk feature, from the messages and summary described above."
+        "Google (the Gemini API) paints your pet from the photos you choose. Photos are sent only when you ask for a painting. We use Google's paid API: Google does not use them to train or improve its products, and keeps a log for a limited time only to detect abuse.",
+        "OpenAI writes your pet's replies, only if the talk feature is turned on and you use it, from the messages and summary described above. OpenAI does not use them to train its models and keeps them for up to 30 days to detect abuse."
       ]
     },
     {
@@ -64,7 +65,7 @@
     {
       "heading": "How long we keep it",
       "paragraphs": [
-        "We keep your data while your account exists. When you delete your account, your photos, your account and every record tied to it are removed from our live systems straight away. Copies in encrypted backups, if any, expire within 30 days."
+        "We keep your data while your account exists. When you delete your account, your photos, your account and every record tied to it are removed from our live systems straight away. Our database provider's encrypted backups expire on their own, within 30 days at most."
       ]
     },
     {
