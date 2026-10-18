@@ -48,7 +48,7 @@ Mark each line ✅ / ❌ and note the phone model and iOS version at the top of 
 
 | # | Do | Expect |
 |---|---|---|
-| 3.1 | Play › each game once: Fetch, Bubbles, Pet the pet, Treat Catch, Memory Match | Each opens full screen, runs smoothly (no stutter), sound plays. **Decide:** the sound effects currently play even with the silent switch on (`playsInSilentMode: true` in `src/utils/sfx.js`); most calm apps stay quiet on silent. If that feels wrong, it is a one-line change |
+| 3.1 | Play › each game once: Fetch, Bubbles, Pet the pet, Treat Catch, Memory Match, with music playing in another app | Each opens full screen and runs smoothly (no stutter). Sounds play with the ringer on and stay quiet with the silent switch on; the music keeps playing underneath |
 | 3.2 | The first game of the day | Sprouts for playing; the cozy run counts the day |
 | 3.3 | Finish or leave a game | Back to Play; nothing is lost for leaving early |
 

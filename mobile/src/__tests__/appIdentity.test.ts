@@ -31,6 +31,10 @@ describe("app identity", () => {
     expect(audio.microphonePermission).toBe(false);
     expect(audio.recordAudioAndroid).toBe(false);
     expect(audio.enableBackgroundPlayback).toBe(false);
+    // and the sound effects stay quiet on silent without pausing anyone's music (src/utils/sfx.js)
+    const sfx = fs.readFileSync(path.join(MOBILE, "src", "utils", "sfx.js"), "utf8");
+    expect(sfx).toMatch(/playsInSilentMode:\s*false/);
+    expect(sfx).toMatch(/interruptionMode:\s*"mixWithOthers"/);
     // the session token sits in SecureStore without biometrics, so no Face ID prompt string either
     expect(pluginOptions("expo-secure-store").faceIDPermission).toBe(false);
   });

@@ -848,3 +848,6 @@ touches only new files and this log):
 For the owner, found while writing the script: game sound effects play even with the silent switch on
 (`playsInSilentMode: true` in `src/utils/sfx.js`). Most calm, non-media apps stay quiet on silent; the script asks you
 to judge it on the phone. It is a one-line change either way.
+**Decided the same day:** the owner chose to respect the silent switch. `sfx.js` now sets
+`playsInSilentMode: false` and, explicitly, `interruptionMode: "mixWithOthers"` (expo-audio's default; a ding never
+pauses the person's music). `appIdentity.test.ts` guards both; step 3.1 of the phone pass checks it.

@@ -10,7 +10,9 @@ async function ensureDingLoaded() {
   if (dingSound) return dingSound;
   if (!loadPromise) {
     loadPromise = (async () => {
-      await setAudioModeAsync({ playsInSilentMode: true });
+      // A calm app's sound effects respect the silent switch (owner, 2026-10-17; expo-audio defaults to playing on
+      // silent) and never pause the person's own music or podcast.
+      await setAudioModeAsync({ playsInSilentMode: false, interruptionMode: "mixWithOthers" });
       dingSound = createAudioPlayer(dingAsset);
       return dingSound;
     })();
