@@ -10,6 +10,7 @@ import type { PetReaction } from "../components/pet/PetPortrait";
 import { useTheme } from "../theme/theme";
 import { fonts, radius, type } from "../theme/tokens";
 import { success, warning } from "../utils/haptics";
+import { announce } from "../utils/a11y";
 
 type GameEndCardProps = {
   game: GameId;
@@ -39,6 +40,11 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
   const [addingTask, setAddingTask] = useState(false);
   const [taskMessage, setTaskMessage] = useState<{ text: string; failed: boolean } | null>(null);
   const [reaction, setReaction] = useState<PetReaction | null>("cheer");
+
+  // the round is over: say how it went (Android reads the live region below; iOS needs this)
+  useEffect(() => {
+    announce(`Good game. Score ${score}. ${summary}`);
+  }, [score, summary]);
 
   useEffect(() => {
     let alive = true;
@@ -101,7 +107,9 @@ export default function GameEndCard({ game, userId, petName, score, summary, onP
         <Text style={[type.title, styles.title, { color: surface.text }]} accessibilityRole="header">
           {outcome?.bestBeaten ? "New best!" : "Good game"}
         </Text>
-        <Text style={[styles.score, { color: tone.accent }]}>{score}</Text>
+        <Text style={[styles.score, { color: tone.accent }]} accessibilityLabel={`Score ${score}`}>
+          {score}
+        </Text>
         <Text style={[type.callout, styles.summary, { color: surface.textSecondary }]}>{summary}</Text>
         {outcome ? (
           <Text style={[type.meta, styles.meta, { color: surface.textTertiary }]}>

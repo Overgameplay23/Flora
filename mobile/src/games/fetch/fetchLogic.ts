@@ -68,6 +68,17 @@ export function computeThrow(from: Point, dx: number, dy: number, dtMs: number, 
   };
 }
 
+/**
+ * A throw without a drag, for VoiceOver (double-tap the ball, or pick "Short throw" / "Long throw" from its actions):
+ * the same physics as a flick to the right, so it scores like any other throw. Never null.
+ */
+export function accessibleThrow(from: Point, field: Field, kind: "short" | "long" = "short"): Throw {
+  const long = kind === "long";
+  const t = computeThrow(from, long ? 260 : 120, long ? -50 : -30, long ? 150 : 320, field);
+  // computeThrow only refuses drags shorter than MIN_DRAG, which these never are
+  return t as Throw;
+}
+
 /** How long the pet takes to run a distance, ms; never so fast it teleports, never so slow it drags. */
 export function runDurationMs(distancePx: number): number {
   const d = Math.max(0, Number.isFinite(distancePx) ? distancePx : 0);

@@ -296,7 +296,7 @@ export default function RemindersScreen() {
                 <IconTile icon="notifications-outline" category="rest" size={32} />
                 <View style={styles.previewBody}>
                   <View style={styles.previewHead}>
-                    <Text style={[type.callout, styles.previewTitle, { color: surface.text }]} numberOfLines={1}>
+                    <Text style={[type.callout, styles.previewTitle, { color: surface.text }]} numberOfLines={2}>
                       {item.title}
                     </Text>
                     <Text style={[type.meta, { color: surface.textTertiary }]}>

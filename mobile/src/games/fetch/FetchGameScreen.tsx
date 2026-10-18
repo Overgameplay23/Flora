@@ -7,6 +7,7 @@ import GameField, { useReducedMotionFlag, type FieldSize } from "../GameField";
 import GameEndCard from "../GameEndCard";
 import { playDing } from "../../utils/sfx";
 import {
+  accessibleThrow,
   FETCH_MAX_THROWS,
   Field,
   FetchRound,
@@ -295,7 +296,18 @@ export default function FetchGameScreen({ navigation }: any) {
                 style={[styles.ball, { transform: ballTransform }]}
                 accessible
                 accessibilityRole="button"
-                accessibilityLabel="Ball. Drag and release to throw."
+                accessibilityLabel="Ball"
+                accessibilityHint="Double tap to throw it. More throws are in the actions."
+                // VoiceOver cannot drag: double tap (activate) throws, and the actions menu offers a short or long throw
+                accessibilityActions={[
+                  { name: "activate", label: "Throw" },
+                  { name: "short", label: "Short throw" },
+                  { name: "long", label: "Long throw" },
+                ]}
+                onAccessibilityAction={(event) => {
+                  if (!layout || phaseRef.current !== "idle" || !canThrow(roundRef.current, Date.now())) return;
+                  throwBall(accessibleThrow(layout.ballRest, layout.field, event.nativeEvent.actionName === "long" ? "long" : "short"));
+                }}
               >
                 <View style={styles.ballShine} />
               </Animated.View>

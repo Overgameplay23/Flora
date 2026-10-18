@@ -13,6 +13,7 @@ import { DEFAULT_BREATHS, PATTERN_4_2_6, fullnessAfter, positionAt, sessionLengt
 import { useTheme } from "../../theme/theme";
 import { radius, type } from "../../theme/tokens";
 import { breathCue, tapSoft } from "../../utils/haptics";
+import { announce } from "../../utils/a11y";
 
 type Stage = "ready" | "running" | "paused" | "done";
 
@@ -91,6 +92,8 @@ export default function BreathingSession({ onClose, onComplete }: BreathingSessi
     if (position.index === lastIndex.current || !position.step) return;
     lastIndex.current = position.index;
     breathCue(position.step.phase.key);
+    // with eyes closed or VoiceOver on, the phase is also spoken ("Breathe in", "Hold", "Breathe out")
+    announce(position.step.phase.label);
     if (!reduced) {
       Animated.timing(fullness, {
         toValue: fullnessAfter(position.step.phase.key),

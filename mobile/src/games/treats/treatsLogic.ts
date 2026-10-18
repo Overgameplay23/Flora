@@ -62,6 +62,33 @@ export function treatPoints(kind: TreatKind): number {
   return kind === "golden" ? 3 : 1;
 }
 
+// ---- playing by ear (VoiceOver) ------------------------------------------------------------------------------
+// The lawn in thirds. VoiceOver moves the pet from the middle of one third to the next, and each new treat is
+// announced by its third, so a player who cannot see the treats can still be under them: from the middle of a third,
+// the pet's catch reach (PET_SIZE x 1.2 x CATCH_RADIUS_RATIO, about 99 px) covers the whole third on any phone.
+
+export type Zone = "left" | "middle" | "right";
+const ZONES: Zone[] = ["left", "middle", "right"];
+
+export function zoneOf(ratio: number): Zone {
+  const r = clamp(Number.isFinite(ratio) ? ratio : 0.5, 0, 0.999999);
+  return ZONES[Math.floor(r * 3)];
+}
+
+export function zoneCenterRatio(zone: Zone): number {
+  return (ZONES.indexOf(zone) + 0.5) / 3;
+}
+
+export function stepZone(zone: Zone, direction: 1 | -1): Zone {
+  return ZONES[clamp(ZONES.indexOf(zone) + direction, 0, ZONES.length - 1)];
+}
+
+/** What VoiceOver says as a treat starts to fall: where, and whether it is golden. */
+export function treatCue(treat: Pick<Treat, "xRatio" | "kind">): string {
+  const zone = zoneOf(treat.xRatio);
+  return treat.kind === "golden" ? `Golden, ${zone}` : zone.charAt(0).toUpperCase() + zone.slice(1);
+}
+
 /** Where the pet may stand: inside the side margins. */
 export function clampPetX(x: number, fieldWidth: number, margin: number): number {
   const lo = margin;

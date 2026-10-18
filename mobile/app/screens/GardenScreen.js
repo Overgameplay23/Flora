@@ -271,7 +271,7 @@ export default function GardenScreen() {
                   </View>
                 ) : null}
               </View>
-              <Text style={[type.bodyStrong, styles.plantName, { color: surface.text }]} numberOfLines={1}>
+              <Text style={[type.bodyStrong, styles.plantName, { color: surface.text }]} numberOfLines={2}>
                 {item.name}
               </Text>
               <Text style={[type.meta, { color: surface.textSecondary }]}>{stageWord(item.stage, theme)}</Text>

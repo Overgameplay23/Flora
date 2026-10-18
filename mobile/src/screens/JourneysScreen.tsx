@@ -110,7 +110,7 @@ export default function JourneysScreen() {
                 <IconTile icon={journey.icon} category={journey.category} size={48} />
                 <View style={styles.journeyBody}>
                   <View style={styles.titleRow}>
-                    <Text style={[type.bodyStrong, styles.journeyTitle, { color: surface.text }]} numberOfLines={1}>
+                    <Text style={[type.bodyStrong, styles.journeyTitle, { color: surface.text }]} numberOfLines={2}>
                       {journey.title}
                     </Text>
                     {finishedOn ? (

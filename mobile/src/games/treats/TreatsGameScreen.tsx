@@ -9,6 +9,7 @@ import GameEndCard from "../GameEndCard";
 import { brand } from "../../theme/tokens";
 import { playDing } from "../../utils/sfx";
 import { selection, tapLight } from "../../utils/haptics";
+import { announce } from "../../utils/a11y";
 import {
   CATCH_RADIUS_RATIO,
   TREAT_SIZE,
@@ -24,6 +25,11 @@ import {
   recordTreatMiss,
   shouldCheerTreats,
   spawnTreat,
+  stepZone,
+  treatCue,
+  zoneCenterRatio,
+  zoneOf,
+  type Zone,
   treatsSecondsLeft,
   treatsSummary,
 } from "./treatsLogic";
@@ -95,6 +101,8 @@ export default function TreatsGameScreen({ navigation }: any) {
   const [reaction, setReaction] = useState<PetReaction | null>(null);
   const [over, setOver] = useState(false);
   const [facing, setFacing] = useState<"left" | "right">("right");
+  // where VoiceOver last moved the pet, read back as the control's value
+  const [petZone, setPetZone] = useState<Zone>("middle");
   const roundRef = useRef(round);
   roundRef.current = round;
   const overRef = useRef(false);
@@ -129,6 +137,8 @@ export default function TreatsGameScreen({ navigation }: any) {
       const t = Date.now();
       const treat = spawnTreat(idRef.current++, Math.random(), t - roundRef.current.startedAt, t);
       setTreats((prev) => [...prev, { treat, progress: new Animated.Value(0), gone: new Animated.Value(0) }]);
+      // by ear: VoiceOver says where it falls (nothing is spoken without a screen reader)
+      announce(treatCue(treat));
       scheduleSpawn();
     }, nextTreatDelayMs(elapsed));
   }, []);
@@ -236,12 +246,17 @@ export default function TreatsGameScreen({ navigation }: any) {
               {...responder.panHandlers}
               accessible
               accessibilityRole="adjustable"
-              accessibilityLabel={`Slide ${displayName} left and right to catch treats`}
+              accessibilityLabel={`${displayName}, catching treats`}
+              accessibilityHint="Swipe up to move right, down to move left. Each treat is announced where it falls."
+              accessibilityValue={{ text: petZone }}
               accessibilityActions={[{ name: "increment", label: "Move right" }, { name: "decrement", label: "Move left" }]}
               onAccessibilityAction={(event) => {
                 const width = fieldRef.current?.width ?? 0;
-                const stepX = width / 6;
-                movePet(petXRef.current + (event.nativeEvent.actionName === "increment" ? stepX : -stepX), true);
+                if (!width) return;
+                // one third at a time, to the middle of it, where the pet reaches the whole third
+                const next = stepZone(zoneOf(petXRef.current / width), event.nativeEvent.actionName === "increment" ? 1 : -1);
+                movePet(zoneCenterRatio(next) * width, true);
+                setPetZone(next);
               }}
             />
             {treats.map((live) => (

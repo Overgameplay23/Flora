@@ -7,6 +7,7 @@ import { SCENE, SCENE_BACKGROUND } from "../components/garden/sceneAssets";
 import PressableScale from "../components/common/PressableScale";
 import { useTheme } from "../theme/theme";
 import { fonts, radius, type } from "../theme/tokens";
+import { TIGHT_TEXT_SCALE } from "../utils/a11y";
 
 export type FieldSize = { width: number; height: number };
 
@@ -89,12 +90,12 @@ export default function GameField({ title, stat, secondary, onClose, children, h
         {size.width > 0 ? children(size) : null}
         <View style={[styles.hud, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
           <View style={[styles.hudPill, pill]}>
-            <Text style={[type.meta, styles.hudTitle, { color: surface.textSecondary }]}>{title}</Text>
-            <Text style={[styles.hudStat, { color: surface.text }]}>{stat}</Text>
+            <Text style={[type.meta, styles.hudTitle, { color: surface.textSecondary }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>{title}</Text>
+            <Text style={[styles.hudStat, { color: surface.text }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>{stat}</Text>
           </View>
           <View style={styles.hudRight}>
             <View style={[styles.hudPill, pill]}>
-              <Text style={[styles.hudStat, { color: surface.text }]}>{secondary}</Text>
+              <Text style={[styles.hudStat, { color: surface.text }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>{secondary}</Text>
             </View>
             <PressableScale
               onPress={onClose}
@@ -111,7 +112,7 @@ export default function GameField({ title, stat, secondary, onClose, children, h
         {hint ? (
           <View style={[styles.hintWrap, { top: insets.top + 60 }]} pointerEvents="none">
             <View style={[styles.hintPill, pill]}>
-              <Text style={[type.meta, styles.hint, { color: surface.text }]}>{hint}</Text>
+              <Text style={[type.meta, styles.hint, { color: surface.text }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>{hint}</Text>
             </View>
           </View>
         ) : null}

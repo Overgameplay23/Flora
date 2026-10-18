@@ -56,7 +56,7 @@ export default function FocusPickerSheet({ visible, initial, petName, saving = f
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
         <View style={[styles.sheet, { backgroundColor: surface.canvas, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.grabber} />
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

@@ -66,13 +66,13 @@ export default function DiagnosticsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerRow}>
-        <Pressable style={styles.button} onPress={handleCopy}>
+        <Pressable style={styles.button} onPress={handleCopy} accessibilityRole="button">
           <Text style={styles.buttonText}>Copy logs</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={handleClear}>
+        <Pressable style={styles.button} onPress={handleClear} accessibilityRole="button">
           <Text style={styles.buttonText}>Clear</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={refresh}>
+        <Pressable style={styles.button} onPress={refresh} accessibilityRole="button">
           <Text style={styles.buttonText}>Refresh</Text>
         </Pressable>
       </View>

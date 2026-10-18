@@ -8,6 +8,7 @@ import GameField, { useReducedMotionFlag, type FieldSize } from "../GameField";
 import GameEndCard from "../GameEndCard";
 import { brand, fonts } from "../../theme/tokens";
 import { selection, success, tapLight } from "../../utils/haptics";
+import { announce } from "../../utils/a11y";
 import {
   type PettingRound,
   easeCalm,
@@ -188,6 +189,14 @@ export default function PettingGameScreen({ navigation }: any) {
   };
 
   const calm = Math.round(round.calm);
+  const meterWord = calm >= 100 ? "Completely content" : calm >= 75 ? "Nearly melting" : calm >= 50 ? "Leaning in" : calm >= 25 ? "Warming up" : "Say hello";
+  // with VoiceOver the meter is the game: say each new stage as it is reached
+  const spokenWord = useRef(meterWord);
+  useEffect(() => {
+    if (meterWord === spokenWord.current) return;
+    spokenWord.current = meterWord;
+    if (meterWord !== "Say hello") announce(`${displayName}: ${meterWord.toLowerCase()}`);
+  }, [displayName, meterWord]);
   const hint = round.strokes === 0 && !over ? `Stroke ${displayName} slowly, like you mean it` : round.flow >= 6 ? "That rhythm. Keep it just like that." : calm >= 100 ? `${displayName} is completely content.` : null;
 
   return (
@@ -202,9 +211,17 @@ export default function PettingGameScreen({ navigation }: any) {
               <View style={styles.meterTrack}>
                 <Animated.View style={[styles.meterFill, { width: fillAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) }]} />
               </View>
-              <Text style={styles.meterLabel}>{calm >= 100 ? "Completely content" : calm >= 75 ? "Nearly melting" : calm >= 50 ? "Leaning in" : calm >= 25 ? "Warming up" : "Say hello"}</Text>
+              <Text style={styles.meterLabel}>{meterWord}</Text>
             </View>
-            <View style={[styles.petWrap, { left: petLeft, top: petTop, width: PET_SIZE * 1.2, height: PET_SIZE * 1.25 }]} {...responder.panHandlers} accessible accessibilityRole="button" accessibilityLabel={`Stroke ${displayName}`}>
+            <View style={[styles.petWrap, { left: petLeft, top: petTop, width: PET_SIZE * 1.2, height: PET_SIZE * 1.25 }]} {...responder.panHandlers}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={`Stroke ${displayName}`}
+              accessibilityHint="Double tap for each stroke. A slow, steady rhythm works best."
+              // VoiceOver cannot stroke: each double tap (activate) is one stroke at the pet's back
+              accessibilityActions={[{ name: "activate", label: "Stroke" }]}
+              onAccessibilityAction={() => stroke(PET_SIZE * 0.6, PET_SIZE * 0.5)}
+            >
               <PetPortrait sources={sources} look={look} size={PET_SIZE} mood={pettingMood(round.calm)} reaction={reaction} onReactionEnd={() => setReaction(null)} allowOriginal />
               {hearts.map((heart) => (
                 <HeartView key={heart.id} heart={heart} onDone={(id) => setHearts((prev) => prev.filter((h) => h.id !== id))} />

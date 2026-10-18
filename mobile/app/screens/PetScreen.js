@@ -282,6 +282,7 @@ export default function PetScreen() {
           petReaction={reaction}
           onPetReactionEnd={() => setReaction(null)}
           onPetPress={handlePetTheDog}
+          petLabel={inMemorial ? `${displayName}, resting` : `Say hello to ${displayName}`}
           petResting={inMemorial}
           petScale={1.05}
           accessibilityLabel={`${displayName} in the ${place.place}. ${moodSentence(mood, displayName, species)}`}

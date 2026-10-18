@@ -944,3 +944,35 @@ Tests: `accessibility.test.tsx` (Button name/state/wrapping, Chip roles, TextFie
 onboarding steps; the labels above as listed. Not provable on web: Dynamic Type itself (RN web ignores system font
 size) and state attributes (this RN web build drops `accessibilityState`; iOS reads it natively). Both are in the
 TestFlight pass (4.8 Larger Text, 4.9 VoiceOver).
+
+## 2026-10-18 — Accessibility pass, part two: the rest of the app and the games
+
+Owner's request: carry the pass through Garden, Pet, Profile, the games, journal, check-in and the other screens.
+Audited every screen through its dev preview with the same script (controls without a spoken name, roles, headings).
+Garden, Profile, Check-in, Journal, Breathing, Our week, Scrapbook, This month (its bars already had labels), Cycle,
+Reminders, Memorial, Play, Tasks, Habits, Journeys and Keepsakes came back clean. `JournalScreen.tsx` has the
+owner's uncommitted work and needed nothing, so it was left alone.
+
+**Fixes**
+- Pet tab: the pet says "Say hello to Biscuit" (`petLabel`, as on Home); Profile's portrait is named; the hidden
+  version line is text, not a nameless control; the focus picker's backdrop and Diagnostics' buttons have roles.
+- Breathing: each phase is spoken ("Breathe in", "Hold", "Breathe out") with its haptic, so it can be followed
+  with eyes closed or VoiceOver on.
+- Larger Text: plant names, journey titles and the reminder preview wrap to two lines; the games' score bar and hint
+  sit on the play field and grow to 1.3x at most (the check-in mood words already shrink to fit).
+
+**The games, by ear** (they had labels but needed a drag or a stroke, or showed what VoiceOver could not say)
+- Fetch: double-tap the ball throws it; "Short throw" / "Long throw" are in its actions (`accessibleThrow`, the
+  same physics as a flick, so it scores like any throw).
+- Pet the pet: each double-tap is one stroke (a steady rhythm still builds the purr), and the meter's stages are
+  spoken as they are reached.
+- Treat Catch: swipe up/down moves the pet a third of the lawn at a time, to the middle of it; each new treat is
+  announced by third ("Left", "Golden, right"); the control's value is where the pet stands. From the middle of a
+  third the pet's reach (99 px) covers the whole third on every iPhone width, so playing by ear is fair; a test
+  checks it for 320 to 440 pt.
+- Memory Match: each turned card and its outcome are spoken ("Moon. A pair!", "Not a pair; they turn back.").
+- Every game's end card reads the result aloud ("Good game. Score 12. …"); the score number says "Score 12".
+
+Tests: `gamesByEar.test.ts` (the throw, thirds and cues, the fairness check, flip cues, and that each game keeps its
+action and its announcements). The phone pass gained step 3.4 (each game with VoiceOver). Not provable on web:
+VoiceOver actions and announcements themselves (RN web has neither); the pass covers them on the phone.

@@ -147,7 +147,7 @@ export default function ProfileScreen({ navigation }) {
   return (
     <Screen topInset bottomPad={110}>
       <View style={[styles.hero, { backgroundColor: theme.tone("connection").fill, boxShadow: surface.shadow }]}>
-        <PetPortrait sources={petSources} look={petLook} size={112} mood={memorial ? "calm" : "happy"} allowOriginal emptyLabel="Add pet" resting={!!memorial} />
+        <PetPortrait sources={petSources} look={petLook} size={112} mood={memorial ? "calm" : "happy"} allowOriginal emptyLabel="Add pet" resting={!!memorial} accessibilityLabel={memorial ? `${displayName}, remembered` : displayName} />
         <Text style={[type.title, styles.heroTitle, { color: surface.text }]} accessibilityRole="header">
           You and {displayName}
         </Text>
@@ -234,7 +234,7 @@ export default function ProfileScreen({ navigation }) {
         />
       </ListGroup>
 
-      <Pressable style={styles.version} onPress={handleVersionTap} accessibilityLabel={`Version ${appVersion}`}>
+      <Pressable style={styles.version} onPress={handleVersionTap} accessibilityRole="text" accessibilityLabel={`Version ${appVersion}`}>
         <Text style={[type.meta, { color: surface.textTertiary }]}>Luna {appVersion}</Text>
       </Pressable>
     </Screen>

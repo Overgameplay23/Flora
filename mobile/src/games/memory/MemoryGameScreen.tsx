@@ -12,6 +12,7 @@ import { useTheme } from "../../theme/theme";
 import { fonts, radius, type } from "../../theme/tokens";
 import { playDing } from "../../utils/sfx";
 import { selection, tapLight, tapSoft } from "../../utils/haptics";
+import { announce } from "../../utils/a11y";
 import {
   BOARD_PAIRS,
   MEMORY_COLUMNS,
@@ -25,6 +26,7 @@ import {
   hideMismatch,
   isBoardCleared,
   isMemoryComplete,
+  flipCue,
   memoryFace,
   memoryLayout,
   memoryScore,
@@ -197,6 +199,8 @@ export default function MemoryGameScreen({ navigation }: any) {
       mismatchTimer.current = null;
       commit(next);
       setFacing(index % MEMORY_COLUMNS < MEMORY_COLUMNS / 2 ? "left" : "right");
+      const flipped = next.cards[index];
+      announce(flipped ? flipCue(event, memoryFace(flipped.face).label) : null);
 
       if (event === "flipped") {
         selection();

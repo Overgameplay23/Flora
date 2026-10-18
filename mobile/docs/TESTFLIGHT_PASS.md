@@ -51,6 +51,7 @@ Mark each line ✅ / ❌ and note the phone model and iOS version at the top of 
 | 3.1 | Play › each game once: Fetch, Bubbles, Pet the pet, Treat Catch, Memory Match, with music playing in another app | Each opens full screen and runs smoothly (no stutter). Sounds play with the ringer on and stay quiet with the silent switch on; the music keeps playing underneath |
 | 3.2 | The first game of the day | Sprouts for playing; the cozy run counts the day |
 | 3.3 | Finish or leave a game | Back to Play; nothing is lost for leaving early |
+| 3.4 | With VoiceOver on (Settings › Accessibility › VoiceOver), play each game once | Fetch: double-tap the ball throws (Short / Long throw in the actions rotor). Pet the pet: each double-tap is a stroke, and "warming up… leaning in… nearly melting" is spoken. Treat Catch: swipe up/down moves the pet a third at a time, and each treat is announced ("Left", "Golden, right"). Memory Match: each turned card and each pair is spoken. Every game ends with the result read out |
 
 ## 4. The rest of the app (10 min)
 

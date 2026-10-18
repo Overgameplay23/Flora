@@ -66,6 +66,27 @@ function safeRandom(random: () => number): number {
 }
 
 /** Fisher-Yates with an injected source of randomness (Math.random on the screen, seeded in tests). */
+/**
+ * What VoiceOver says when a card turns: its picture, and what came of it. Focus stays on the card, so without this a
+ * player would not hear what they turned over.
+ */
+export function flipCue(event: FlipEvent, faceLabel: string): string | null {
+  switch (event) {
+    case "flipped":
+      return faceLabel;
+    case "mismatch":
+      return `${faceLabel}. Not a pair; they turn back.`;
+    case "match":
+      return `${faceLabel}. A pair!`;
+    case "board-cleared":
+      return `${faceLabel}. A pair, and the board is clear.`;
+    case "all-cleared":
+      return `${faceLabel}. A pair. Every card found!`;
+    default:
+      return null;
+  }
+}
+
 export function shuffle<T>(items: T[], random: () => number): T[] {
   const out = items.slice();
   for (let i = out.length - 1; i > 0; i--) {
