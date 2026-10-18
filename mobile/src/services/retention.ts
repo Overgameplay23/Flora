@@ -140,10 +140,11 @@ export async function logCheckinSubmitted(params: CheckinEventParams = {}) {
     eventType: "checkin_submitted",
     occurredAt: params.occurredAt || null,
     points: null,
+    // the note itself stays in the check-in: the event log only says one was written (src/legal/appPrivacy.json)
     meta: {
-      mood: params.mood ?? null,
-      win_text: params.winText ?? null,
       ...(params.meta || {}),
+      mood: params.mood ?? null,
+      wrote_note: !!params.winText?.trim(),
     },
   });
 }

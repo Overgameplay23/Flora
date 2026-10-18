@@ -1,0 +1,125 @@
+{
+  "title": "App Privacy answers for App Store Connect",
+  "updated": "2026-10-18",
+  "version": "1.0",
+  "collectsData": true,
+  "tracking": false,
+  "collected": [
+    {
+      "category": "Contact Info",
+      "type": "Email Address",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "The email someone signs up with: for signing in, the sign-up confirmation code and the password reset code."
+    },
+    {
+      "category": "Health & Fitness",
+      "type": "Health",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "The daily check-in's mood (1 to 5), shown back in the week, the month's insights and the scrapbook. Declared as Health to be safe: mood is wellbeing data. Cycle tracking is NOT here: it never leaves the phone."
+    },
+    {
+      "category": "User Content",
+      "type": "Photos or Videos",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "The pet photos someone picks and the painted portrait made from them, in private storage only their account can reach. Photos go to Google's paid Gemini API only to paint the pet."
+    },
+    {
+      "category": "User Content",
+      "type": "Gameplay Content",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "The garden, Sprouts, plants, the pet's level and mood, game scores: the progress that follows someone to a new phone."
+    },
+    {
+      "category": "User Content",
+      "type": "Other User Content",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "What someone writes or names: the pet's name and look, the check-in note, journal entries, their own tasks and habits, a memorial note, and messages to the pet when Pet Talk is on."
+    },
+    {
+      "category": "Identifiers",
+      "type": "User ID",
+      "purposes": ["App Functionality"],
+      "linked": true,
+      "tracking": false,
+      "what": "The account's id, which every row carries so each person reaches only their own data."
+    },
+    {
+      "category": "Usage Data",
+      "type": "Product Interaction",
+      "purposes": ["App Functionality", "Analytics"],
+      "linked": true,
+      "tracking": false,
+      "what": "Simple events in our own database (a task finished, a check-in, a game played, with points and scores but never the words someone writes): they count Days Together, the Cozy Run and the weekly recap (App Functionality), and the owner's retention report counts them across everyone (scripts/retention_report.sql: Analytics). No analytics company sees them."
+    }
+  ],
+  "notCollected": [
+    { "type": "Name, Phone Number, Physical Address, Other User Contact Info", "why": "The app never asks for them: only an email." },
+    { "type": "Fitness", "why": "No HealthKit, steps or workouts in 1.0." },
+    { "type": "Sensitive Info", "why": "Cycle tracking stays on the phone (guarded by src/__tests__/cycleOnDevice.test.ts), so nothing about periods or pregnancy is collected." },
+    { "type": "Payment Info, Credit Info, Other Financial Info, Purchase History", "why": "No in-app purchases in 1.0." },
+    { "type": "Precise Location, Coarse Location", "why": "No location permission. The servers see the connection's IP address, as every server does, and do not use it to locate anyone." },
+    { "type": "Contacts", "why": "Never read." },
+    { "type": "Emails or Text Messages, Audio Data, Customer Support", "why": "No email or SMS access, no microphone, no in-app support chat (support is by email, outside the app)." },
+    { "type": "Browsing History, Search History", "why": "Nothing of the kind exists in the app." },
+    { "type": "Device ID", "why": "No advertising identifier, no vendor identifier and no push token: reminders are scheduled on the phone." },
+    { "type": "Advertising Data, Other Usage Data", "why": "No ads and no advertising or analytics SDKs." },
+    { "type": "Crash Data, Performance Data, Other Diagnostic Data", "why": "The crash screen and Diagnostics keep their log on the phone; it leaves only if the person copies it and sends it themselves. This changes when crash reporting (Sentry) is added." },
+    { "type": "Environment Scanning, Hands, Head, Other Data Types", "why": "None of these exist in the app." }
+  ],
+  "sources": {
+    "auth": {
+      "types": ["Email Address", "User ID"],
+      "note": "Supabase Auth: the email, a hashed password and the account id."
+    },
+    "tables": {
+      "profiles": { "types": ["Email Address", "User ID", "Gameplay Content"], "note": "email, gentle streak, XP and garden level, the pet photo locator" },
+      "pet": { "types": ["Other User Content", "Photos or Videos", "Gameplay Content"], "note": "the pet's name, species, look, memorial note, photo and painting locators, level and mood" },
+      "checkins": { "types": ["Health", "Other User Content"], "note": "mood and the optional note" },
+      "journal_entries": { "types": ["Other User Content"], "note": "journal entries, kept on the phone and backed up here" },
+      "tasks": { "types": ["Other User Content"], "note": "care tasks, including the ones someone writes" },
+      "task_completions": { "types": ["Product Interaction"], "note": "which task was finished, when" },
+      "habits": { "types": ["Other User Content"], "note": "habits and their titles" },
+      "habit_completions": { "types": ["Product Interaction"], "note": "which habit was done, when" },
+      "garden_items": { "types": [], "note": "the garden's catalog, the same for everyone" },
+      "plant_catalog": { "types": [], "note": "the plants' catalog, the same for everyone" },
+      "garden_unlocks": { "types": ["Gameplay Content"], "note": "what someone's garden has unlocked" },
+      "user_plants": { "types": ["Gameplay Content"], "note": "someone's plants and their stages" },
+      "user_events": { "types": ["Product Interaction", "Health", "Gameplay Content"], "note": "the event log: kind, time, points, a check-in's mood, a game's score" },
+      "daily_user_metrics": { "types": ["Product Interaction"], "note": "the daily roll-up of those events" },
+      "user_stats": { "types": ["Product Interaction", "Gameplay Content"], "note": "totals: days together, points" }
+    },
+    "rpcs": {
+      "log_event_and_rollup": { "types": ["Product Interaction", "Health", "Gameplay Content"], "note": "writes user_events and the daily roll-up" },
+      "complete_task": { "types": ["Product Interaction", "Gameplay Content"], "note": "marks a task done and adds its points" },
+      "get_garden_points": { "types": ["Gameplay Content"], "note": "reads the Sprouts balance" },
+      "upgrade_plant": { "types": ["Gameplay Content"], "note": "spends Sprouts on a plant" },
+      "recompute_pet_state": { "types": ["Gameplay Content"], "note": "the pet's mood from recent care" },
+      "delete_my_account": { "types": [], "note": "deletes the account and every row tied to it; collects nothing" }
+    },
+    "functions": {
+      "pet-stylize": { "types": ["Photos or Videos"], "note": "sends the chosen photos to Google's paid Gemini API, stores the painting in the private bucket, notes each request's time for the cooldown" },
+      "pet-talk": { "types": ["Other User Content"], "note": "Pet Talk (off in 1.0): the message and a short summary of the moment go to OpenAI" },
+      "pet-chat": { "types": ["Other User Content"], "note": "the older pet chat (not deployed); same data as pet-talk" }
+    },
+    "buckets": {
+      "pets": { "types": ["Photos or Videos"], "note": "private: photos and paintings, reached through short-lived signed links" }
+    }
+  },
+  "updateWhen": [
+    "Crash reporting (Sentry) is wired in: add Diagnostics > Crash Data (and Performance Data if tracing is on), purpose App Functionality; linked only if the user id is attached.",
+    "Luna Club (RevenueCat) ships: add Purchases > Purchase History, purpose App Functionality; RevenueCat's app user id is the same User ID.",
+    "Health steps or sleep arrive: add Health & Fitness > Fitness (and Health for sleep).",
+    "Sign in with Apple or Google arrives: still Email Address and User ID; add Name only if the app asks for the person's name.",
+    "Anything starts sending data to a new company, or a new table, function or bucket holds people's data: src/__tests__/appPrivacy.test.ts fails until this file says what it holds."
+  ]
+}

@@ -1036,3 +1036,37 @@ adopted companion):
 2 more tests in `shareCard.test.ts` (the reveal rule; the route exists in both stacks and onboarding uses the rule).
 Verified on web as the demo user: the result screen shows "Share the card", and it opens the card with the real photo
 and the painting. The onboarding reveal needs a real painting (Gemini), so it is on the phone pass (step 1.7).
+
+## 2026-10-18 — App Store privacy label drafted (LAUNCH.md item 6)
+
+The App Privacy answers now live in `src/legal/appPrivacy.json`, and `node scripts/export-privacy.js` turns them
+into `docs/store/app-privacy.md`: the sheet to copy into App Store Connect > App Privacy, in the questionnaire's
+order (collect data: yes; the types to tick; purposes, linked, tracking for each; what the store page will show;
+what is not ticked and why; where each piece lives). The draft: Email Address, Health (the check-in mood, declared
+to be safe), Photos or Videos, Gameplay Content, Other User Content, User ID, and Product Interaction (App
+Functionality plus Analytics, because `scripts/retention_report.sql` counts events across everyone). Everything is
+linked to the account; nothing is used for tracking. Cycle tracking stays off the label because it never leaves
+the phone.
+
+`src/__tests__/appPrivacy.test.ts` (9 tests) keeps it honest: it reads the app's code for every table, database
+function, server function and storage bucket, and fails when one is missing from the label or the label lists one
+the app no longer uses; checks that every type is Apple's own wording and that every type Apple asks about is
+either ticked or explained; fails if an SDK that tracks, advertises, measures or reports crashes is added (Sentry
+included, so wiring it means updating the label first); and checks that the policy says the same things.
+
+Three small changes came out of reading the data flows:
+- The check-in event (`user_events`, via `logCheckinSubmitted` in `src/services/retention.ts`) no longer copies the
+  check-in's note: it records the mood and `wrote_note: true/false`. Nothing read the copy. Verified on the local
+  stack: the check-in kept the note, and the event held `{"mood": 4, "wrote_note": true}`. Events already on Bloom
+  still hold old notes; if you want them gone (it is a few beta accounts), this is the one-off, **not run**:
+  `update public.user_events set meta = meta - 'win_text' where event_type = 'checkin_submitted' and meta ? 'win_text';`
+- The startup "is the internet up" probe to `www.google.com/generate_204` (`src/utils/net.ts`) now runs only in
+  development, so a release build talks to no one but its own backend when it starts. The Supabase health probe
+  stays.
+- The privacy policy (`src/legal/privacy.json`, dated 18 October, page re-exported) now says app events never carry
+  the words you write, and that they are added up across everyone in our own database to see whether Luna helps
+  people keep coming back. That sentence is there because Analytics is a declared purpose.
+
+For the owner: tick item 6 as drafted in LAUNCH.md (I left that file alone while you edit it). Health for the mood is
+a judgement call: Apple reviewers do not object to declaring more, and leaving it out could be. Section 7 of the
+sheet lists what changes the label later (Sentry, the Club, Health steps, social sign-in).

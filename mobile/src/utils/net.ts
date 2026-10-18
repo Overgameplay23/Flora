@@ -264,7 +264,9 @@ export async function runStartupNetworkDiagnostics() {
     supabaseUrlRaw && !isPlaceholderValue(supabaseUrlRaw)
       ? supabaseUrlRaw.replace(/\/$/, "")
       : null;
-  const targets = ["https://www.google.com/generate_204"];
+  // a release build talks only to our own backend at startup (src/legal/appPrivacy.json); the "is the internet up
+  // at all" probe is for development
+  const targets = __DEV__ ? ["https://www.google.com/generate_204"] : [];
   if (supabaseUrl) {
     // Health endpoint returns fast and doesn't require auth; non-200 still confirms reachability.
     targets.push(`${supabaseUrl}/auth/v1/health`);
