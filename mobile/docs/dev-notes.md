@@ -830,3 +830,21 @@ run waits for you." and ending it on its first day removed it.
 For the owner: runs live on each phone (pauses, kept chapters), like journeys and the scrapbook; the count itself is
 rebuilt from the server's events, so a new phone shows the same run but not older chapters or past pauses. Nap Days
 are per run, so a run that starts mid-week gets two fresh ones.
+
+## 2026-10-17 — The TestFlight phone pass and the launch-week numbers
+
+Two launch tools, no app code changed (the owner is working on the EAS setup in the same checkout, so this set
+touches only new files and this log):
+- `docs/TESTFLIGHT_PASS.md`: a 45-minute script for the first real-phone run (LAUNCH item 12): first run and the
+  permission prompts, Home and daily care (Cozy Run included), offline and background, the five games, the rest of
+  the app, Larger Text and VoiceOver, reminders overnight, forgot password and delete account on a throwaway
+  account, with what each step should show. It complements the owner's `TESTFLIGHT_AUDIT_2026-10-17.md` (automated
+  evidence and release gates).
+- `scripts/retention_report.sql`: read-only queries to paste into Bloom's SQL editor: sign-ups and onboarding per day,
+  D1/D7/D30 by weekly cohort (blank, not 0%, until a cohort's day has come), DAU/MAU over 30 days, and how the
+  paintings are doing (ready / processing / stuck / error). Active = a day of care, as Days Together counts it.
+  Ran clean against the local database.
+
+For the owner, found while writing the script: game sound effects play even with the silent switch on
+(`playsInSilentMode: true` in `src/utils/sfx.js`). Most calm, non-media apps stay quiet on silent; the script asks you
+to judge it on the phone. It is a one-line change either way.
