@@ -59,6 +59,7 @@ Mark each line ✅ / ❌ and note the phone model and iOS version at the top of 
 |---|---|---|
 | 4.1 | Garden tab | Plants, planting with Sprouts works |
 | 4.2 | Pet tab | The pet, its stats (cozy run, days together, plants) |
+| 4.2b | Pet tab › Share a card › Share the card | The card shows the real photo and the painting (or the drawing, before the painting exists); the share sheet opens with the image; posting to Instagram Stories or TikTok, or Save Image, works and looks like the preview |
 | 4.3 | Profile › Our week, Scrapbook, This month, Journeys, Keepsakes | Each opens; a new account shows kind empty states, never errors |
 | 4.4 | Journeys: start one, do today's step | The step shows on Home too |
 | 4.5 | Cycle tracking: turn on, log a day | "Stays on this device" is clear; the Home card appears. Turn it off again if you like |

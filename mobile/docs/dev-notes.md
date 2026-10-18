@@ -1000,3 +1000,23 @@ Verified on web as the demo user by moving `floura:last-seen` back: three days a
 the together line, "Your 3-day cozy run kept going." and the small-day line; "See the Cozy Run" opened it; a reload the
 same day did not show it again; a week away showed "Biscuit is so glad you're here". The resting and chapter wordings
 are covered by the tests (the demo's data has neither).
+
+## 2026-10-18 — The shareable card (ROADMAP item 8)
+
+Owner's request: the real pet next to the painting, ready to post. Pet tab › "Share a card" (only when there is a real
+photo; never for an adopted companion) opens `ShareCard` (`src/screens/ShareCardScreen.tsx`, `?preview=share`): a 9:16
+card (`src/components/share/PetShareCard.tsx`, the shape of TikTok, Reels and Stories) on the app icon's dusk sky:
+"LUNA", "Meet Biscuit" ("Always Biscuit" in memorial), the real photo as a tilted polaroid ("Real life"), the painting
+as a second one ("Painted by Luna", or the drawn pet, "Drawn by Luna", until a painting exists), and "Made with Luna ·
+self-care with your pet". Wording in `src/domain/shareCard.ts` (5 tests). "Share the card" waits until both pictures
+have loaded, then turns the card into a PNG on the phone with `react-native-view-shot` (already a dependency, so
+`package.json` is untouched) and hands it to the iOS share sheet through React Native's `Share` (TikTok, Instagram,
+Messages, Save Image). Nothing is uploaded (a test checks the screen has no upload or network call). The card's text
+does not scale with Larger Text on purpose: it is a picture with a fixed layout; the screen around it does.
+
+Verified on web as the demo user (who has a photo and a painting in local storage): the card, the button becoming
+ready once the pictures loaded, and a 670x1192 PNG with both pictures. On web the card downloads instead of sharing,
+and the web capture library draws the tilted frames a little off (the first nudges into the title); on iPhone the
+capture is a native snapshot. For the owner: Android's `Share` cannot send a file (1.0 is iPhone only; expo-sharing
+would be the Android answer later), and the painting reveal screen would be a natural second place for the button
+(left out: it is part of the painting flow you are working on). Phone pass: step 4.2b.

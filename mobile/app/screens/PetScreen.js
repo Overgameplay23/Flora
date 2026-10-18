@@ -29,6 +29,7 @@ import { tapLight, warning } from "../../src/utils/haptics";
 import { moodSentence, petMoodFromStores } from "../../src/domain/petMood";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isAdopted } from "../../src/domain/shelter";
+import { canShareCard } from "../../src/domain/shareCard";
 import { petTalkAvailable } from "../../src/services/petTalk";
 import { useCozyRun } from "../../src/hooks/useCozyRun";
 import { recomputePetState } from "../../src/services/retention";
@@ -402,6 +403,9 @@ export default function PetScreen() {
               <ActionTile icon="camera-outline" category="play" label={hasAnyImage ? "New photo" : "Add photo"} hint={hasAnyImage ? "Painted portrait" : "Optional portrait"} onPress={changePhoto} />
             )}
             <ActionTile icon="create-outline" category="rest" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
+            {canShareCard(sources, isAdopted(look)) ? (
+              <ActionTile icon="share-social-outline" category="connection" label="Share a card" hint={`The real ${displayName} and the painting`} onPress={() => navigation.navigate("ShareCard")} />
+            ) : null}
           </View>
         </View>
       </ScrollView>

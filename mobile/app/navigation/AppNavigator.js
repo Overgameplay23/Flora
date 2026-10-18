@@ -38,6 +38,7 @@ import DeleteAccountScreen from '../../src/screens/DeleteAccountScreen';
 import PrivacyScreen from '../../src/screens/PrivacyScreen';
 import CozyRunScreen from '../../src/screens/CozyRunScreen';
 import HelpScreen from '../../src/screens/HelpScreen';
+import ShareCardScreen from '../../src/screens/ShareCardScreen';
 import {
   finchTabBarItemStyle,
   finchTabBarLabelStyle,
@@ -155,6 +156,7 @@ export default function AppNavigator({ initialRoute = null }) {
       <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy", headerShown: true }} />
       <Stack.Screen name="CozyRun" component={CozyRunScreen} options={{ title: "Cozy Run", headerShown: true }} />
       <Stack.Screen name="Help" component={HelpScreen} options={{ title: "Help", headerShown: true }} />
+      <Stack.Screen name="ShareCard" component={ShareCardScreen} options={{ title: "Share", headerShown: true }} />
     </Stack.Navigator>
   );
 }
