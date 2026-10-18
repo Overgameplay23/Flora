@@ -903,3 +903,44 @@ directly, not `npm run backend:start`, so the owner's in-progress migration buil
 back: sign-up opened Check your email, Mailpit had "Your Luna code", a wrong code said "That code didn't work…", the
 right one landed in onboarding; an unconfirmed account's sign-in showed the notice and the link, "Send a new code"
 said "A new code is on its way" and the newest code worked. The two probe accounts were deleted afterwards.
+
+## 2026-10-17 — Accessibility pass: VoiceOver and Larger Text (Home, onboarding, Cozy Run, sign-in)
+
+Owner's request. Audited on web (RN web turns labels and roles into the accessibility tree) with a script that lists
+every control without a spoken name, then fixed the shared kit first, since every screen builds on it.
+
+**VoiceOver**
+- `TextField`: the input is named by its label ("Email"), not its placeholder ("you@example.com"); the note is its
+  hint; the visible label is not read twice.
+- `Chip`: a `role` prop. Action chips are buttons (Cozy Run's pause chips used to read "checkbox, unchecked"); one-of-a-
+  set chips are radios (reminder and onboarding times, name ideas, Add-your-own's colour and minutes).
+- `Card`: a labelled card is now one element (iOS ignored a label on a view that was not `accessible`); Keepsakes'
+  label gained the date, since grouping hides the line that showed it.
+- Home: the pet was two focus stops (an unnamed pressable around "Your pet, looking sleepy"); it is one button, "Say
+  hello to Biscuit" (or "Biscuit, resting"), via `GardenStage`'s new `petLabel`. Hero chips read "6 days together",
+  "Cozy Run: 3 days" (hint: opens it), "5 Sprouts". The care toast is announced (Android had a live region, iOS
+  nothing). The focus header and the prompt card no longer share a name. Energy radios carry `checked` too.
+- Cozy Run: the big number is one sentence; the two-week strip (fourteen dots, labelled "S: …", ambiguous) is one
+  summary from `recentSummary` ("The last two weeks: 3 days of care, 2 Nap Days. Today is still open."); the Warm
+  Blankets card, the rules and the kept runs each read as one line.
+- Sign-in: `AuthLayout` no longer labels the garden, which on iOS made it one element and hid "Welcome back" and the
+  subtitle from VoiceOver. Errors and notices on Login, Sign-up, Forgot password and Confirm email are announced as
+  they appear (`useAnnounce` in `src/utils/a11y.ts`).
+- Every stack screen's back button says "Back" (`headerBackTitle`; the minimal chevron kept the route behind,
+  "MainTabs", as its spoken title).
+- Onboarding was already in good shape (choice cards, back, progress, headings); the species radios now carry
+  `checked` like ChoiceCard.
+
+**Larger Text**
+- `Button`: `minHeight` instead of `height`, two lines, centred: a big label wraps instead of becoming "Delete my acc…".
+- Pills on Home's cards grow (`minHeight`); task meta and reasons, the energy labels, "More with…" titles and the
+  onboarding plan rows wrap to two lines instead of being cut at one.
+- Tight spots that sit on the painting or in a row of equal cells grow only so far (`TIGHT_TEXT_SCALE` 1.3): the hero
+  chips and the strip's weekday letters. Tab labels keep their size like iOS's own tab bars
+  (`tabBarAllowFontScaling: false`; VoiceOver still reads them).
+
+Tests: `accessibility.test.tsx` (Button name/state/wrapping, Chip roles, TextField naming, Card grouping) and
+`recentSummary` in `cozyRun.test.ts`. Verified on web: no unnamed controls on Home, Cozy Run, sign-in or the first
+onboarding steps; the labels above as listed. Not provable on web: Dynamic Type itself (RN web ignores system font
+size) and state attributes (this RN web build drops `accessibilityState`; iOS reads it natively). Both are in the
+TestFlight pass (4.8 Larger Text, 4.9 VoiceOver).

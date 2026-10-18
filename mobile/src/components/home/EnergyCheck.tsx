@@ -61,7 +61,7 @@ export default function EnergyCheck({ value, onChange, surface, petName }: Energ
                 onChange(option.id);
               }}
               accessibilityRole="radio"
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, checked: selected }}
               accessibilityLabel={option.label}
               containerStyle={styles.optionSlot}
               style={[styles.option, { backgroundColor: night ? surface.sunken : tone.tint, borderColor: selected ? accent : "transparent" }]}
@@ -69,7 +69,7 @@ export default function EnergyCheck({ value, onChange, surface, petName }: Energ
               <View style={[styles.optionIcon, night && { backgroundColor: "rgba(255,255,255,0.08)" }]}>
                 <Ionicons name={option.icon as any} size={22} color={accent} />
               </View>
-              <Text style={[styles.optionLabel, { color: accent }]} numberOfLines={1}>
+              <Text style={[styles.optionLabel, { color: accent }]} numberOfLines={2}>
                 {option.label}
               </Text>
             </PressableScale>

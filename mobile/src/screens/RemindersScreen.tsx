@@ -232,6 +232,7 @@ export default function RemindersScreen() {
               key={formatTime(t)}
               label={formatTime(t)}
               category="rest"
+              role="radio"
               selected={sameTime(t, settings.morning.time)}
               disabled={!on || !settings.morning.enabled || saving}
               onPress={() => persist({ ...settings, morning: { ...settings.morning, time: t } })}
@@ -261,6 +262,7 @@ export default function RemindersScreen() {
               key={formatTime(t)}
               label={formatTime(t)}
               category="rest"
+              role="radio"
               selected={sameTime(t, settings.evening.time)}
               disabled={!on || !settings.evening.enabled || saving}
               onPress={() => persist({ ...settings, evening: { ...settings.evening, time: t } })}

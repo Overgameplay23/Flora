@@ -279,6 +279,27 @@ export function blanketLine(state: CozyRunState): string {
   return `${left} more ${left === 1 ? "day" : "days"} of care for the next Warm Blanket.`;
 }
 
+/**
+ * The last two weeks in one sentence, for VoiceOver (the strip of marks on screen is fourteen tiny dots). Counts what
+ * kept the run going; quiet days are simply not mentioned.
+ */
+export function recentSummary(recent: readonly CozyDay[]): string {
+  const count = (kind: CozyDayKind) => recent.filter((d) => d.kind === kind).length;
+  const parts: string[] = [];
+  const care = count("care");
+  parts.push(care === 0 ? "no days of care yet" : `${care} ${care === 1 ? "day" : "days"} of care`);
+  const add = (n: number, one: string, many: string) => n > 0 && parts.push(`${n} ${n === 1 ? one : many}`);
+  add(count("nap"), "Nap Day", "Nap Days");
+  add(count("blanket"), "Warm Blanket", "Warm Blankets");
+  add(count("cycle"), "period day covered", "period days covered");
+  add(count("pause"), "paused day", "paused days");
+  add(count("mended"), "mended day", "mended days");
+  if (count("resting") > 0) parts.push("the run is resting");
+  const today = recent[recent.length - 1];
+  const tail = today?.kind === "today" ? " Today is still open." : "";
+  return `The last two weeks: ${parts.join(", ")}.${tail}`;
+}
+
 export function chapterLine(chapter: CozyChapter): string {
   return `${daysLabel(chapter.days)}, ${shortDate(chapter.start)} to ${shortDate(chapter.end)}`;
 }

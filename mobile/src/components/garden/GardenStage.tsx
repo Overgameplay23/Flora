@@ -49,6 +49,8 @@ type GardenStageProps = {
   petReaction?: PetReaction | null;
   onPetReactionEnd?: () => void;
   onPetPress?: () => void;
+  /** what VoiceOver calls the pet (e.g. "Say hello to Biscuit"); the portrait's own default otherwise */
+  petLabel?: string;
   /** a routine the illustrated pet acts out (drink, walk…); cleared by onPetActEnd */
   petAct?: PetAct | null;
   onPetActEnd?: () => void;
@@ -125,6 +127,7 @@ export default function GardenStage({
   petReaction = null,
   onPetReactionEnd,
   onPetPress,
+  petLabel,
   petAct = null,
   onPetActEnd,
   petScale = 1,
@@ -321,6 +324,7 @@ export default function GardenStage({
             reaction={petReaction}
             onReactionEnd={onPetReactionEnd}
             onPress={onPetPress}
+            accessibilityLabel={petLabel}
             act={petAct}
             onActEnd={onPetActEnd}
             resting={petResting}

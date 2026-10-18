@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { announce } from "../../utils/a11y";
 import PetPortrait from "../pet/PetPortrait";
 import type { PetImageSources } from "../garden/usePetCandidates";
 import type { PetLook } from "../../domain/petLook";
@@ -25,6 +26,8 @@ export default function CareToast({ toast, bottom, petSources, petLook, night = 
     let animation: Animated.CompositeAnimation | null = null;
     let alive = true;
     setShown(toast);
+    // VoiceOver does not read a toast that slides in on its own (Android's live region below does); say it
+    announce(toast.text);
     progress.setValue(0);
     AccessibilityInfo.isReduceMotionEnabled()
       .catch(() => false)

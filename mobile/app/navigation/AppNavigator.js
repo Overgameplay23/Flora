@@ -79,6 +79,8 @@ function MainTabs({ route: tabsRoute }) {
           sceneStyle: { backgroundColor: surface.canvas },
           tabBarStyle: bar.style,
           tabBarLabelStyle: finchTabBarLabelStyle,
+          // like iOS's own tab bars: the labels keep their size with Larger Text (VoiceOver still reads them)
+          tabBarAllowFontScaling: false,
           tabBarItemStyle: finchTabBarItemStyle,
           tabBarActiveTintColor: bar.active,
           tabBarInactiveTintColor: bar.inactive,
@@ -107,6 +109,8 @@ export function stackScreenOptions(surface) {
     headerTitleStyle: { fontFamily: fonts.display, fontSize: 19, color: surface.text },
     headerShadowVisible: false,
     headerBackButtonDisplayMode: "minimal",
+    // the chevron shows no title, but VoiceOver reads the back title, which would be the route behind ("MainTabs")
+    headerBackTitle: "Back",
     contentStyle: { backgroundColor: surface.canvas },
   };
 }

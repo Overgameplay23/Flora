@@ -69,7 +69,7 @@ export default function KeepsakesScreen() {
       ) : (
         <View style={styles.list}>
           {keepsakes.map((item) => (
-            <Card key={item.id} style={styles.row} accessibilityLabel={`${item.title}. ${item.line}`}>
+            <Card key={item.id} style={styles.row} accessibilityLabel={`${item.title}. ${item.line}. ${item.date ? humanDay(item.date) : "Before keepsakes existed"}`}>
               <View style={styles.rowInner}>
                 <IconTile icon={item.icon} category={item.category} size={48} />
                 <View style={styles.body}>

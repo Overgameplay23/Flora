@@ -12,7 +12,8 @@ import { usePet } from "../hooks/usePet";
 import { useCozyRun } from "../hooks/useCozyRun";
 import { useTheme } from "../theme/theme";
 import { space, type } from "../theme/tokens";
-import { MAX_BLANKETS, PAUSE_MAX_DAYS, blanketLine, chapterLine, cozyCover, cozyHeadline, type CozyDayKind } from "../domain/cozyRun";
+import { MAX_BLANKETS, PAUSE_MAX_DAYS, blanketLine, chapterLine, cozyCover, cozyHeadline, recentSummary, type CozyDayKind } from "../domain/cozyRun";
+import { TIGHT_TEXT_SCALE } from "../utils/a11y";
 import { parseDateKey } from "../utils/dateKeys";
 
 const PAUSE_CHOICES = [1, 3, 7, 14, PAUSE_MAX_DAYS];
@@ -76,10 +77,8 @@ export default function CozyRunScreen() {
     <Screen>
       <View style={styles.hero}>
         <PetMascot size={92} mood={state.status === "resting" ? "calm" : "happy"} />
-        <View style={styles.heroText}>
-          <Text style={[type.display, { color: surface.text }]} accessibilityLabel={`${state.days} days in your cozy run`}>
-            {state.days}
-          </Text>
+        <View style={styles.heroText} accessible accessibilityLabel={`${state.days} ${state.days === 1 ? "day" : "days"} in your cozy run`}>
+          <Text style={[type.display, { color: surface.text }]}>{state.days}</Text>
           <Text style={[type.meta, { color: surface.textSecondary }]}>{state.days === 1 ? "day in your cozy run" : "days in your cozy run"}</Text>
         </View>
       </View>
@@ -87,16 +86,17 @@ export default function CozyRunScreen() {
       {state.status !== "none" ? <Lead style={styles.lead}>{cozyCover(state)}</Lead> : null}
       {stale ? <Text style={[type.meta, styles.note, { color: surface.textTertiary }]}>Showing what this phone remembers; it updates when you're back online.</Text> : null}
 
-      <Card style={styles.block}>
+      {/* one element for VoiceOver: fourteen dots read as one sentence (recentSummary) */}
+      <Card style={styles.block} accessibilityLabel={recentSummary(state.recent)}>
         <Text style={[type.bodyStrong, { color: surface.text }]}>The last two weeks</Text>
-        <View style={styles.strip}>
+        <View style={styles.strip} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {state.recent.map(({ day, kind }) => {
             const look = DAY_LOOK[kind];
             const tone = theme.tone(look.category);
             const filled = kind === "care";
             const ringed = kind === "today";
             return (
-              <View key={day} style={styles.dayCell} accessible accessibilityLabel={`${weekdayInitial(day)}: ${look.label}`}>
+              <View key={day} style={styles.dayCell}>
                 <View
                   style={[
                     styles.dayDot,
@@ -106,7 +106,9 @@ export default function CozyRunScreen() {
                 >
                   {look.icon ? <Ionicons name={look.icon as any} size={12} color={filled ? surface.paper : tone.accent} /> : null}
                 </View>
-                <Text style={[type.micro, { color: surface.textTertiary }]}>{weekdayInitial(day)}</Text>
+                <Text style={[type.micro, { color: surface.textTertiary }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>
+                  {weekdayInitial(day)}
+                </Text>
               </View>
             );
           })}
@@ -114,7 +116,7 @@ export default function CozyRunScreen() {
       </Card>
 
       {state.status !== "none" ? (
-        <Card style={styles.block}>
+        <Card style={styles.block} accessibilityLabel={`Warm Blankets: ${state.blankets} of ${MAX_BLANKETS}. ${blanketLine(state)}`}>
           <View style={styles.blankets}>
             {Array.from({ length: MAX_BLANKETS }, (_, i) => (
               <Ionicons key={i} name={i < state.blankets ? "bed" : "bed-outline"} size={22} color={theme.tone("energy").accent} style={styles.blanketIcon} />
@@ -140,7 +142,15 @@ export default function CozyRunScreen() {
               </Text>
               <View style={styles.chips}>
                 {PAUSE_CHOICES.map((days) => (
-                  <Chip key={days} label={days === 1 ? "1 day" : `${days} days`} category="calm" disabled={pausing} onPress={() => void choosePause(days)} accessibilityLabel={`Pause for ${days} ${days === 1 ? "day" : "days"}`} />
+                  <Chip
+                    key={days}
+                    label={days === 1 ? "1 day" : `${days} days`}
+                    category="calm"
+                    role="button"
+                    disabled={pausing}
+                    onPress={() => void choosePause(days)}
+                    accessibilityLabel={`Pause for ${days} ${days === 1 ? "day" : "days"}`}
+                  />
                 ))}
               </View>
             </>
@@ -150,7 +160,7 @@ export default function CozyRunScreen() {
 
       <SectionTitle style={styles.section}>How it works</SectionTitle>
       {RULES.map((rule) => (
-        <View key={rule.text} style={styles.rule}>
+        <View key={rule.text} style={styles.rule} accessible accessibilityLabel={rule.text}>
           <Ionicons name={rule.icon as any} size={18} color={theme.tone(rule.category).accent} style={styles.ruleIcon} />
           <Text style={[type.body, styles.ruleText, { color: surface.textSecondary }]}>{rule.text}</Text>
         </View>
@@ -160,7 +170,7 @@ export default function CozyRunScreen() {
         <>
           <SectionTitle style={styles.section}>Earlier runs, kept</SectionTitle>
           {chapters.map((chapter) => (
-            <View key={chapter.start} style={styles.rule}>
+            <View key={chapter.start} style={styles.rule} accessible accessibilityLabel={`Kept: ${chapterLine(chapter)}`}>
               <Ionicons name="bookmark-outline" size={18} color={theme.tone("rest").accent} style={styles.ruleIcon} />
               <Text style={[type.body, styles.ruleText, { color: surface.textSecondary }]}>{chapterLine(chapter)}</Text>
             </View>

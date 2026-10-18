@@ -91,14 +91,15 @@ export default function CareTaskCard({
             <Ionicons name={icon as any} size={26} color={accent} />
           </View>
           <View style={styles.body}>
-            <Text style={[styles.meta, { color: accent }]} numberOfLines={1}>
+            {/* room to wrap: with Larger Text a one-line cap cuts these off mid-word */}
+            <Text style={[styles.meta, { color: accent }]} numberOfLines={2}>
               {meta}
             </Text>
-            <Text style={[type.bodyStrong, styles.title, { color: surface.text }, done && styles.titleDone]} numberOfLines={2}>
+            <Text style={[type.bodyStrong, styles.title, { color: surface.text }, done && styles.titleDone]} numberOfLines={3}>
               {title}
             </Text>
             {reason && !done ? (
-              <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={1}>
+              <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={2}>
                 {reason}
               </Text>
             ) : null}

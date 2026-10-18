@@ -13,7 +13,7 @@ type TextFieldProps = TextInputProps & {
 
 /** A warm, sunken text field with an optional label; the edge warms to bloom while focused. */
 const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, note, error = false, multiline, style, containerStyle, onFocus, onBlur, ...rest },
+  { label, note, error = false, multiline, style, containerStyle, onFocus, onBlur, accessibilityLabel, accessibilityHint, ...rest },
   ref
 ) {
   const theme = useTheme();
@@ -22,10 +22,17 @@ const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
   const edge = error ? theme.alert : focused ? theme.bloom : surface.hairline;
   return (
     <View style={containerStyle}>
-      {label ? <Text style={[type.meta, styles.label, { color: surface.textSecondary }]}>{label}</Text> : null}
+      {label ? (
+        <Text style={[type.meta, styles.label, { color: surface.textSecondary }]} importantForAccessibility="no" accessibilityElementsHidden>
+          {label}
+        </Text>
+      ) : null}
       <TextInput
         ref={ref}
         multiline={multiline}
+        // VoiceOver would otherwise read the placeholder ("you@example.com") as the field's name
+        accessibilityLabel={accessibilityLabel ?? label ?? undefined}
+        accessibilityHint={accessibilityHint ?? note ?? undefined}
         placeholderTextColor={surface.textTertiary}
         selectionColor={theme.bloom}
         textAlignVertical={multiline ? "top" : "center"}

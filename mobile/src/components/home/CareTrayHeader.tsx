@@ -29,7 +29,7 @@ export default function CareTrayHeader({ title, done, total, focusLabel, focusCa
           pressedScale={0.94}
           containerStyle={styles.focusSlot}
           accessibilityRole="button"
-          accessibilityLabel={focusLabel ? `Your focus: ${focusLabel}. Change` : "Choose what you want help with"}
+          accessibilityLabel={focusLabel ? `Your focus: ${focusLabel}. Change` : "Choose your focus areas"}
           style={[styles.focusChip, { backgroundColor: surface.isNight ? surface.paper : tone.tint }]}
         >
           <Ionicons name="compass-outline" size={15} color={surface.isNight ? tone.mid : tone.strong} />

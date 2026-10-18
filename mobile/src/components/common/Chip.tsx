@@ -15,11 +15,16 @@ type ChipProps = {
   icon?: string;
   disabled?: boolean;
   accessibilityLabel?: string;
+  /**
+   * What VoiceOver calls it: "checkbox" when several can be on (default), "radio" when it is one of a set, "button"
+   * when tapping it does something rather than choosing (it then has no checked state).
+   */
+  role?: "checkbox" | "radio" | "button";
   style?: StyleProp<ViewStyle>;
 };
 
 /** A pill to pick an option. Selected chips fill with their category's strong tone; a selection tick on change. */
-export default function Chip({ label, selected = false, onPress, category = "body", icon, disabled, accessibilityLabel, style }: ChipProps) {
+export default function Chip({ label, selected = false, onPress, category = "body", icon, disabled, accessibilityLabel, role = "checkbox", style }: ChipProps) {
   const theme = useTheme();
   const { surface } = theme;
   const tone = theme.tone(category);
@@ -42,8 +47,8 @@ export default function Chip({ label, selected = false, onPress, category = "bod
       }}
       disabled={disabled}
       pressedScale={0.94}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: selected, disabled }}
+      accessibilityRole={role}
+      accessibilityState={role === "button" ? { disabled } : role === "radio" ? { selected, checked: selected, disabled } : { checked: selected, disabled }}
       accessibilityLabel={accessibilityLabel ?? label}
       style={[styles.chip, { backgroundColor: background }, disabled && styles.disabled, style]}
     >

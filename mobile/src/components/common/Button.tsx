@@ -68,7 +68,8 @@ export default function Button({
       containerStyle={[stretch ? styles.block : styles.inline, containerStyle]}
       style={[
         styles.button,
-        { height: HEIGHTS[size], paddingHorizontal: size === "sm" ? 14 : 20, backgroundColor: looks.bg },
+        // minHeight, not height: with Larger Text the label wraps to a second line instead of being cut off
+        { minHeight: HEIGHTS[size], paddingVertical: size === "sm" ? 6 : 10, paddingHorizontal: size === "sm" ? 14 : 20, backgroundColor: looks.bg },
         disabled && !loading && styles.disabled,
         style,
       ]}
@@ -78,7 +79,7 @@ export default function Button({
       ) : (
         <View style={styles.row}>
           {icon ? <Ionicons name={icon as any} size={LABEL_SIZES[size] + 2} color={looks.fg} /> : null}
-          <Text style={[styles.label, { color: looks.fg, fontSize: LABEL_SIZES[size] }]} numberOfLines={1}>
+          <Text style={[styles.label, { color: looks.fg, fontSize: LABEL_SIZES[size] }]} numberOfLines={2}>
             {label}
           </Text>
         </View>
@@ -106,6 +107,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.bodyHeavy,
+    textAlign: "center",
+    flexShrink: 1,
   },
   disabled: {
     opacity: 0.45,

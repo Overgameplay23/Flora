@@ -62,7 +62,7 @@ export function SpeciesStep({ species, onPick, title, lead, existingLook }: Spec
               pressedScale={0.96}
               accessibilityRole="radio"
               accessibilityLabel={speciesLabel(option)}
-              accessibilityState={{ selected: active }}
+              accessibilityState={{ selected: active, checked: active }}
               containerStyle={styles.speciesSlot}
               style={[
                 styles.speciesCard,
@@ -98,7 +98,7 @@ export function ShelterStep({ species, companion, onPick }: ShelterStepProps) {
               pressedScale={0.97}
               accessibilityRole="radio"
               accessibilityLabel={`${c.name}: ${c.bio}`}
-              accessibilityState={{ selected: active }}
+              accessibilityState={{ selected: active, checked: active }}
               style={[styles.shelterCard, { backgroundColor: active ? tone.fill : surface.paper, borderColor: active ? tone.accent : surface.hairline, boxShadow: active ? "none" : surface.shadow }]}
             >
               <PetRig look={c.look} size={84} mood={active ? "happy" : "calm"} />
@@ -251,7 +251,7 @@ export function NameStep({ photoUri, look, value, onChange, error, onSubmit, sug
       {suggestions.length > 0 ? (
         <View style={styles.chips}>
           {suggestions.map((idea) => (
-            <Chip key={idea} label={idea} selected={value.trim() === idea} onPress={() => onChange(idea)} category="connection" />
+            <Chip key={idea} label={idea} role="radio" selected={value.trim() === idea} onPress={() => onChange(idea)} category="connection" />
           ))}
         </View>
       ) : null}

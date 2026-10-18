@@ -64,7 +64,8 @@ export default function Card({
     );
   }
   return (
-    <View style={[containerStyle, dress]} accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole}>
+    // a label makes the card one element for VoiceOver (iOS ignores a label on a view that is not accessible)
+    <View style={[containerStyle, dress]} accessible={!!accessibilityLabel} accessibilityLabel={accessibilityLabel} accessibilityRole={accessibilityRole}>
       {children}
     </View>
   );

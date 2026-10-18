@@ -8,6 +8,7 @@ import { useTheme } from "../theme/theme";
 import { fonts, type } from "../theme/tokens";
 import { signinErrorOutcome } from "../utils/authMessages";
 import { describeEmailForLog, redactForLog } from "../utils/logRedact";
+import { useAnnounce } from "../utils/a11y";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -22,6 +23,8 @@ export default function LoginScreen({ navigation }) {
   // A ref as well as state: a quick double tap fires twice before the disabled button re-renders.
   const inFlight = useRef(false);
   const theme = useTheme();
+  // VoiceOver says what went wrong (or what to do next) as soon as it appears under the form
+  useAnnounce(err);
 
   function handleEmailChange(nextEmail) {
     setEmail(nextEmail);

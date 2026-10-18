@@ -12,6 +12,7 @@ import {
   mergeChapters,
   normalizeChapters,
   normalizePauses,
+  recentSummary,
   weekOf,
 } from "../domain/cozyRun";
 import { addDaysToDateKey } from "../utils/dateKeys";
@@ -210,5 +211,17 @@ describe("Cozy Run: privacy", () => {
   it("keeps the rules free of the cycle store and the network", () => {
     const domain = read("domain/cozyRun.ts");
     expect(domain).not.toMatch(/lib\/supabase|cycleStore|AsyncStorage|fetch\(/);
+  });
+});
+
+describe("Cozy Run: what VoiceOver hears", () => {
+  it("reads the two-week strip as one sentence, counting what kept the run going", () => {
+    const state = cozyRun({ careDays: ["2026-10-12", "2026-10-14", "2026-10-16"], periodDays: [], today: "2026-10-17" });
+    expect(recentSummary(state.recent)).toBe("The last two weeks: 3 days of care, 2 Nap Days. Today is still open.");
+    const fresh = cozyRun({ careDays: [], today: "2026-10-17" });
+    expect(recentSummary(fresh.recent)).toBe("The last two weeks: no days of care yet. Today is still open.");
+    const resting = cozyRun({ careDays: ["2026-10-05", "2026-10-09"], today: "2026-10-10" });
+    expect(recentSummary(resting.recent)).toMatch(/the run is resting/);
+    expect(recentSummary(resting.recent)).not.toMatch(/miss|quiet/);
   });
 });

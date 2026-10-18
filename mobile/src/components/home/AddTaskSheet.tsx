@@ -76,13 +76,13 @@ export default function AddTaskSheet({ visible, petName, saving = false, onSave,
       <Text style={[type.micro, styles.label, { color: surface.textTertiary }]}>COLOUR</Text>
       <View style={styles.chips}>
         {CUSTOM_CATEGORIES.map((option) => (
-          <Chip key={option.id} label={option.label} icon={option.icon} category={option.id} selected={effectiveCategory === option.id} onPress={() => setCategory(option.id)} disabled={saving} />
+          <Chip key={option.id} label={option.label} icon={option.icon} category={option.id} role="radio" selected={effectiveCategory === option.id} onPress={() => setCategory(option.id)} disabled={saving} />
         ))}
       </View>
       <Text style={[type.micro, styles.label, { color: surface.textTertiary }]}>ABOUT HOW LONG</Text>
       <View style={styles.chips}>
         {CUSTOM_MINUTES.map((option) => (
-          <Chip key={option} label={`${option} min`} category={effectiveCategory} selected={minutes === option} onPress={() => setMinutes(option)} disabled={saving} />
+          <Chip key={option} label={`${option} min`} category={effectiveCategory} role="radio" selected={minutes === option} onPress={() => setMinutes(option)} disabled={saving} />
         ))}
       </View>
       <Text style={[type.meta, styles.hint, { color: surface.textTertiary }]}>It stays on your list every day until you put it away (press and hold it on Home).</Text>

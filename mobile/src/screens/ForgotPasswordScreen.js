@@ -9,6 +9,7 @@ import { fonts, type } from "../theme/tokens";
 import { notify } from "../utils/confirm";
 import { isResetCodeComplete, normalizeResetCode, resetRequestOutcome, resetVerifyOutcome } from "../utils/authMessages";
 import { redactForLog } from "../utils/logRedact";
+import { useAnnounce } from "../utils/a11y";
 
 /**
  * Forgot password, with a one-time code instead of a link: a link needs a deep link back into the app, which
@@ -28,6 +29,7 @@ export default function ForgotPasswordScreen({ navigation, route }) {
   const [emailHasError, setEmailHasError] = useState(false);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  useAnnounce(message);
 
   const say = (text, notice = false) => {
     setMessage(text);

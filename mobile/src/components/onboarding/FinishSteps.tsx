@@ -81,14 +81,14 @@ export function RevealStep({ sceneHeight, petSources, look, petName, theme: sanc
                 <Ionicons name={row.icon as any} size={22} color={tone.accent} />
               </View>
               <View style={styles.planBody}>
-                <Text style={[type.meta, { color: tone.accent }]} numberOfLines={1}>
+                <Text style={[type.meta, { color: tone.accent }]} numberOfLines={2}>
                   {tone.label}
                   {row.minutes > 0 ? ` · ${row.minutes} min` : ""}
                 </Text>
                 <Text style={[type.bodyStrong, { color: surface.text }]} numberOfLines={2}>
                   {row.title}
                 </Text>
-                <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={1}>
+                <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={2}>
                   {row.reason}
                 </Text>
               </View>
@@ -125,7 +125,7 @@ export function ReminderStep({ petName, times, time, onPickTime, denied }: Remin
         <View style={styles.times}>
           {times.map((option) => {
             const on = option.hour === time.hour && option.minute === time.minute;
-            return <Chip key={formatTime(option)} label={formatTime(option)} selected={on} onPress={() => onPickTime(option)} category="energy" />;
+            return <Chip key={formatTime(option)} label={formatTime(option)} role="radio" selected={on} onPress={() => onPickTime(option)} category="energy" />;
           })}
         </View>
       )}
@@ -178,7 +178,7 @@ export function FirstThingStep({ petName, place, tasks, doneId, busyId, onPick, 
                 <Ionicons name={row.icon as any} size={22} color={tone.accent} />
               </View>
               <View style={styles.planBody}>
-                <Text style={[type.meta, { color: tone.accent }]} numberOfLines={1}>
+                <Text style={[type.meta, { color: tone.accent }]} numberOfLines={2}>
                   {tone.label}
                   {row.minutes > 0 ? ` · ${row.minutes} min` : ""}
                 </Text>

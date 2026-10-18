@@ -12,6 +12,7 @@ import type { ScenePlantInput } from "../../domain/gardenScene";
 import type { DayPhase } from "../../domain/timeOfDay";
 import type { SanctuaryTheme } from "../../domain/sanctuary";
 import { brand, categories, fonts, radius, skyFor, surfaces, type } from "../../theme/tokens";
+import { TIGHT_TEXT_SCALE } from "../../utils/a11y";
 
 export type HomeHeroProps = {
   height: number;
@@ -43,29 +44,52 @@ export type HomeHeroProps = {
   petResting?: boolean;
 };
 
-type StatChipProps = { icon: string; iconColor: string; iconTint: string; value: string; label: string; night: boolean; onPress?: () => void };
+type StatChipProps = {
+  icon: string;
+  iconColor: string;
+  iconTint: string;
+  value: string;
+  label: string;
+  /** what VoiceOver says, when the two short words on the chip are not enough */
+  spoken?: string;
+  hint?: string;
+  night: boolean;
+  onPress?: () => void;
+};
 
-function StatChip({ icon, iconColor, iconTint, value, label, night, onPress }: StatChipProps) {
+function StatChip({ icon, iconColor, iconTint, value, label, spoken, hint, night, onPress }: StatChipProps) {
   const surface = night ? surfaces.night : surfaces.light;
   const body = (
     <>
       <View style={[styles.chipIcon, { backgroundColor: iconTint }]}>
         <Ionicons name={icon as any} size={14} color={iconColor} />
       </View>
-      <Text style={[styles.chipValue, { color: surface.text }]}>{value}</Text>
-      <Text style={[styles.chipLabel, { color: surface.textSecondary }]}>{label}</Text>
+      {/* the chips sit on the painting: they grow with Larger Text, but only so far */}
+      <Text style={[styles.chipValue, { color: surface.text }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>
+        {value}
+      </Text>
+      <Text style={[styles.chipLabel, { color: surface.textSecondary }]} maxFontSizeMultiplier={TIGHT_TEXT_SCALE}>
+        {label}
+      </Text>
     </>
   );
   const look = [styles.chip, { backgroundColor: surface.paperOverScene, boxShadow: surface.shadow }];
   if (onPress) {
     return (
-      <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [look, pressed && styles.chipPressed]} accessibilityRole="button" accessibilityLabel={`${value} ${label}`}>
+      <Pressable
+        onPress={onPress}
+        hitSlop={6}
+        style={({ pressed }) => [look, pressed && styles.chipPressed]}
+        accessibilityRole="button"
+        accessibilityLabel={spoken ?? `${value} ${label}`}
+        accessibilityHint={hint}
+      >
         {body}
       </Pressable>
     );
   }
   return (
-    <View style={look} accessible accessibilityLabel={`${value} ${label}`}>
+    <View style={look} accessible accessibilityLabel={spoken ?? `${value} ${label}`}>
       {body}
     </View>
   );
@@ -153,6 +177,7 @@ export default function HomeHero({
       petReaction={petReaction}
       onPetReactionEnd={onPetReactionEnd}
       onPetPress={onPetPress}
+      petLabel={petResting ? `${petName}, resting` : `Say hello to ${petName}`}
       petAct={petAct}
       onPetActEnd={onPetActEnd}
       petResting={petResting}
@@ -175,7 +200,15 @@ export default function HomeHero({
         </View>
         <View style={styles.chips}>
           {daysTogether != null ? (
-            <StatChip icon="flower" iconColor={brand.goldStrong} iconTint={brand.goldTint} value={String(daysTogether)} label={daysTogether === 1 ? "day" : "days"} night={night} />
+            <StatChip
+              icon="flower"
+              iconColor={brand.goldStrong}
+              iconTint={brand.goldTint}
+              value={String(daysTogether)}
+              label={daysTogether === 1 ? "day" : "days"}
+              spoken={`${daysTogether} ${daysTogether === 1 ? "day" : "days"} together`}
+              night={night}
+            />
           ) : null}
           {cozyRun ? (
             <StatChip
@@ -184,12 +217,14 @@ export default function HomeHero({
               iconTint={categories.rest.tint}
               value={String(cozyRun.days)}
               label={cozyRun.resting ? "resting" : "cozy run"}
+              spoken={`Cozy Run${cozyRun.resting ? ", resting" : ""}: ${cozyRun.days} ${cozyRun.days === 1 ? "day" : "days"}`}
+              hint="Opens your Cozy Run"
               night={night}
               onPress={onOpenCozyRun}
             />
           ) : null}
           {sprouts != null ? (
-            <StatChip icon="leaf" iconColor={brand.sprout} iconTint={brand.sproutTint} value={String(sprouts)} label="Sprouts" night={night} />
+            <StatChip icon="leaf" iconColor={brand.sprout} iconTint={brand.sproutTint} value={String(sprouts)} label="Sprouts" spoken={`${sprouts} ${sprouts === 1 ? "Sprout" : "Sprouts"}`} night={night} />
           ) : null}
         </View>
       </View>

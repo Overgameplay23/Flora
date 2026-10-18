@@ -25,7 +25,8 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
   return (
     <KeyboardAvoidingView style={[styles.fill, { backgroundColor: surface.canvas }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView style={styles.fill} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <GardenStage height={sceneHeight} variant="hero" theme="garden" hour={hour} hidePet accessibilityLabel="A painted garden at this time of day">
+        {/* no label on the stage: a labelled stage is one element for VoiceOver and would hide the title over it */}
+        <GardenStage height={sceneHeight} variant="hero" theme="garden" hour={hour} hidePet>
           <SceneOverlay sky={sky} topInset={insets.top} title={title} subtitle={subtitle} />
         </GardenStage>
         <View style={[styles.sheet, { backgroundColor: surface.canvas, paddingBottom: insets.bottom + 28 }]}>{children}</View>

@@ -240,7 +240,12 @@ export default function PetPortrait({
     (isPlaceholder ? emptyLabel : `Your pet, looking ${mood === "neutral" ? "calm" : mood}`);
 
   const body = (
-    <View style={[styles.wrap, { width: boxWidth, height: totalHeight }, style]} accessible accessibilityLabel={label} accessibilityRole={onPress ? "button" : "image"}>
+    <View
+      style={[styles.wrap, { width: boxWidth, height: totalHeight }, style]}
+      accessible={!onPress}
+      accessibilityLabel={onPress ? undefined : label}
+      accessibilityRole={onPress ? undefined : "image"}
+    >
       {showShadow && !isPlaceholder ? (
         <GroundShadow x={boxWidth / 2} y={hasRig ? size * 0.94 : size} width={(framed ? size * 0.8 : hasRig ? size * 0.66 : box.width) * 0.86} strength={framed ? 0.7 : 1} />
       ) : null}
@@ -313,7 +318,8 @@ export default function PetPortrait({
 
   if (!onPress) return body;
   return (
-    <Pressable onPress={onPress} hitSlop={8}>
+    // one element for VoiceOver: the button, named, with the drawing inside it
+    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={label}>
       {body}
     </Pressable>
   );

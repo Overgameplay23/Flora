@@ -39,7 +39,7 @@ export default function MoreCarousel({ items, surface }: { items: MoreItem[]; su
                 <Ionicons name={item.icon as any} size={22} color={surface.isNight ? tone.mid : tone.strong} />
               </View>
               <View style={styles.text}>
-                <Text style={[type.bodyStrong, { color: surface.text }]} numberOfLines={1}>
+                <Text style={[type.bodyStrong, { color: surface.text }]} numberOfLines={2}>
                   {item.title}
                 </Text>
                 <Text style={[type.meta, { color: surface.textSecondary }]} numberOfLines={2}>

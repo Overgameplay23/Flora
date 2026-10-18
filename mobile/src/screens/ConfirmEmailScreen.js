@@ -8,6 +8,7 @@ import { useTheme } from "../theme/theme";
 import { fonts, type } from "../theme/tokens";
 import { AUTH_TEXT, isResetCodeComplete, normalizeResetCode, resetRequestOutcome, signupConfirmOutcome } from "../utils/authMessages";
 import { redactForLog } from "../utils/logRedact";
+import { useAnnounce } from "../utils/a11y";
 
 /**
  * "Check your email" after signing up, when the project asks people to confirm their address. The email carries a
@@ -24,6 +25,7 @@ export default function ConfirmEmailScreen({ navigation, route }) {
   const [isNotice, setIsNotice] = useState(false);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  useAnnounce(message);
 
   const say = (text, notice = false) => {
     setMessage(text);
