@@ -2,6 +2,9 @@
 
 Mobile app lives in `mobile/` (Expo / React Native + Supabase). See `mobile/README.md` for deploy steps.
 
+The product is called **Luna** in everything a user sees (owner decision, 2026-10-15); "Floura" is the old working
+name still used in docs and code identifiers. Current plan and owner decisions: `mobile/docs/ROADMAP.md`.
+
 ## Product direction — read first
 Before deciding what to build, read `mobile/docs/product-strategy/PRODUCT_STRATEGY.md`
 (summary of the product strategy research). Full source: `Flora_App_Product_Strategy_Research.pdf`

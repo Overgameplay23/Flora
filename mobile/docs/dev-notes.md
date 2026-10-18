@@ -356,3 +356,61 @@ Decisions made and conflicts left for Donovan:
   `src/components/GardenScene.js` and `src/components/habits/EditHabitsModal.tsx` are no longer used.
 - Dev previews pin a fixture pet through `pinPetForPreview` (petStore) and `PreviewAuthProvider` (AuthContext);
   both are only reached from `src/screens/dev/DesignPreview.tsx` under `__DEV__` on web.
+
+## 2026-10-16 — Wardrobe (outfit shop), Cozy Run, five tabs (owner's decisions)
+
+Owner, 2026-10-15/16: "we also need a shop"; decided Sprouts now / real money later, Cozy Run streaks, tabs
+Today · Garden · Play · Wardrobe · You, paywall at the end of onboarding + after the 3rd check-in, Flo-level cycle
+logging without fertility, app name **Luna**, and the Wardrobe migration may be applied to Bloom. All recorded in
+`docs/ROADMAP.md` ("Decided by Donovan").
+
+**Wardrobe** (`src/screens/WardrobeScreen.tsx`, `src/domain/wardrobe/*`, `src/components/wardrobe/*`,
+`src/services/wardrobeStore.ts`, `local-backend/sql/wardrobe_v1.sql`):
+- 24 items (11 head, 3 face, 10 neck) drawn as SVG with soft gradients, worn as layers over the pet at anchor points:
+  exact anchors on the rig, estimated anchors on the painted v3 portrait (`anchorsFor`), plus a per-pet "Adjust fit"
+  saved on the server. On the rig the outfit is drawn inside PetRig's head and body layers so it nods and breathes
+  with the pet. Try-on is free and instant; keeping costs Sprouts. Three free starters (daisy crown, red bandana,
+  round glasses). Autumn items are on sale Sep-Nov and come back every year; owned items never expire.
+- **Applied to Bloom on 2026-10-16** (recorded as `20261016014418_wardrobe_v1`), owner-approved, after a line-by-line
+  comparison of the redefined `get_garden_points` / `upgrade_plant` with what was live (only change: the balance also
+  subtracts wardrobe spending; same lock, shapes and errors) and a rolled-back smoke test (claim, idempotent re-claim,
+  equip, fit clamped, "Not enough points", "Item not owned").
+- The pgTAP suites 01 and 03 were extended for the new tables and 05_wardrobe was added; **none of the pgTAP suites
+  has been run** (no local Postgres/Docker on this PC). Run `npm run backend:test` on a machine with the local stack.
+- Judgment calls: free claims are written to the ledger at cost 0; the server enforces `active` and `premium` but not
+  the autumn season or species (the app does); `spentPoints` now includes wardrobe spending; the memorial pet keeps
+  wearing its outfit (pass `outfit={null}` to hide it); portrait anchors are estimates until pet-stylize returns real
+  head/neck boxes (roadmap step 1); an outfit changed on another device shows after the Wardrobe screen refreshes.
+
+**Cozy Run** (`src/domain/cozyRun.ts`, `src/services/cozyRunStore.ts`, `src/components/home/CozyRunSheet.tsx`):
+- Days Together (never resets) is the headline chip on Home; tapping it, or the run line under the week card, opens
+  the sheet: a 4-week stamp calendar, naps left, warm blankets, pace (Gentle 3 / Steady 2 / Daily 1 naps a week),
+  Cozy Pause. A care day is any task, check-in or battery answer, ending at 3 a.m.; it is recorded on the device at
+  once (`markShowedUp`) and merged with the server's `daily_user_metrics`.
+- Logged period days are covered without spending a nap; they are worked out in `HomeScreen.js` (an approved cycle
+  reader) and never leave the phone.
+- Open questions: covered days outside a run still show as pink "gentle day" stamps (they could show as blank paper);
+  a run that ended long ago can still be mended by 3 care days in the first 5 back (R7 as written); Days Together can
+  run a day ahead when a task between midnight and 3 a.m. is counted by the server on the next calendar date;
+  reminders do not yet go quiet during a Cozy Pause.
+
+**Tabs:** Today (Home) · Garden · Play · Wardrobe · You (the Pet screen, with "Settings and account" opening the old
+Profile as a stack screen titled "Settings"). Route names Home/Garden/Pet stay, so old links keep working;
+`app/navigation/tabs.js` holds the tab config and `navigateToTab()` for stack screens.
+
+**Expo server note:** the dev server that ran on 2026-10-15 had exited by the 16th; it was restarted on a new LAN
+address, so the phone has to scan the new QR code. NativeWind rewrites `mobile/tsconfig.json` on every start; revert
+that file before committing.
+
+**After the integration review (2026-10-16):** 15 confirmed defects fixed. Behaviour worth knowing:
+- **The care day is the calendar day.** The research's "day ends at 3 a.m." (R1) is parked: the server
+  (`complete_task`, `daily_user_metrics`) and the plan engine count local calendar days, and the two boundaries made
+  one 1 a.m. task count as two days. `CARE_DAY_ENDS_AT_HOUR` in `src/domain/cozyRun.ts` brings it back if wanted
+  (the server side would need the same rule).
+- Covered cycle days are taken from the whole cycle history (a 60-day window let long runs split by themselves).
+  Nothing about the run is shown, and no mend is remembered, until the server history has been read once
+  (`complete`) and the cycle store has loaded.
+- A Cozy Pause started on a day that already counts runs one day longer, so "1 day" still covers one quiet day.
+- The Wardrobe re-reads what the pet really wears on every visit (the tab stays mounted); buying while other unowned
+  pieces are being tried on wears only what is owned; tall hats are no longer clipped on the stage, in the toast or
+  in sheet headers; the pet's bubble draws over its hat.

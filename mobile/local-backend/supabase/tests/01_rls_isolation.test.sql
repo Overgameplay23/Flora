@@ -24,7 +24,8 @@ $$;
 -- tables only SECURITY DEFINER RPCs or the service role may write
 create function tests.server_tables() returns setof text language sql immutable as $$
   select unnest(array['task_completions', 'user_plants', 'user_plant_upgrades', 'user_events', 'daily_user_metrics',
-                      'pet_state', 'pet_chat_usage', 'pet_stylize_requests', 'user_memories', 'weekly_summaries'])
+                      'pet_state', 'pet_chat_usage', 'pet_stylize_requests', 'user_memories', 'weekly_summaries',
+                      'user_wardrobe', 'wardrobe_purchases', 'pet_outfits'])
 $$;
 
 -- the helpers run as the caller (SECURITY INVOKER), so the caller's RLS and privileges apply
@@ -81,6 +82,9 @@ begin
   perform public.complete_task((select min(id) from public.tasks where user_id = me)::text, now(), current_date);
   perform public.log_event_and_rollup('checkin_submitted', now(), null, null, null, null, '{}'::jsonb, current_date);
   perform public.recompute_pet_state(current_date);
+  -- the Wardrobe: claim a free starter (no points needed) and wear it, through the RPCs as the app does
+  perform public.buy_wardrobe_item('head.daisy_crown');
+  perform public.equip_outfit('{"head":"head.daisy_crown"}'::jsonb);
 end $$;
 
 -- rows only the server writes, created the way the server does (table owner / service role)
@@ -121,8 +125,8 @@ select is((select count(*)::int from pg_policies where schemaname = 'public' and
 select is((select count(*)::int from pg_policies p where p.schemaname = 'public' and p.tablename in (select tests.user_tables())
              and coalesce(p.qual, '') || coalesce(p.with_check, '') not like '%auth.uid()%'),
           0, 'every policy on a user table is scoped by auth.uid()');
-select is((select count(*)::int from pg_policies where schemaname = 'public' and qual = 'true' and tablename not in ('plant_catalog', 'garden_items')),
-          0, 'only the two catalogs have an unconditional policy');
+select is((select count(*)::int from pg_policies where schemaname = 'public' and qual = 'true' and tablename not in ('plant_catalog', 'garden_items', 'wardrobe_items')),
+          0, 'only the three catalogs have an unconditional policy');
 select is((select count(*)::int from pg_policies where schemaname = 'public' and tablename in (select tests.server_tables()) and cmd <> 'SELECT'),
           0, 'server-written tables have no insert/update/delete policy');
 select cmp_ok(a_rows, '>', 0, format('fixture: A has rows in %s', tbl)) from tests.baseline;

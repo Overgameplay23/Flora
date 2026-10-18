@@ -37,7 +37,8 @@ select is((select count(*)::int from pg_class c cross join unnest(array['select'
 select is((select count(*)::int from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and has_table_privilege('authenticated', c.oid, 'truncate')),
           0, 'signed-in users cannot TRUNCATE (which would bypass RLS)');
 select is((select count(*)::int from unnest(array['task_completions', 'user_plants', 'user_plant_upgrades', 'user_events', 'daily_user_metrics', 'pet_state',
-                                                  'pet_chat_usage', 'pet_stylize_requests', 'user_memories', 'weekly_summaries', 'plant_catalog', 'garden_items']) t
+                                                  'pet_chat_usage', 'pet_stylize_requests', 'user_memories', 'weekly_summaries', 'plant_catalog', 'garden_items',
+                                                  'wardrobe_items', 'user_wardrobe', 'wardrobe_purchases', 'pet_outfits']) t
            cross join unnest(array['insert', 'update', 'delete']) priv where has_table_privilege('authenticated', 'public.' || t, priv)),
           0, 'signed-in users hold no write privilege on server-written tables or catalogs');
 

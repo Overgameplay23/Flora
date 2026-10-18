@@ -79,12 +79,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     maxWidth: 420,
   },
+  // not clipped: whatever the pet wears (a tall hat) may peek over the pill, which reads as the pet popping up
   pet: {
     width: 44,
     height: 44,
     alignItems: "center",
     justifyContent: "flex-end",
-    overflow: "hidden",
   },
   text: {
     marginLeft: 8,

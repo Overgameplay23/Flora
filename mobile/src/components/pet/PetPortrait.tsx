@@ -17,6 +17,11 @@ import { PetImageSources, usePetCandidates } from "../garden/usePetCandidates";
 import { fitHeight } from "../../domain/gardenScene";
 import type { PetLook } from "../../domain/petLook";
 import PetRig, { type PetAct } from "./vector/PetRig";
+import OutfitLayer from "../wardrobe/OutfitLayer";
+import { anchorsFor } from "../../domain/wardrobe/anchors";
+import { wardrobeItem } from "../../domain/wardrobe/catalog";
+import type { FitAdjust, OutfitSelection } from "../../domain/wardrobe/types";
+import { useEquippedOutfit } from "../../services/wardrobeStore";
 
 export type PetMood = "happy" | "calm" | "sad" | "excited" | "sleepy" | "neutral";
 export type PetReaction = "love" | "cheer" | "wiggle";
@@ -44,6 +49,10 @@ type PetPortraitProps = {
   showShadow?: boolean;
   /** shown in the empty placeholder */
   emptyLabel?: string;
+  /** what the pet wears: left out, what this user's pet wears (the Wardrobe); null, nothing (try-on passes its own) */
+  outfit?: OutfitSelection | null;
+  /** per-slot "Adjust fit" nudges; left out, the stored fit */
+  fit?: FitAdjust | null;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
@@ -102,6 +111,8 @@ export default function PetPortrait({
   allowOriginal = false,
   showShadow = true,
   emptyLabel = "Add your pet",
+  outfit,
+  fit,
   accessibilityLabel,
   style,
 }: PetPortraitProps) {
@@ -113,6 +124,15 @@ export default function PetPortrait({
   const hasRig = !!look && !portraitShown;
   const isPlaceholder = !hasRig && choice.type === "placeholder";
   const framed = !hasRig && framedImage;
+
+  // ---- what the pet wears: only on the rig or the painted portrait, never on a framed photo or the placeholder
+  const equipped = useEquippedOutfit();
+  const dressable = hasRig || portraitShown;
+  const chosen = dressable ? (outfit === undefined ? equipped.outfit : outfit) : null;
+  const worn = chosen && Object.values(chosen).some(Boolean) ? chosen : null;
+  const wornFit = fit === undefined ? equipped.fit : fit;
+  const species = look?.species === "cat" ? "cat" : "dog";
+  const anchors = useMemo(() => anchorsFor(hasRig ? "rig" : "portrait", species, look?.build), [hasRig, species, look?.build]);
 
   // Acted-out routines (drink, walk…) belong to the rig; with a portrait on screen, finish them at once
   // so the parent's act state does not stay stuck.
@@ -235,9 +255,10 @@ export default function PetPortrait({
   }, [activeReaction, hasRig, idle, isPlaceholder, mood, react, reducedMotion, resting, size]);
 
   const heartsVisible = activeReaction === "love";
+  const wearing = wearingPhrase(worn);
   const label =
     accessibilityLabel ??
-    (isPlaceholder ? emptyLabel : `Your pet, looking ${mood === "neutral" ? "calm" : mood}`);
+    (isPlaceholder ? emptyLabel : `Your pet, looking ${mood === "neutral" ? "calm" : mood}${wearing ? `, in their ${wearing}` : ""}`);
 
   const body = (
     <View style={[styles.wrap, { width: boxWidth, height: totalHeight }, style]} accessible accessibilityLabel={label} accessibilityRole={onPress ? "button" : "image"}>
@@ -247,7 +268,22 @@ export default function PetPortrait({
 
       {hasRig ? (
         <Animated.View style={[styles.sprite, { width: size, height: size, left: (boxWidth - size) / 2, top: 0, transform, transformOrigin: "50% 100%" }]}>
-          <PetRig look={look!} size={size} mood={mood} reaction={activeReaction} act={act} onActEnd={onActEnd} reducedMotion={reducedMotion} resting={resting} walking={walking} facing={facing} />
+          {/* the rig draws the outfit inside its own head and body layers, so it nods, breathes and mirrors with them */}
+          <PetRig
+            look={look!}
+            size={size}
+            mood={mood}
+            reaction={activeReaction}
+            act={act}
+            onActEnd={onActEnd}
+            reducedMotion={reducedMotion}
+            resting={resting}
+            walking={walking}
+            facing={facing}
+            outfit={worn}
+            outfitFit={wornFit}
+            outfitAnchors={anchors}
+          />
         </Animated.View>
       ) : isPlaceholder ? (
         <View style={[styles.placeholder, { width: size * 0.82, height: size * 0.82, borderRadius: size * 0.41, top: size * 0.09, left: (boxWidth - size * 0.82) / 2 }]}>
@@ -264,15 +300,16 @@ export default function PetPortrait({
           <Image source={choice.source!} onError={onError} style={styles.fill} resizeMode="cover" />
         </Animated.View>
       ) : (
-        <Animated.Image
-          source={choice.source!}
-          onError={onError}
-          resizeMode="contain"
+        // the image and its outfit share one transform, so whatever the pet wears moves with it
+        <Animated.View
           style={[
             styles.sprite,
             { width: box.width, height: box.height, left: (boxWidth - box.width) / 2, top: 0, transform, transformOrigin: "50% 100%" },
           ]}
-        />
+        >
+          <Image source={choice.source!} onError={onError} resizeMode="contain" style={styles.fill} />
+          {worn ? <OutfitLayer outfit={worn} fit={wornFit} anchors={anchors} box={box} /> : null}
+        </Animated.View>
       )}
 
       {heartsVisible
@@ -317,6 +354,18 @@ export default function PetPortrait({
       {body}
     </Pressable>
   );
+}
+
+/** "daisy crown and red bandana", for the accessibility label; "" when nothing known is worn. */
+function wearingPhrase(outfit: OutfitSelection | null | undefined): string {
+  if (!outfit) return "";
+  const names: string[] = [];
+  for (const slot of ["head", "face", "neck"] as const) {
+    const item = wardrobeItem(outfit[slot]);
+    if (item && item.slot === slot) names.push(item.name.charAt(0).toLowerCase() + item.name.slice(1));
+  }
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 const styles = StyleSheet.create({

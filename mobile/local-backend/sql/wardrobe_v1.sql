@@ -1,0 +1,532 @@
+-- Wardrobe v1 (docs/ROADMAP.md section 4): outfits for the pet, bought with Sprouts. Applied to Bloom on 2026-10-16
+-- (recorded there as 20261016014418_wardrobe_v1). Sits on top of bounded_times_and_points.sql and pin_function_search_path.sql.
+--
+-- What it adds
+--   * wardrobe_items      the catalog, seeded from src/domain/wardrobe/catalog.ts (src/__tests__/wardrobeSql.test.ts
+--                         fails if the two drift). Signed-in users read it; nobody writes it through the API.
+--   * user_wardrobe       what a person owns. Owner SELECT only; written by buy_wardrobe_item (and later by Edge
+--                         Functions with the service role for gifts, rewards and store purchases).
+--   * wardrobe_purchases  append-only spend ledger, one row per acquisition (free starters too, at cost 0).
+--                         Owner SELECT only: deleting a row would refund Sprouts.
+--   * pet_outfits         what the pet wears and the person's "Adjust fit" nudges. Owner SELECT only; written by
+--                         equip_outfit.
+--   * buy_wardrobe_item / equip_outfit RPCs, and get_garden_points / upgrade_plant redefined so the one Sprouts
+--     balance is: completion points - plant upgrades - wardrobe purchases.
+--
+-- Rules it keeps (docs/dev-notes.md, 2026-09-27 backend hardening): owner-scoped policies for the authenticated
+-- role only (rls_owner_policies.sql); anon gets nothing; TRUNCATE, REFERENCES and TRIGGER are never granted to the
+-- app; every RPC is SECURITY DEFINER with search_path pinned, revoked from PUBLIC and anon and granted to
+-- authenticated explicitly (function_grants.sql). Idempotent: safe to run twice.
+
+-- ---------- tables ----------
+create table if not exists public.wardrobe_items (
+  id text primary key,
+  name text not null,
+  slot text not null,
+  category text not null,
+  price_sprouts integer not null default 0,
+  rarity text not null default 'common',
+  species text[] not null default array['dog', 'cat'],
+  collection text not null default 'Everyday',
+  premium boolean not null default false,
+  active boolean not null default true,
+  sort integer not null default 0,
+  constraint wardrobe_items_slot_check check (slot in ('head', 'face', 'neck')),
+  constraint wardrobe_items_price_nonnegative check (price_sprouts >= 0)
+);
+
+create table if not exists public.user_wardrobe (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_id text not null references public.wardrobe_items(id) on delete restrict,
+  source text not null default 'sprouts',
+  acquired_at timestamptz not null default now(),
+  primary key (user_id, item_id),
+  constraint user_wardrobe_source_check check (source in ('sprouts', 'starter', 'gift', 'reward', 'iap'))
+);
+
+create table if not exists public.wardrobe_purchases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_id text not null references public.wardrobe_items(id) on delete restrict,
+  cost_paid integer not null,
+  created_at timestamptz not null default now(),
+  constraint wardrobe_purchases_cost_nonnegative check (cost_paid >= 0)
+);
+
+create table if not exists public.pet_outfits (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  slots jsonb not null default '{}'::jsonb,
+  fit jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  constraint pet_outfits_slots_object check (jsonb_typeof(slots) = 'object'),
+  constraint pet_outfits_fit_object check (jsonb_typeof(fit) = 'object')
+);
+
+create index if not exists user_wardrobe_item_id_idx on public.user_wardrobe (item_id);
+create index if not exists wardrobe_purchases_user_id_idx on public.wardrobe_purchases (user_id, created_at desc);
+create index if not exists wardrobe_purchases_item_id_idx on public.wardrobe_purchases (item_id);
+
+-- ---------- catalog seed ----------
+-- Same ids, names, slots, categories, prices, rarity, species and collection as catalog.ts; sort is the catalog
+-- order. Descriptions, card colours and art keys live only in the app. Re-running updates every seeded field
+-- except `active`, so an item taken out of the shop later is not quietly put back.
+insert into public.wardrobe_items (id, name, slot, category, price_sprouts, rarity, species, collection, premium, sort)
+values
+  ('head.daisy_crown', 'Daisy crown', 'head', 'hats', 0, 'common', array['dog', 'cat'], 'Everyday', false, 1),
+  ('neck.bandana_red', 'Red bandana', 'neck', 'neckwear', 0, 'common', array['dog', 'cat'], 'Everyday', false, 2),
+  ('face.round_glasses', 'Round reading glasses', 'face', 'glasses', 0, 'common', array['dog', 'cat'], 'Everyday', false, 3),
+  ('neck.collar_sky', 'Sky collar with tag', 'neck', 'neckwear', 20, 'common', array['dog', 'cat'], 'Everyday', false, 4),
+  ('head.bow_blush', 'Blush bow', 'head', 'hats', 25, 'common', array['dog', 'cat'], 'Everyday', false, 5),
+  ('neck.bell_collar', 'Little bell collar', 'neck', 'neckwear', 25, 'common', array['dog', 'cat'], 'Everyday', false, 6),
+  ('head.party_hat', 'Party hat', 'head', 'hats', 30, 'common', array['dog', 'cat'], 'Everyday', false, 7),
+  ('neck.bandana_gingham', 'Picnic gingham bandana', 'neck', 'neckwear', 30, 'common', array['dog', 'cat'], 'Everyday', false, 8),
+  ('head.beret_rose', 'Rose beret', 'head', 'hats', 35, 'common', array['dog', 'cat'], 'Everyday', false, 9),
+  ('neck.bowtie_plum', 'Plum bow tie', 'neck', 'neckwear', 35, 'common', array['dog', 'cat'], 'Everyday', false, 10),
+  ('head.beanie_sage', 'Sage knit beanie', 'head', 'hats', 40, 'common', array['dog', 'cat'], 'Everyday', false, 11),
+  ('face.heart_sunnies', 'Heart sunglasses', 'face', 'glasses', 55, 'uncommon', array['dog', 'cat'], 'Everyday', false, 12),
+  ('head.sun_hat', 'Straw sun hat', 'head', 'hats', 60, 'uncommon', array['dog', 'cat'], 'Garden Party', false, 13),
+  ('neck.flower_lei', 'Flower lei', 'neck', 'neckwear', 70, 'uncommon', array['dog', 'cat'], 'Garden Party', false, 14),
+  ('face.star_glasses', 'Starry glasses', 'face', 'glasses', 75, 'uncommon', array['dog', 'cat'], 'Everyday', false, 15),
+  ('head.frog_hat', 'Frog bucket hat', 'head', 'hats', 80, 'uncommon', array['dog', 'cat'], 'Garden Party', false, 16),
+  ('neck.ruffle_collar', 'Ruffle collar', 'neck', 'neckwear', 90, 'uncommon', array['dog', 'cat'], 'Everyday', false, 17),
+  ('neck.pearl_necklace', 'Pearl necklace', 'neck', 'neckwear', 110, 'rare', array['dog', 'cat'], 'Everyday', false, 18),
+  ('head.flower_halo', 'Wildflower halo', 'head', 'hats', 120, 'rare', array['dog', 'cat'], 'Garden Party', false, 19),
+  ('head.gold_crown', 'Tiny gold crown', 'head', 'hats', 160, 'rare', array['dog', 'cat'], 'Everyday', false, 20),
+  ('neck.knit_scarf', 'Chunky knit scarf', 'neck', 'neckwear', 60, 'uncommon', array['dog', 'cat'], 'Autumn', false, 21),
+  ('head.pumpkin_beanie', 'Pumpkin beanie', 'head', 'hats', 70, 'uncommon', array['dog', 'cat'], 'Autumn', false, 22),
+  ('head.witch_hat', 'Little witch hat', 'head', 'hats', 90, 'uncommon', array['dog', 'cat'], 'Autumn', false, 23),
+  ('neck.leaf_garland', 'Autumn leaf garland', 'neck', 'neckwear', 45, 'common', array['dog', 'cat'], 'Autumn', false, 24)
+on conflict (id) do update
+set
+  name = excluded.name,
+  slot = excluded.slot,
+  category = excluded.category,
+  price_sprouts = excluded.price_sprouts,
+  rarity = excluded.rarity,
+  species = excluded.species,
+  collection = excluded.collection,
+  premium = excluded.premium,
+  sort = excluded.sort;
+
+-- ---------- row-level security and privileges (mirrors rls_owner_policies.sql) ----------
+do $$
+declare
+  owner_read text[] := array['user_wardrobe', 'wardrobe_purchases', 'pet_outfits']; -- written only by the RPCs below
+  catalogs text[] := array['wardrobe_items'];
+  t text;
+  p record;
+begin
+  foreach t in array owner_read || catalogs loop
+    execute format('alter table public.%I enable row level security', t);
+  end loop;
+
+  -- start from zero on the tables this migration governs
+  for p in
+    select pol.tablename, pol.policyname from pg_policies pol
+    where pol.schemaname = 'public' and pol.tablename = any (owner_read || catalogs)
+  loop
+    execute format('drop policy if exists %I on public.%I', p.policyname, p.tablename);
+  end loop;
+
+  foreach t in array owner_read loop
+    execute format(
+      'create policy %I on public.%I for select to authenticated using ((select auth.uid()) = user_id)',
+      t || '_select_own', t);
+  end loop;
+
+  foreach t in array catalogs loop
+    execute format('create policy %I on public.%I for select to authenticated using (true)', t || '_select_all', t);
+  end loop;
+
+  -- privileges match the policies: signed-in users read, nobody writes through the API, anon sees nothing
+  foreach t in array owner_read || catalogs loop
+    execute format('revoke insert, update, delete, truncate, references, trigger on public.%I from authenticated', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select on public.%I to authenticated', t);
+    execute format('grant select, insert, update, delete on public.%I to service_role', t);
+  end loop;
+end
+$$;
+
+-- ---------- the Sprouts balance ----------
+-- One place for the arithmetic every spender shares. Internal: callable only from the SECURITY DEFINER RPCs
+-- below (which run as the owner), never by the app, because it takes any user id.
+create or replace function public.points_balance(p_user_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  with earned as (
+    select coalesce(sum(tc.points), 0)::integer as n
+    from public.task_completions tc
+    where tc.user_id = p_user_id
+  ),
+  spent as (
+    select (
+      (select coalesce(sum(up.cost_paid), 0) from public.user_plant_upgrades up where up.user_id = p_user_id)
+      + (select coalesce(sum(wp.cost_paid), 0) from public.wardrobe_purchases wp where wp.user_id = p_user_id)
+    )::integer as n
+  )
+  select jsonb_build_object(
+    'earnedPoints', earned.n,
+    'spentPoints', spent.n,
+    'remainingPoints', greatest(earned.n - spent.n, 0)
+  )
+  from earned, spent
+$$;
+
+revoke execute on function public.points_balance(uuid) from public, anon, authenticated;
+
+-- get_garden_points: same signature and shape as garden_upgrade_system.sql; spentPoints now includes the wardrobe.
+create or replace function public.get_garden_points()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  return public.points_balance(v_user_id);
+end;
+$$;
+
+-- upgrade_plant: body from garden_upgrade_system.sql; the only change is that the balance comes from
+-- points_balance, so wardrobe purchases count against it too.
+create or replace function public.upgrade_plant(p_plant_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_catalog public.plant_catalog%rowtype;
+  v_current_level integer := 0;
+  v_target_level integer := 1;
+  v_exponent integer := 0;
+  v_cost integer := 0;
+  v_remaining integer := 0;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  if p_plant_id is null or btrim(p_plant_id) = '' then
+    raise exception 'Plant id is required'
+      using errcode = '22023';
+  end if;
+
+  -- Serialize spending per user so it cannot race (buy_wardrobe_item takes the same lock).
+  perform pg_advisory_xact_lock(hashtext(v_user_id::text));
+
+  select *
+  into v_catalog
+  from public.plant_catalog
+  where id = p_plant_id;
+
+  if not found then
+    raise exception 'Plant not found'
+      using errcode = 'P0002';
+  end if;
+
+  select level
+  into v_current_level
+  from public.user_plants
+  where user_id = v_user_id
+    and plant_id = p_plant_id
+  for update;
+
+  if not found then
+    v_current_level := 0;
+    v_target_level := 1;
+  elsif v_current_level >= v_catalog.max_level then
+    v_remaining := (public.points_balance(v_user_id) ->> 'remainingPoints')::integer;
+
+    return jsonb_build_object(
+      'plantId', p_plant_id,
+      'newLevel', v_current_level,
+      'costPaid', 0,
+      'remainingPoints', v_remaining,
+      'maxLevelReached', true
+    );
+  else
+    v_target_level := v_current_level + 1;
+  end if;
+
+  v_exponent := case when v_current_level <= 0 then 0 else v_current_level - 1 end;
+  v_cost := ceil(v_catalog.base_cost::numeric * power(v_catalog.cost_multiplier, v_exponent::numeric))::integer;
+
+  v_remaining := (public.points_balance(v_user_id) ->> 'remainingPoints')::integer;
+
+  if v_remaining < v_cost then
+    raise exception 'Not enough points'
+      using errcode = 'P0001',
+        detail = jsonb_build_object(
+          'requiredPoints', v_cost,
+          'remainingPoints', v_remaining
+        )::text;
+  end if;
+
+  if v_current_level = 0 then
+    insert into public.user_plants (user_id, plant_id, level, equipped, purchased_at, updated_at)
+    values (v_user_id, p_plant_id, 1, false, now(), now());
+  else
+    update public.user_plants
+    set
+      level = v_target_level,
+      updated_at = now()
+    where user_id = v_user_id
+      and plant_id = p_plant_id;
+  end if;
+
+  insert into public.user_plant_upgrades (user_id, plant_id, from_level, to_level, cost_paid)
+  values (v_user_id, p_plant_id, v_current_level, v_target_level, v_cost);
+
+  v_remaining := v_remaining - v_cost;
+
+  return jsonb_build_object(
+    'plantId', p_plant_id,
+    'newLevel', v_target_level,
+    'costPaid', v_cost,
+    'remainingPoints', v_remaining
+  );
+end;
+$$;
+
+-- ---------- buy_wardrobe_item ----------
+-- Buys (or, for a price-0 starter, claims) one item. Owning is final and idempotent: asking again returns
+-- already_owned = true and charges nothing, even for an item that has since left the shop. Refuses premium
+-- items (real money only) and inactive ones. Errors the client can tell apart:
+--   'Not authenticated' 42501 | 'Item id is required', 'Item not found' 22023
+--   (HTTP 400 on purpose, not P0002: the app reads a 404 as "migration not applied")
+--   'Item not available' P0001 (detail {"reason": "premium" | "inactive"})
+--   'Not enough points' P0001 (detail {"requiredPoints", "remainingPoints"}, the same text as upgrade_plant)
+create or replace function public.buy_wardrobe_item(p_item_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_item public.wardrobe_items%rowtype;
+  v_cost integer := 0;
+  v_remaining integer := 0;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  if p_item_id is null or btrim(p_item_id) = '' then
+    raise exception 'Item id is required'
+      using errcode = '22023';
+  end if;
+
+  -- The same per-user lock as upgrade_plant, so plant and wardrobe spending serialize on one balance.
+  perform pg_advisory_xact_lock(hashtext(v_user_id::text));
+
+  select *
+  into v_item
+  from public.wardrobe_items wi
+  where wi.id = p_item_id;
+
+  if not found then
+    raise exception 'Item not found'
+      using errcode = '22023';
+  end if;
+
+  v_remaining := (public.points_balance(v_user_id) ->> 'remainingPoints')::integer;
+
+  if exists (
+    select 1
+    from public.user_wardrobe uw
+    where uw.user_id = v_user_id
+      and uw.item_id = v_item.id
+  ) then
+    return jsonb_build_object(
+      'item_id', v_item.id,
+      'cost_paid', 0,
+      'remaining_points', v_remaining,
+      'already_owned', true
+    );
+  end if;
+
+  if v_item.premium or not v_item.active then
+    raise exception 'Item not available'
+      using errcode = 'P0001',
+        detail = jsonb_build_object(
+          'reason', case when v_item.premium then 'premium' else 'inactive' end
+        )::text;
+  end if;
+
+  v_cost := v_item.price_sprouts;
+
+  if v_remaining < v_cost then
+    raise exception 'Not enough points'
+      using errcode = 'P0001',
+        detail = jsonb_build_object(
+          'requiredPoints', v_cost,
+          'remainingPoints', v_remaining
+        )::text;
+  end if;
+
+  insert into public.user_wardrobe (user_id, item_id, source, acquired_at)
+  values (v_user_id, v_item.id, case when v_cost = 0 then 'starter' else 'sprouts' end, now());
+
+  insert into public.wardrobe_purchases (user_id, item_id, cost_paid)
+  values (v_user_id, v_item.id, v_cost);
+
+  return jsonb_build_object(
+    'item_id', v_item.id,
+    'cost_paid', v_cost,
+    'remaining_points', v_remaining - v_cost,
+    'already_owned', false
+  );
+end;
+$$;
+
+-- ---------- equip_outfit ----------
+-- Replaces what the pet wears. p_slots is {"head"|"face"|"neck": item id}; a missing or null slot is empty.
+-- Every item must exist, be owned and belong to that slot. p_fit, when given, replaces the "Adjust fit" nudges
+-- ({slot: {dx, dy, scale}}, missing numbers default to 0, 0, 1; a null slot goes back to automatic) clamped to
+-- dx, dy in [-0.5, 0.5] and scale in [0.5, 2]; when null, the saved nudges are kept. Returns {slots, fit} as stored.
+-- Errors: 'Not authenticated' 42501 | 'Outfit must be an object', 'Fit must be an object', 'Unknown outfit slot',
+--   'Outfit item id must be text', 'Item does not fit that slot', 'Fit values must be numbers', 'Item not found'
+--   22023 | 'Item not owned' P0001
+create or replace function public.equip_outfit(p_slots jsonb, p_fit jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  c_slots constant text[] := array['head', 'face', 'neck'];
+  v_slots jsonb := '{}'::jsonb;
+  v_fit jsonb;
+  v_key text;
+  v_val jsonb;
+  v_item_id text;
+  v_item_slot text;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated'
+      using errcode = '42501';
+  end if;
+
+  if p_slots is null or jsonb_typeof(p_slots) <> 'object' then
+    raise exception 'Outfit must be an object'
+      using errcode = '22023';
+  end if;
+
+  for v_key, v_val in select e.key, e.value from jsonb_each(p_slots) e loop
+    if not (v_key = any (c_slots)) then
+      raise exception 'Unknown outfit slot'
+        using errcode = '22023',
+          detail = left(v_key, 32);
+    end if;
+
+    continue when jsonb_typeof(v_val) = 'null';
+
+    if jsonb_typeof(v_val) <> 'string' then
+      raise exception 'Outfit item id must be text'
+        using errcode = '22023';
+    end if;
+
+    v_item_id := v_val #>> '{}';
+
+    select wi.slot
+    into v_item_slot
+    from public.wardrobe_items wi
+    where wi.id = v_item_id;
+
+    if not found then
+      raise exception 'Item not found'
+        using errcode = '22023';
+    end if;
+
+    if v_item_slot <> v_key then
+      raise exception 'Item does not fit that slot'
+        using errcode = '22023';
+    end if;
+
+    if not exists (
+      select 1
+      from public.user_wardrobe uw
+      where uw.user_id = v_user_id
+        and uw.item_id = v_item_id
+    ) then
+      raise exception 'Item not owned'
+        using errcode = 'P0001';
+    end if;
+
+    v_slots := v_slots || jsonb_build_object(v_key, v_item_id);
+  end loop;
+
+  if p_fit is not null then
+    if jsonb_typeof(p_fit) <> 'object' then
+      raise exception 'Fit must be an object'
+        using errcode = '22023';
+    end if;
+
+    v_fit := '{}'::jsonb;
+    for v_key, v_val in select e.key, e.value from jsonb_each(p_fit) e loop
+      if not (v_key = any (c_slots)) then
+        raise exception 'Unknown outfit slot'
+          using errcode = '22023',
+            detail = left(v_key, 32);
+      end if;
+
+      continue when jsonb_typeof(v_val) = 'null';
+
+      if jsonb_typeof(v_val) <> 'object'
+        or coalesce(jsonb_typeof(v_val -> 'dx'), 'number') <> 'number'
+        or coalesce(jsonb_typeof(v_val -> 'dy'), 'number') <> 'number'
+        or coalesce(jsonb_typeof(v_val -> 'scale'), 'number') <> 'number' then
+        raise exception 'Fit values must be numbers'
+          using errcode = '22023';
+      end if;
+
+      v_fit := v_fit || jsonb_build_object(v_key, jsonb_build_object(
+        'dx', trim_scale(round(greatest(-0.5, least(0.5, coalesce((v_val ->> 'dx')::numeric, 0))), 4)),
+        'dy', trim_scale(round(greatest(-0.5, least(0.5, coalesce((v_val ->> 'dy')::numeric, 0))), 4)),
+        'scale', trim_scale(round(greatest(0.5, least(2, coalesce((v_val ->> 'scale')::numeric, 1))), 4))
+      ));
+    end loop;
+  end if;
+
+  insert into public.pet_outfits as po (user_id, slots, fit, updated_at)
+  values (v_user_id, v_slots, coalesce(v_fit, '{}'::jsonb), now())
+  on conflict (user_id) do update
+  set
+    slots = excluded.slots,
+    fit = case when p_fit is null then po.fit else excluded.fit end,
+    updated_at = now()
+  returning po.slots, po.fit
+  into v_slots, v_fit;
+
+  return jsonb_build_object('slots', v_slots, 'fit', v_fit);
+end;
+$$;
+
+-- ---------- who may call what (function_grants.sql) ----------
+revoke execute on function public.get_garden_points() from public, anon;
+grant execute on function public.get_garden_points() to authenticated, service_role;
+
+revoke execute on function public.upgrade_plant(text) from public, anon;
+grant execute on function public.upgrade_plant(text) to authenticated, service_role;
+
+revoke execute on function public.buy_wardrobe_item(text) from public, anon;
+grant execute on function public.buy_wardrobe_item(text) to authenticated, service_role;
+
+revoke execute on function public.equip_outfit(jsonb, jsonb) from public, anon;
+grant execute on function public.equip_outfit(jsonb, jsonb) to authenticated, service_role;

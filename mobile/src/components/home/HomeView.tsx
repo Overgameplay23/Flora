@@ -44,6 +44,8 @@ export type HomeViewProps = Omit<HomeHeroProps, "height" | "petLine"> & {
   week: WeekDay[];
   loadingWeek: boolean;
   onOpenWeek: () => void;
+  /** "6-day cozy run · 2 naps left this week"; null before it is known */
+  runLine?: string | null;
   footerLinks: Array<{ label: string; onPress: () => void }>;
   toast: { id: number; text: string } | null;
   /** distance from the bottom of this view to keep the toast above (tab bar) */
@@ -128,7 +130,16 @@ export default function HomeView(props: HomeViewProps) {
               <MoreCarousel items={props.more} surface={surface} />
 
               <View style={styles.week}>
-                <WeekCard petName={props.petName} days={props.week} loading={props.loadingWeek} daysTogether={props.daysTogether} onPress={props.onOpenWeek} surface={surface} />
+                <WeekCard
+                  petName={props.petName}
+                  days={props.week}
+                  loading={props.loadingWeek}
+                  daysTogether={props.daysTogether}
+                  onPress={props.onOpenWeek}
+                  surface={surface}
+                  runLine={props.runLine}
+                  onRunPress={props.onDaysPress}
+                />
               </View>
             </>
           )}

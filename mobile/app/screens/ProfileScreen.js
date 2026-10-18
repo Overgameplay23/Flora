@@ -23,6 +23,11 @@ import { getISOWeekKey } from "../../src/utils/dateKeys";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 
+/**
+ * Settings and account: a stack screen under a native "Settings" header, opened from the bottom of the You
+ * tab (it was the Profile tab until 2026-10-15). Reflection, reminders, cycle tracking, the pet's photo and
+ * memorial, sign out, and the five-tap version line into Diagnostics.
+ */
 export default function ProfileScreen({ navigation }) {
   const { user, profile: authProfile, signOut } = useAuth();
   const theme = useTheme();
@@ -111,14 +116,14 @@ export default function ProfileScreen({ navigation }) {
 
   if (loading && !profile) {
     return (
-      <Screen scroll={false} centered topInset>
+      <Screen scroll={false} centered>
         <PetLoading />
       </Screen>
     );
   }
 
   return (
-    <Screen topInset bottomPad={110}>
+    <Screen>
       <View style={[styles.hero, { backgroundColor: theme.tone("connection").fill, boxShadow: surface.shadow }]}>
         <PetPortrait sources={petSources} look={petLook} size={112} mood={memorial ? "calm" : "happy"} allowOriginal emptyLabel="Add pet" resting={!!memorial} />
         <Text style={[type.title, styles.heroTitle, { color: surface.text }]} accessibilityRole="header">
@@ -149,7 +154,7 @@ export default function ProfileScreen({ navigation }) {
       <ListGroup>
         {talkOn ? <ListRow icon="chatbubble-ellipses-outline" category="calm" label={`Talk to ${displayName}`} hint="A few words, in their voice" onPress={() => navigation.navigate("PetTalk")} /> : null}
         {adopted ? (
-          <ListRow icon="heart-outline" category="connection" label={`${displayName} is an adopted companion`} hint="Change their look or name from the Pet tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
+          <ListRow icon="heart-outline" category="connection" label={`${displayName} is an adopted companion`} hint="Change their look or name from the You tab" onPress={() => navigation.navigate("Onboarding", { mode: "look" })} />
         ) : (
           <ListRow icon="camera-outline" category="play" label="Change pet photo" hint={`${displayName} gets painted again`} onPress={() => navigation.navigate("Onboarding", { mode: "replace" })} />
         )}

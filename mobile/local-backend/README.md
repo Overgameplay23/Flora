@@ -19,7 +19,7 @@ demonstrated again. Nothing here touches any hosted project.
 | `sql/rls_owner_policies.sql` | Forward migration (2026-09-27): deny-by-default RLS. Owner-scoped policies (`authenticated`, `auth.uid() = user_id`); tables only the server writes (points, plant levels, events, streak state, chat quota, memories) are owner read-only; `anon` has no table privilege. |
 | `sql/function_grants.sql` | Forward migration (2026-09-27): no function in `public` is executable without a session; `consume_pet_chat_quota` is service-role only (R-39). |
 | `sql/pets_bucket_private.sql` | Forward migration (2026-09-27): `pets` becomes private (10 MiB, images only) with one folder per user, `<uid>/…`; owner-only storage policies. |
-| `supabase/migrations/` | Generated output of `build-migrations.js` (27 files). Regenerate, never edit. |
+| `supabase/migrations/` | Generated output of `build-migrations.js` (30 files). Regenerate, never edit. |
 | `supabase/tests/` | pgTAP database tests (`npm run backend:test`): cross-user isolation for every user table and for pet photos, grants, and a guard that the database has nowhere to store cycle data. |
 | `write-env-local.js` | Writes `mobile/.env.local`, the app's **local profile** (gitignored), with the local API URL and the CLI's development anon key. `app.config.js` reads it when `APP_ENV=local` (the default). `.env` is never read or changed. |
 | `seed-demo.js` | **Demo seed, local only.** Creates one demo account and a week of gentle activity **through the app's own tables, RPCs and storage policies**, so it doubles as a backend smoke test. Refuses anything but plain `http` to a private address. Staging gets no seed (`docs/backend/DEPLOY.md`, section 5). |
@@ -29,7 +29,7 @@ demonstrated again. Nothing here touches any hosted project.
 Requires Docker Desktop running and the Supabase CLI (`supabase --version`).
 
 ```bash
-npm run backend:start     # build migrations, start the stack, apply all 27 migrations
+npm run backend:start     # build migrations, start the stack, apply all 30 migrations
 npm run backend:env       # write .env.local using this machine's LAN IP (add -- --localhost for web-only)
 npm run backend:seed      # optional: demo account + sample pet + a week of activity (local only)
 npm run start:local       # the app on the local profile (clears Metro's cache; plain `npx expo start` works too)

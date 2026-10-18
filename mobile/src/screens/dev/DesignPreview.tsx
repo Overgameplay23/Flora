@@ -11,10 +11,12 @@ import AppNavigator, { stackScreenOptions } from "../../../app/navigation/AppNav
 import { SplashScreen, UnreachableScreen } from "../../../app/navigation/RootNavigator";
 import LoginScreen from "../LoginScreen";
 import SignupScreen from "../SignupScreen";
+import WardrobeArtGallery from "../../components/wardrobe/art/ArtGallery";
 
 // Dev-only design previews on web, so every screen can be checked in a browser without signing in:
 //   ?preview=<name>   home, garden, pet, profile, checkin, journal, breathing, week, cycle, reminders,
-//                     memorial, play, fetch, bubbles, tasks, habits, login, signup, splash, unreachable
+//                     memorial, play, fetch, bubbles, tasks, habits, login, signup, splash, unreachable,
+//                     wardrobe-art (every accessory drawing, and each one on a reference head by its anchor)
 //   &hour=21          pin the time of day (night paper from 21:00 to 05:00)
 //   &pet=cat|none     which fixture pet (default: a golden dog called Biscuit)
 //   &memorial=1       the pet has passed away
@@ -34,6 +36,7 @@ const ROUTES: Record<string, string> = {
   reminders: "Reminders",
   memorial: "Memorial",
   play: "Play",
+  wardrobe: "Wardrobe",
   fetch: "PlayFetch",
   bubbles: "PlayBubbles",
   tasks: "Tasks",
@@ -57,6 +60,7 @@ function PreviewBody({ name }: { name: string }) {
   const theme = useTheme();
   const navigationTheme = useMemo(() => navigationThemeFor(theme), [theme]);
   if (name === "home") return <HomePreviewScreen />;
+  if (name === "wardrobe-art") return <WardrobeArtGallery />;
   if (name === "splash") return <SplashScreen />;
   if (name === "unreachable") return <UnreachableScreen retrying={false} onRetry={() => {}} onSignOut={() => {}} />;
   if (name === "login" || name === "signup") {

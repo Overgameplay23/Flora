@@ -44,6 +44,7 @@ const PLAN = [
   ["local-backend/sql/pets_bucket_private.sql", "20260927000200_pets_bucket_private.sql"],
   ["local-backend/sql/bounded_times_and_points.sql", "20261002014412_bounded_times_and_points.sql"],
   ["local-backend/sql/pin_function_search_path.sql", "20261002014442_pin_function_search_path.sql"],
+  ["local-backend/sql/wardrobe_v1.sql", "20261016014418_wardrobe_v1.sql"],
 ];
 
 fs.mkdirSync(outDir, { recursive: true });

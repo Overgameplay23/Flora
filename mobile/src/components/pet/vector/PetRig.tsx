@@ -3,6 +3,8 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Rect } from "react-native-svg";
 import { PetLook } from "../../../domain/petLook";
 import type { PetMood, PetReaction } from "../PetPortrait";
+import OutfitLayer from "../../wardrobe/OutfitLayer";
+import type { FitAdjust, OutfitSelection, PetAnchors } from "../../../domain/wardrobe/types";
 import {
   BOX,
   GROUND_Y,
@@ -38,6 +40,10 @@ type PetRigProps = {
   walking?: boolean;
   /** which way the pet faces; the rig is drawn facing left and mirrored for right */
   facing?: "left" | "right";
+  /** what the pet wears (Wardrobe); drawn inside the head and body layers so it moves with them */
+  outfit?: OutfitSelection | null;
+  outfitFit?: FitAdjust | null;
+  outfitAnchors?: PetAnchors | null;
 };
 
 const OUTLINE_W = 2.6;
@@ -47,7 +53,22 @@ const OUTLINE_W = 2.6;
  * their own pivot. Breathing, blinking, tail wags and ear twitches run by mood; reactions and acts
  * are one-shot sequences. Nothing here needs a native module, so it runs in Expo Go and on web.
  */
-export default function PetRig({ look, size, mood = "calm", reaction = null, onReactionEnd, act = null, onActEnd, reducedMotion = false, resting = false, walking = false, facing = "left" }: PetRigProps) {
+export default function PetRig({
+  look,
+  size,
+  mood = "calm",
+  reaction = null,
+  onReactionEnd,
+  act = null,
+  onActEnd,
+  reducedMotion = false,
+  resting = false,
+  walking = false,
+  facing = "left",
+  outfit = null,
+  outfitFit = null,
+  outfitAnchors = null,
+}: PetRigProps) {
   const p = useMemo(() => palette(look), [look]);
   const head = useMemo(() => headGeometry(look), [look]);
   const body = useMemo(() => bodyGeometry(look), [look]);
@@ -390,6 +411,7 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
 
   const mouthMood = resting ? "neutral" : mood === "sad" ? "sad" : mood === "excited" ? "open" : mood === "calm" || mood === "neutral" || mood === "sleepy" ? "neutral" : "happy";
   const layer = { position: "absolute" as const, left: 0, top: 0, width: size, height: size };
+  const wearing = !!outfit && Object.values(outfit).some(Boolean);
   const svgProps = { width: size, height: size, viewBox: `0 0 ${BOX} ${BOX}` };
   const legTop = body.cy + 4;
   const legBottom = GROUND_Y;
@@ -436,6 +458,17 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
           </Animated.View>
         );
       })}
+
+      {/* neckwear: the body layer's own transform (lift, breathing and stretch scale about the body pivot), so a
+          collar stays on the chest; drawn in front of the body and behind the chin */}
+      {wearing && outfitAnchors ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[layer, { transformOrigin: toOrigin(piv.body), transform: [{ translateY: bodyLift }, { scaleY: bodyScaleY }, { scaleX: bodyScaleX }] }]}
+        >
+          <OutfitLayer outfit={outfit} fit={outfitFit} anchors={outfitAnchors} box={{ width: size, height: size }} only={["neck"]} />
+        </Animated.View>
+      ) : null}
 
       {/* ears (behind the head) */}
       <Animated.View style={[layer, { transformOrigin: toOrigin(piv.earLeft), transform: [{ rotate: earRotL }] }]}>
@@ -520,6 +553,16 @@ export default function PetRig({ look, size, mood = "calm", reaction = null, onR
           })}
         </Svg>
       </Animated.View>
+
+      {/* glasses and hats: on the head layer's own transform, over the eyes and ears */}
+      {wearing && outfitAnchors ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[layer, { transformOrigin: toOrigin(piv.head), transform: [{ translateY: headLift }, { rotate: headRotate }, { rotate: sadTilt }] }]}
+        >
+          <OutfitLayer outfit={outfit} fit={outfitFit} anchors={outfitAnchors} box={{ width: size, height: size }} only={["face", "head"]} />
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

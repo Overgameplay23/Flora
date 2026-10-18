@@ -35,7 +35,8 @@ export default function Sheet({ visible, onClose, title, subtitle, pet, footer, 
           <View style={[styles.grabber, { backgroundColor: surface.track }]} />
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {title || pet ? (
-              <View style={styles.header}>
+              // with the pet beside the title, keep room above it inside the scroll view for a hat it wears
+              <View style={[styles.header, pet ? { paddingTop: Math.ceil(0.3 * (pet.size ?? 72)) } : null]}>
                 <View style={styles.headerText}>
                   {title ? (
                     <Text style={[type.title, { color: surface.text }]} accessibilityRole="header">

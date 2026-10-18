@@ -17,6 +17,9 @@ import { useTodayPlan } from "../../src/hooks/useTodayPlan";
 import { todayKey } from "../../src/services/dailyLoop";
 import { fetchCatalog, fetchGardenPoints, fetchUserPlants } from "../../src/services/garden";
 import { fetchDaysTogether } from "../../src/services/homeStats";
+import { endPause, loadCozyRunInput, markShowedUp, rememberMend, savePace, startPause } from "../../src/services/cozyRunStore";
+import { addCareDays, careDayKey, computeCozyRun, cozyRunHeadline, napsLeftLine } from "../../src/domain/cozyRun";
+import CozyRunSheet from "../../src/components/home/CozyRunSheet";
 import { fetchLast7DaysMetrics } from "../../src/services/retention";
 import { completeTaskWithResilience, syncPendingCompletions } from "../../src/services/taskCompletion";
 import { loadTodayEnergy, saveTodayEnergy } from "../../src/services/planStore";
@@ -32,7 +35,7 @@ import { dayPhase, phaseGreeting } from "../../src/domain/timeOfDay";
 import { memorialGreeting, memorialReflection } from "../../src/domain/memorial";
 import { sanctuaryCopy, sanctuaryFor } from "../../src/domain/sanctuary";
 import { isProtectedMood } from "../../src/domain/protectedMode";
-import { phaseLabel } from "../../src/domain/cycle";
+import { isPeriodDay, phaseLabel } from "../../src/domain/cycle";
 import { playDing } from "../../src/utils/sfx";
 import { notify } from "../../src/utils/confirm";
 import * as haptics from "../../src/utils/haptics";
@@ -48,6 +51,17 @@ const PET_NAME_MAX_CHARS = 24;
 // as long as they stayed at least this long
 const OPENED_TASK_MIN_MS = 8000;
 const NO_FOCUS = [];
+const NO_DAYS = [];
+
+/** Pauses with nothing left from `today` on (mirrors cozyRunStore's own rule, for an instant update). */
+function closePausesFrom(pauses, today) {
+  const yesterday = addCareDays(today, -1);
+  return (pauses || []).flatMap((range) => {
+    if (range.to < today) return [range];
+    if (range.from < today) return [{ from: range.from, to: yesterday }];
+    return [];
+  });
+}
 
 function toHomeMoodScore(moodState) {
   if (moodState === "sad") return 2;
@@ -116,6 +130,9 @@ export default function HomeScreen() {
   const [petAct, setPetAct] = useState(null);
   const [sprouts, setSprouts] = useState(null);
   const [daysTogether, setDaysTogether] = useState(null);
+  // the Cozy Run (docs/ROADMAP.md): care days from the server and this phone, computed on the device
+  const [cozyStored, setCozyStored] = useState(null);
+  const [cozyOpen, setCozyOpen] = useState(false);
   const [scenePlants, setScenePlants] = useState([]);
   const [weekMetrics, setWeekMetrics] = useState([]);
   const [loadingWeek, setLoadingWeek] = useState(false);
@@ -184,14 +201,30 @@ export default function HomeScreen() {
     };
   }, [homeDateKey, user?.id]);
 
+  // any care act makes today a care day for the Cozy Run, right away and on this phone first
+  const noteCareDay = useCallback(() => {
+    if (!user?.id) return;
+    const today = careDayKey();
+    void markShowedUp(user.id, today);
+    setCozyStored((prev) => (prev ? { ...prev, today, showedUp: prev.showedUp.includes(today) ? prev.showedUp : [...prev.showedUp, today] } : prev));
+  }, [user?.id]);
+
   const handleEnergy = useCallback(
     (next) => {
       setEnergy(next);
       setPetReaction(next === "energized" ? "cheer" : "love");
       if (user?.id) void saveTodayEnergy(user.id, homeDateKey, next);
+      noteCareDay();
     },
-    [homeDateKey, user?.id]
+    [homeDateKey, noteCareDay, user?.id]
   );
+
+  const loadCozy = useCallback(async () => {
+    if (!user?.id) return;
+    const today = careDayKey();
+    const stored = await loadCozyRunInput(user.id, today);
+    setCozyStored({ ...stored, today });
+  }, [user?.id]);
 
   // ---- ask for a name once the pet is painted and still unnamed ---------------------------------------
   useEffect(() => {
@@ -212,6 +245,7 @@ export default function HomeScreen() {
         .then((summary) => setSprouts(summary.remainingPoints))
         .catch((error) => console.warn("HOME_SPROUTS_LOAD_ERROR", error?.message || String(error))),
       fetchDaysTogether(user.id).then((count) => setDaysTogether(count)),
+      loadCozy(),
       fetchLast7DaysMetrics()
         .then((metrics) => setWeekMetrics(Array.isArray(metrics) ? metrics : []))
         .catch((error) => console.warn("HOME_WEEK_LOAD_ERROR", error?.message || String(error))),
@@ -230,7 +264,7 @@ export default function HomeScreen() {
         .catch((error) => console.warn("HOME_SCENE_PLANTS_LOAD_ERROR", error?.message || String(error))),
     ]);
     setLoadingWeek(false);
-  }, [user?.id]);
+  }, [loadCozy, user?.id]);
 
   // ---- completing a care task ---------------------------------------------------------------------------
   const celebrate = useCallback(
@@ -274,6 +308,7 @@ export default function HomeScreen() {
           eventMeta: { category: category === "cycle" ? null : category, difficulty: item.planned.task.effort, points: null },
         });
         completedThisSession.current = true;
+        noteCareDay();
         if (mutation.state === "queued") {
           plan.markDone(key);
           setNoticeByTask((prev) => ({ ...prev, [key]: { type: "queued", message: "Saved on this phone. It syncs when you're back online." } }));
@@ -299,7 +334,7 @@ export default function HomeScreen() {
         });
       }
     },
-    [celebrate, completing, loadSideData, petDisplayName, plan, user?.id]
+    [celebrate, completing, loadSideData, noteCareDay, petDisplayName, plan, user?.id]
   );
 
   // all of today's care done: one bigger moment, once per day
@@ -423,9 +458,10 @@ export default function HomeScreen() {
     void syncQueued("startup");
     const appStateSubscription = AppState.addEventListener("change", (state) => {
       if (state !== "active") return;
-      // coming back from the background does not fire a navigation focus: roll the day and the light here
+      // coming back from the background does not fire a navigation focus: roll the day, the light and the run here
       setHomeDateKey(todayKey());
       setHour(new Date().getHours());
+      void loadCozy();
       void syncQueued("foreground");
     });
     const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
@@ -436,7 +472,7 @@ export default function HomeScreen() {
       appStateSubscription.remove();
       netInfoUnsubscribe();
     };
-  }, [syncQueued, user?.id]);
+  }, [loadCozy, syncQueued, user?.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -569,12 +605,75 @@ export default function HomeScreen() {
         category: "cycle",
         onPress: () => navigation.navigate("Cycle"),
       },
+      { key: "wardrobe", title: "Wardrobe", subtitle: `Try outfits on ${petDisplayName}`, icon: "shirt-outline", category: "connection", onPress: () => navigation.navigate("Wardrobe") },
       { key: "garden", title: theme === "nook" ? "Your nook" : "Your garden", subtitle: "Grow something with your Sprouts", icon: "flower-outline", category: "body", onPress: () => navigation.navigate("Garden") },
     ];
     // on a heavy day, the calmest door comes first
     if (gentle) items.sort((a, b) => (a.key === "breathe" ? -1 : b.key === "breathe" ? 1 : 0));
     return items;
   }, [cycle.enabled, cycle.status?.cycleDay, cycle.status?.phase, gentle, hasExistingCheckin, navigation, petDisplayName, theme]);
+
+  // ---- the Cozy Run: logged period days are covered without spending a nap (computed here, never synced) ----
+  // The whole history, not a recent window: the run is replayed from the first care day, so a covered day must
+  // stay covered however old it gets, or a long run would quietly split into a chapter as time passes.
+  const firstCareDay = cozyStored?.showedUp?.[0] ?? null;
+  const covered = useMemo(() => {
+    const today = cozyStored?.today;
+    if (!today || !cycle.enabled || !cycle.data?.entries?.length) return NO_DAYS;
+    const days = new Set();
+    for (const entry of cycle.data.entries) {
+      let day = firstCareDay && firstCareDay > entry.start ? firstCareDay : entry.start;
+      // an ongoing period is taken as up to ten days, the longest a logged period is assumed to run
+      const last = entry.end ?? addCareDays(entry.start, 9);
+      for (let guard = 0; day <= last && day <= today && guard < 60; guard += 1) {
+        if (isPeriodDay(cycle.data, day)) days.add(day);
+        day = addCareDays(day, 1);
+      }
+    }
+    return days.size ? [...days].sort() : NO_DAYS;
+  }, [cozyStored?.today, cycle.data, cycle.enabled, firstCareDay]);
+  // nothing is shown, and no mend is remembered, until the history is complete and the cycle store has loaded
+  const cozyReady = !!cozyStored?.complete && !cycle.loading;
+  const cozy = useMemo(() => (cozyReady ? computeCozyRun({ ...cozyStored, covered }) : null), [covered, cozyReady, cozyStored]);
+  useEffect(() => {
+    const mended = cozy?.mend?.lastMendedOn;
+    if (user?.id && mended && mended !== cozyStored?.mendUsedOn) void rememberMend(user.id, mended);
+  }, [cozy?.mend?.lastMendedOn, cozyStored?.mendUsedOn, user?.id]);
+  const napsLeft = cozy?.run.napsLeftThisWeek ?? 0;
+  const runLine =
+    cozy && !inMemorial
+      ? `${cozyRunHeadline(cozy.run.length)} · ${cozy.pausedUntil ? "resting" : napsLeft === 0 ? "naps come back Monday" : `${napsLeft} ${napsLeft === 1 ? "nap" : "naps"} left this week`}`
+      : null;
+
+  // Sheet actions: always for the care day it is now (the app may have slept past midnight), shown at once,
+  // then confirmed by a reload in the background.
+  const onCozyPace = useCallback(
+    async (pace) => {
+      if (!user?.id) return;
+      const today = careDayKey();
+      setCozyStored((prev) => (prev ? { ...prev, today, pace, paceHistory: [...(prev.paceHistory || []).filter((change) => change.from < today), { from: today, pace }] } : prev));
+      await savePace(user.id, pace, today);
+      void loadCozy();
+    },
+    [loadCozy, user?.id]
+  );
+  const onCozyPause = useCallback(
+    async (days) => {
+      if (!user?.id) return;
+      const today = careDayKey();
+      const range = await startPause(user.id, today, days, { todayCounted: !!cozy?.run.todayCounted });
+      if (range) setCozyStored((prev) => (prev ? { ...prev, today, pauses: [...closePausesFrom(prev.pauses, today), range] } : prev));
+      void loadCozy();
+    },
+    [cozy?.run.todayCounted, loadCozy, user?.id]
+  );
+  const onCozyEndPause = useCallback(async () => {
+    if (!user?.id) return;
+    const today = careDayKey();
+    setCozyStored((prev) => (prev ? { ...prev, today, pauses: closePausesFrom(prev.pauses, today) } : prev));
+    await endPause(user.id, today);
+    void loadCozy();
+  }, [loadCozy, user?.id]);
 
   const footerLinks = [
     { label: "All tasks", onPress: () => navigation.navigate("Tasks") },
@@ -593,8 +692,11 @@ export default function HomeScreen() {
         greeting={greeting}
         subline={subline}
         petLine={petLine}
-        daysTogether={daysTogether}
+        daysTogether={cozy ? cozy.daysTogether : daysTogether}
         sprouts={sprouts}
+        onDaysPress={cozy && !inMemorial ? () => setCozyOpen(true) : undefined}
+        runLength={cozy && !inMemorial ? cozy.run.length : null}
+        runLine={runLine}
         theme={theme}
         petName={petDisplayName}
         petSources={petSources}
@@ -649,6 +751,19 @@ export default function HomeScreen() {
         onRefresh={onRefresh}
       />
 
+      {cozy ? (
+        <CozyRunSheet
+          visible={cozyOpen}
+          onClose={() => setCozyOpen(false)}
+          petName={petDisplayName}
+          result={cozy}
+          pace={cozyStored.pace}
+          onPace={(pace) => void onCozyPace(pace)}
+          paused={cozy.pausedUntil != null}
+          onPause={(days) => void onCozyPause(days)}
+          onEndPause={() => void onCozyEndPause()}
+        />
+      ) : null}
       <FocusPickerSheet
         visible={focusOpen}
         initial={plan.settings?.chosen ? plan.settings.focusAreas : NO_FOCUS}

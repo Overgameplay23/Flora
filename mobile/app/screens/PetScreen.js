@@ -20,6 +20,8 @@ import Sheet from "../../src/components/common/Sheet";
 import StatStrip from "../../src/components/common/StatStrip";
 import TextField from "../../src/components/common/TextField";
 import PressableScale from "../../src/components/common/PressableScale";
+import { ListGroup, ListRow } from "../../src/components/common/ListGroup";
+import { Eyebrow } from "../../src/components/common/Headings";
 import { PetLoading } from "../../src/components/pet/PetMoments";
 import { useSceneStatusBar } from "../../src/hooks/useSceneStatusBar";
 import { useTheme, useThemeHour } from "../../src/theme/theme";
@@ -32,6 +34,7 @@ import { petTalkAvailable } from "../../src/services/petTalk";
 import { unifiedStreak } from "../../src/domain/streaks";
 import { recomputePetState } from "../../src/services/retention";
 import { playDing } from "../../src/utils/sfx";
+import { getISOWeekKey } from "../../src/utils/dateKeys";
 
 const PET_NAME_MAX_CHARS = 24;
 
@@ -73,8 +76,9 @@ function ActionTile({ icon, category, label, hint, onPress, disabled }) {
 }
 
 /**
- * The Pet tab: the pet at home in its garden, with everything that is about the pet itself -
- * petting it, talking to it, naming it, changing its photo, and the painting state of its portrait.
+ * The You tab (route "Pet"): you and the pet at home in its garden, with everything that is about the two of
+ * you - petting it, talking to it, naming it, changing its photo, the painting state of its portrait - and, at
+ * the bottom, the way into settings and account (the Profile stack screen; it was a tab until 2026-10-15).
  */
 export default function PetScreen() {
   const { user, profile, userStats, petEmotionState } = useAuth();
@@ -267,6 +271,9 @@ export default function PetScreen() {
   }
 
   const plantsGrowing = scenePlants.filter((plant) => plant.level > 0).length;
+  // the same "New" as Settings shows until this week's reflection has been opened
+  const weekIsNew = (profile?.last_reflection_viewed_week ?? null) !== getISOWeekKey(new Date());
+  const openSettings = () => navigation.navigate("Profile");
 
   return (
     <View style={[styles.screen, { backgroundColor: surface.canvas }]}>
@@ -291,7 +298,7 @@ export default function PetScreen() {
           <SceneOverlay
             sky={sky}
             topInset={insets.top}
-            title={name || "Your pet"}
+            title={name ? `You & ${name}` : "You & your pet"}
             subtitle={inMemorial ? `Remembering ${displayName}` : moodSentence(mood, displayName, species)}
             titleAccessory={
               <PressableScale
@@ -299,10 +306,22 @@ export default function PetScreen() {
                 hitSlop={8}
                 pressedScale={0.9}
                 accessibilityRole="button"
-                accessibilityLabel="Rename pet"
+                accessibilityLabel={name ? `Rename ${name}` : "Name your pet"}
                 style={[styles.renameButton, { backgroundColor: overScene.paperOverScene, boxShadow: overScene.shadow }]}
               >
                 <Ionicons name="pencil" size={14} color={overScene.text} />
+              </PressableScale>
+            }
+            right={
+              <PressableScale
+                onPress={openSettings}
+                hitSlop={8}
+                pressedScale={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="Settings and account"
+                style={[styles.settingsButton, { backgroundColor: overScene.paperOverScene, boxShadow: overScene.shadow }]}
+              >
+                <Ionicons name="settings-outline" size={18} color={overScene.text} />
               </PressableScale>
             }
           />
@@ -404,6 +423,12 @@ export default function PetScreen() {
             )}
             <ActionTile icon="create-outline" category="rest" label="Rename" hint={name ? name : "Pick a name"} onPress={openRename} />
           </View>
+
+          <Eyebrow style={styles.sectionTitle}>More for you</Eyebrow>
+          <ListGroup>
+            <ListRow icon="book-outline" category="connection" label="Our week" hint={`What ${displayName} noticed`} badge={weekIsNew ? "New" : null} onPress={() => navigation.navigate("WeeklyReflection")} />
+            <ListRow icon="settings-outline" category="rest" label="Settings and account" hint="Reminders, cycle tracking, sign out" onPress={openSettings} />
+          </ListGroup>
         </View>
       </ScrollView>
 
@@ -454,6 +479,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sceneBottom: {
     position: "absolute",
     left: 0,
@@ -496,6 +528,7 @@ const styles = StyleSheet.create({
   tileSlot: { width: "48.5%", marginBottom: 10 },
   tile: { minHeight: 112 },
   tileLabel: { marginTop: 10 },
+  sectionTitle: { marginTop: 14, marginBottom: 8, marginLeft: 6 },
   disabled: { opacity: 0.6 },
   cancel: { alignSelf: "center" },
 });

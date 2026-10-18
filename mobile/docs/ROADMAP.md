@@ -1,4 +1,4 @@
-# Floura roadmap
+# Luna roadmap
 
 Owner's goal (2026-10-15): the best self-care app in the category, by miles. A comfort / self-help app where the
 user's **real pet**, painted from their photos, is the heart of everything. This file is the working plan; the
@@ -38,6 +38,14 @@ one is something a real-pet app can beat:
   headers and status bar, a shared kit (`src/components/common`), the pet in empty/loading states and sheets, and
   breathing rebuilt once (4-2-6, the pet breathes with you, a haptic per phase). Onboarding, Talk, plant store and
   the painting screens are still dark slate. Web previews of every screen: `?preview=<screen>`.
+
+## Done (2026-10-16)
+- **Reskin**: every main screen on the design system, one 4-2-6 breathing experience, the pet in empty and loading
+  states (PR #2).
+- **Wardrobe**: 24 outfits drawn as layers over your own pet, free instant try-on, Sprouts purchases, "Adjust fit",
+  three free starter gifts, a seasonal Autumn shelf. The database part is live on Bloom.
+- **Cozy Run**: Days Together on Home, the run with Nap Days, Warm Blankets, covered cycle days and Cozy Pause.
+- **Tabs**: Today · Garden · Play · Wardrobe · You.
 
 ## Next, in order
 
@@ -80,7 +88,7 @@ while the quiz runs, so the "building your plan" wait is honest.
   return every year and the app says so; owned items never expire. **No loot boxes** (loot-box spending correlates
   with problem gambling, r = 0.27; the audience is anxious and burnt out).
 - Optional "photo shoot": a Gemini repaint of the pet wearing a purchased outfit (Club perk, limited per month).
-- Server: `cosmetic_catalog`, `user_cosmetics`, `pet_outfit`, `sprout_ledger`, `buy_cosmetic` / `equip_outfit` RPCs.
+- Server (built, applied to Bloom 2026-10-16): `wardrobe_items`, `user_wardrobe`, `wardrobe_purchases`, `pet_outfits`, `buy_wardrobe_item` / `equip_outfit` RPCs (`local-backend/sql/wardrobe_v1.sql`).
 
 ### 5. Floura Club (subscription) (1-2 sessions + store setup)
 - Needs an app identity (name, bundle id), `eas.json`, a development build, RevenueCat (`react-native-purchases`),
@@ -114,11 +122,21 @@ while the quiz runs, so the "building your plan" wait is honest.
 - Home-screen and lock-screen widgets with the live pet (dev build).
 - Monthly recap; insights (mood x energy x cycle x tasks); exportable PDF for a therapist.
 
-## Decisions waiting on Donovan
-1. Cozy Run rules and dropping "Never a streak" from onboarding copy.
-2. Tabs. Proposal: **Today · Garden · Play · Wardrobe · You** (Rhythm and Journal inside You and on Home).
-3. Paywall: soft offer at the end of onboarding in addition to the 3rd check-in? Price test ($6.99/$44.99 vs
-   $9.99/$59.99)?
-4. Battery check vs 1-5 check-in: merge or keep both?
-5. App name everywhere: Floura (app.json still says "Luna").
-6. Cycle-care tasks: synced with neutral titles (current) or local-only?
+## Decided by Donovan (2026-10-15)
+1. **App name: Luna** everywhere (App Store, onboarding, copy). The docs' "Floura" is the old working name.
+2. **Streaks: Cozy Run** as described in section 2 (Days Together headline + a forgiving run). Onboarding's
+   "Never a streak" copy changes to match ("Never a broken streak").
+3. **Tabs: Today · Garden · Play · Wardrobe · You.**
+4. **Shop: Sprouts now, real money later.** Everything is buyable with Sprouts earned through care; real-money
+   sets and Club-only items come with the development build and App Store products.
+5. **Paywall: a soft, skippable offer at the end of onboarding, and again after the 3rd daily check-in.** Never on a
+   Drained / On edge day, during low mood, period pain or a return from hibernation.
+6. **Cycle: Flo-level logging, no fertility.** One-tap logging, calendar, range predictions, insights and pet-driven
+   care; no ovulation, fertile window or pregnancy features.
+7. The Bloom backend may receive the reviewed Wardrobe migration.
+
+## Still open
+1. Club price test: $9.99/mo · $59.99/yr with a $39.99 first-year intro (category medians) vs the strategy's
+   $6.99 / $44.99.
+2. Battery check vs 1-5 check-in: merge into one daily check-in, or keep both?
+3. Cycle-care tasks: synced with neutral titles (current) or local-only?

@@ -678,7 +678,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             )}
             <View style={styles.tips}>
               <Text style={styles.tip}>• The photos stay private to your account.</Text>
-              <Text style={styles.tip}>• Painting takes about a minute. If it can't finish, your photo is kept and you can retry from the Pet tab.</Text>
+              <Text style={styles.tip}>• Painting takes about a minute. If it can't finish, your photo is kept and you can retry from the You tab.</Text>
             </View>
           </View>
         ) : null}
@@ -786,7 +786,7 @@ export default function OnboardingScreen({ route, navigation }: any) {
             <Text style={styles.title}>{petName} moved in</Text>
             <Text style={styles.body}>
               {painting.status === "kept-photo"
-                ? "The painted portrait didn't finish, so the photo is kept for later. You can retry from the Pet tab any time."
+                ? "The painted portrait didn't finish, so the photo is kept for later. You can retry from the You tab any time."
                 : `Tap ${petName} to say hello. They'll be here on Home, in the ${place}, and whenever you check in.`}
             </Text>
             <Pressable style={[styles.primaryButton, finishing && styles.buttonDisabled]} onPress={mode === "first" ? goNext : finish} disabled={finishing} accessibilityRole="button">

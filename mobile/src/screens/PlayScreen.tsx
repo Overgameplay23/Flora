@@ -67,10 +67,10 @@ export default function PlayScreen({ navigation }: any) {
 
   if (memorial) {
     return (
-      <Screen scroll={false} centered>
+      <Screen scroll={false} centered topInset>
         <PetEmptyState
           title={`${displayName} is resting`}
-          body="The games are paused while the garden is a memorial. Memories and a quiet minute are on the Pet tab."
+          body="The games are paused while the garden is a memorial. Memories and a quiet minute are on the You tab."
           size={120}
         />
       </Screen>
@@ -78,7 +78,7 @@ export default function PlayScreen({ navigation }: any) {
   }
 
   return (
-    <Screen>
+    <Screen topInset>
       <View style={styles.hero}>
         <PetMascot size={110} mood="excited" night={night} />
         <ScreenTitle center style={styles.title}>

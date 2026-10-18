@@ -96,6 +96,8 @@ export function AuthProvider({ children }) {
     setProfileStatus("idle");
     setCachedHasPet(null);
     clearPetStore();
+    // required lazily: the wardrobe store reads useAuth, so a top-level import would be a require cycle
+    require("../services/wardrobeStore").clearWardrobeStore();
   }, []);
 
   const hydrateUserState = useCallback(
