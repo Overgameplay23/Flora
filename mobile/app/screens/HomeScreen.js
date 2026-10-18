@@ -9,6 +9,8 @@ import HomeView from "../../src/components/home/HomeView";
 import FocusPickerSheet from "../../src/components/home/FocusPickerSheet";
 import AddTaskSheet from "../../src/components/home/AddTaskSheet";
 import MilestoneSheet from "../../src/components/home/MilestoneSheet";
+import WelcomeBackSheet from "../../src/components/home/WelcomeBackSheet";
+import { welcomeBack } from "../../src/domain/welcomeBack";
 import { createCustomTask, removeCustomTask } from "../../src/services/customTasks";
 import { reconcileMilestonesForUser } from "../../src/services/milestoneStore";
 import { loadCarePrefs } from "../../src/services/carePrefs";
@@ -110,7 +112,7 @@ export default function HomeScreen() {
   const place = sanctuaryCopy(theme).place;
   const inMemorial = !!memorial;
   // the Cozy Run chip under Days Together: not before the first day of care, never in memorial
-  const { state: cozyState } = useCozyRun();
+  const { state: cozyState, chapters: cozyChapters } = useCozyRun();
   const cozyChip = !inMemorial && cozyState && cozyState.status !== "none" && cozyState.days > 0 ? { days: cozyState.days, resting: cozyState.status === "resting" } : null;
   const cycle = useCycle();
   const moodState = userStats?.pet_mood_state || null;
@@ -608,7 +610,8 @@ export default function HomeScreen() {
         const status = returnStatus(previous, today);
         let note = null;
         if (status.kind === "hibernation" || (status.kind === "back" && status.daysAway >= 2)) {
-          note = status;
+          // the day before this return, so the welcome can tell what kept the Cozy Run going since
+          note = { ...status, lastSeen: previous };
         } else if (status.kind === "same-day") {
           const saved = JSON.parse((await AsyncStorage.getItem(noteKey)) || "null");
           if (saved && saved.day === today && saved.status) note = saved.status;
@@ -629,6 +632,48 @@ export default function HomeScreen() {
   useEffect(() => {
     if (returnNote?.day && returnNote.day !== homeDateKey) setReturnNote(null);
   }, [homeDateKey, returnNote?.day]);
+
+  // ---- the welcome-back moment (src/domain/welcomeBack.ts): once per return, over Home, then the gentle day -----
+  // It waits for the Cozy Run, so it can say how the run fared; memorial has its own quiet greeting instead.
+  const welcomeMoment = useMemo(
+    () =>
+      returnNote && cozyState && !inMemorial
+        ? welcomeBack({
+            daysAway: returnNote.daysAway,
+            lastSeen: returnNote.lastSeen ?? null,
+            petName: petDisplayName,
+            voice,
+            daysTogether,
+            cozy: cozyState,
+            chapters: cozyChapters,
+            memorial: inMemorial,
+          })
+        : null,
+    [cozyChapters, cozyState, daysTogether, inMemorial, petDisplayName, returnNote, voice]
+  );
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
+  const welcomeCheckedFor = useRef(null);
+  // Days Together arrives on its own; wait a moment for it rather than have a line pop into the open sheet
+  const [welcomeGrace, setWelcomeGrace] = useState(false);
+  useEffect(() => {
+    if (!returnNote?.day) return undefined;
+    const id = setTimeout(() => setWelcomeGrace(true), 2500);
+    return () => clearTimeout(id);
+  }, [returnNote?.day]);
+  useEffect(() => {
+    if (!user?.id || !welcomeMoment || !returnNote?.day || welcomeCheckedFor.current === returnNote.day) return;
+    if (typeof daysTogether !== "number" && !welcomeGrace) return;
+    welcomeCheckedFor.current = returnNote.day;
+    const key = `floura:welcome-shown:${user.id}`;
+    AsyncStorage.getItem(key)
+      .catch(() => null)
+      .then((shownOn) => {
+        if (shownOn === returnNote.day) return;
+        setWelcomeVisible(true);
+        // shown once per return, even if the app is closed with the sheet still open
+        AsyncStorage.setItem(key, returnNote.day).catch(() => {});
+      });
+  }, [daysTogether, returnNote?.day, user?.id, welcomeGrace, welcomeMoment]);
 
   // ---- reminders in the pet's voice (rate-limited inside; immediate when memorial flips) ---------------
   useReminderTaps();
@@ -964,8 +1009,17 @@ export default function HomeScreen() {
         onClose={() => (savingFocus ? null : setFocusOpen(false))}
       />
       <AddTaskSheet visible={addOpen} petName={petDisplayName} saving={savingTask} onSave={(input) => void handleAddTask(input)} onClose={() => (savingTask ? null : setAddOpen(false))} />
+      <WelcomeBackSheet
+        moment={welcomeVisible ? welcomeMoment : null}
+        onClose={() => setWelcomeVisible(false)}
+        onOpenRun={() => {
+          setWelcomeVisible(false);
+          navigation.navigate("CozyRun");
+        }}
+      />
       <MilestoneSheet
-        days={milestone}
+        // a milestone reached on the day of a return waits until the welcome is closed: one sheet at a time
+        days={welcomeVisible ? null : milestone}
         petName={petDisplayName}
         onClose={() => setMilestone(null)}
         onKeepsakes={() => {

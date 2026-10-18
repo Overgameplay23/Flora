@@ -976,3 +976,27 @@ owner's uncommitted work and needed nothing, so it was left alone.
 Tests: `gamesByEar.test.ts` (the throw, thirds and cues, the fairness check, flip cues, and that each game keeps its
 action and its announcements). The phone pass gained step 3.4 (each game with VoiceOver). Not provable on web:
 VoiceOver actions and announcements themselves (RN web has neither); the pass covers them on the phone.
+
+## 2026-10-18 — The welcome-back moment
+
+Owner's request: what someone sees after days away, with the Cozy Run resting or kept as a chapter.
+
+Before: after 2+ days away Home's header said "Welcome back" (5+: "You're back!") for the day, the pet reacted, and
+the plan was kept small (Graceful Hibernation, `hibernation.ts`). That stays. New: the first open of the return day
+also brings a small sheet over Home (`WelcomeBackSheet`, rules in `src/domain/welcomeBack.ts`, 7 tests), once per
+return (`floura:welcome-shown:<uid>`):
+- a title and a line in the pet's chosen voice (warm, gentle, plain; a longer version after 5+ days);
+- "Still 34 days together. Nothing was lost.";
+- the Cozy Run, read from its own marks since the last open: "Your 12-day cozy run kept going: 2 Nap Days and a Warm
+  Blanket covered the quiet days." / "… is resting. 2 days of care by Tuesday, today included, and it mends." /
+  "Your 12-day cozy run is kept as a chapter. Today's first small thing starts a new one.";
+- "Today is small on purpose. One thing is plenty." Buttons: "Let's start small", and "See the Cozy Run".
+It never says how long someone was away or what they missed (a test checks the words). Memorial keeps its own quiet
+greeting and gets no sheet. It waits for the Cozy Run (and up to 2.5 s for Days Together) so nothing pops into it,
+and a Days Together milestone reached the same day waits until it is closed: one sheet at a time. The last-seen day
+is per phone, so if the run started on another device since, the run line is left out rather than guessed.
+
+Verified on web as the demo user by moving `floura:last-seen` back: three days away showed "Biscuit saved your spot",
+the together line, "Your 3-day cozy run kept going." and the small-day line; "See the Cozy Run" opened it; a reload the
+same day did not show it again; a week away showed "Biscuit is so glad you're here". The resting and chapter wordings
+are covered by the tests (the demo's data has neither).
