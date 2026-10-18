@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { CARD_RATIO, canShareCard, paintingOf, realPhotoOf, shareCardCopy } from "../domain/shareCard";
+import { CARD_RATIO, canShareAtReveal, canShareCard, paintingOf, realPhotoOf, shareCardCopy } from "../domain/shareCard";
 
 describe("share card", () => {
   it("is offered only when there is a real photo, and never for an adopted companion", () => {
@@ -40,5 +40,22 @@ describe("share card", () => {
     const screen = fs.readFileSync(path.join(__dirname, "..", "screens", "ShareCardScreen.tsx"), "utf8");
     expect(screen).toMatch(/captureRef\(/);
     expect(screen).not.toMatch(/\.upload\(|supabase|functions\.invoke|fetch\(/);
+  });
+
+  it("is offered at a painting reveal only once the painting really exists", () => {
+    const painted = { original: "o", stylized: "s" };
+    expect(canShareAtReveal(painted, false, true)).toBe(true);
+    expect(canShareAtReveal(painted, false, false)).toBe(false); // still painting, or kept the photo
+    expect(canShareAtReveal({ original: "o" }, false, true)).toBe(false); // no painting stored
+    expect(canShareAtReveal(painted, true, true)).toBe(false); // adopted companion
+  });
+
+  it("can be opened from onboarding's reveal as well as from the main app", () => {
+    const root = fs.readFileSync(path.join(__dirname, "..", "..", "app", "navigation", "RootNavigator.js"), "utf8");
+    const main = fs.readFileSync(path.join(__dirname, "..", "..", "app", "navigation", "AppNavigator.js"), "utf8");
+    expect(root).toMatch(/name="ShareCard"/);
+    expect(main).toMatch(/name="ShareCard"/);
+    const onboarding = fs.readFileSync(path.join(__dirname, "..", "screens", "onboarding", "OnboardingScreen.tsx"), "utf8");
+    expect(onboarding).toMatch(/canShareAtReveal\(petSources/);
   });
 });

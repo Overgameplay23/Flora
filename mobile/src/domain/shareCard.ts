@@ -31,6 +31,14 @@ export function canShareCard(sources: PetImageSources | null | undefined, adopte
   return !adopted && !!realPhotoOf(sources);
 }
 
+/**
+ * At a painting reveal (onboarding's reveal step, the painting result screen): offer the card only once the painting
+ * really exists, so the first card someone posts is the painted one.
+ */
+export function canShareAtReveal(sources: PetImageSources | null | undefined, adopted: boolean, painted: boolean): boolean {
+  return painted && !!paintingOf(sources) && canShareCard(sources, adopted);
+}
+
 export function shareCardCopy({ petName, painted, memorial = false }: { petName: string; painted: boolean; memorial?: boolean }): ShareCardCopy {
   const pet = (petName || "My pet").trim() || "My pet";
   const artLabel = painted ? "Painted by Luna" : "Drawn by Luna";

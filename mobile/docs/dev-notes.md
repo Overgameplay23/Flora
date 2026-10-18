@@ -1020,3 +1020,19 @@ and the web capture library draws the tilted frames a little off (the first nudg
 capture is a native snapshot. For the owner: Android's `Share` cannot send a file (1.0 is iPhone only; expo-sharing
 would be the Android answer later), and the painting reveal screen would be a natural second place for the button
 (left out: it is part of the painting flow you are working on). Phone pass: step 4.2b.
+
+## 2026-10-18 — The share card at the painting reveal
+
+Owner asked to offer the card at the painting reveal as well, without touching `src/services/petStylize.js` (it is
+not touched). Two places now offer it, both only once the painting really exists, so the first card someone posts is
+the painted one (`canShareAtReveal` in `src/domain/shareCard.ts`: painted, a painting stored, a real photo, not an
+adopted companion):
+- Onboarding's reveal step: a quiet "Share Biscuit's card" under "Looks good" once the painting finished (not when
+  the photo was kept or the painting failed). New accounts are still in the pet-setup stack there, so `ShareCard` is
+  also registered in that stack in `app/navigation/RootNavigator.js`, with the same themed header as in the app.
+- The painting result screen (`app/screens/PetStylizeResultScreen.js`): "Share the card" between Done and Try again
+  when the painting was saved with the pet.
+
+2 more tests in `shareCard.test.ts` (the reveal rule; the route exists in both stacks and onboarding uses the rule).
+Verified on web as the demo user: the result screen shows "Share the card", and it opens the card with the real photo
+and the painting. The onboarding reveal needs a real painting (Gemini), so it is on the phone pass (step 1.7).

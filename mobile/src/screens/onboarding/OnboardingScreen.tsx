@@ -52,6 +52,7 @@ import {
 import { getLocalDateKey } from "../../utils/dateKeys";
 import { playDing } from "../../utils/sfx";
 import * as haptics from "../../utils/haptics";
+import { canShareAtReveal } from "../../domain/shareCard";
 
 type PaintingState = { status: "idle" | "running" | "done" | "kept-photo" | "failed"; message?: string };
 
@@ -697,7 +698,15 @@ export default function OnboardingScreen({ route, navigation }: any) {
           onPetPress={() => setReaction("love")}
         />
       );
-      footer = <Button label="Looks good" onPress={goNext} />;
+      footer = (
+        <>
+          <Button label="Looks good" onPress={goNext} />
+          {/* the first painting is the moment people post: offer the card once it is really painted */}
+          {canShareAtReveal(petSources, track === "adopt", painting.status === "done") ? (
+            <Button label={`Share ${petName || "your pet"}'s card`} icon="share-outline" variant="quiet" onPress={() => navigation.navigate("ShareCard")} />
+          ) : null}
+        </>
+      );
       break;
     case "reminder":
       content = <ReminderStep petName={petName} times={REMINDER_TIMES} time={reminderTime} onPickTime={setReminderTime} denied={reminderChoice === "denied"} />;

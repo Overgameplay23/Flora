@@ -14,7 +14,8 @@ import PetSetupScreen from "../../src/screens/PetSetupScreen.tsx";
 import OnboardingScreen from "../../src/screens/onboarding/OnboardingScreen";
 import PetStylizeLoadingScreen from "../screens/PetStylizeLoadingScreen";
 import PetStylizeResultScreen from "../screens/PetStylizeResultScreen";
-import AppNavigator from "./AppNavigator";
+import AppNavigator, { stackScreenOptions } from "./AppNavigator";
+import ShareCardScreen from "../../src/screens/ShareCardScreen";
 import EnvWarningBanner from "../../src/components/EnvWarningBanner";
 import NetworkBlockBanner from "../../src/components/NetworkBlockBanner";
 import AuthStatusBanner from "../../src/components/AuthStatusBanner";
@@ -74,6 +75,7 @@ function AuthStack() {
 }
 
 function AppStack({ needsPetSetup }) {
+  const { surface } = useTheme();
   return (
     <AppStackNav.Navigator screenOptions={{ headerShown: false }}>
       {needsPetSetup ? (
@@ -82,6 +84,8 @@ function AppStack({ needsPetSetup }) {
           <AppStackNav.Screen name="PetSetup" component={PetSetupScreen} />
           <AppStackNav.Screen name="PetStylizeLoading" component={PetStylizeLoadingScreen} />
           <AppStackNav.Screen name="PetStylizeResult" component={PetStylizeResultScreen} />
+          {/* onboarding's reveal can share the first painting before the main app exists */}
+          <AppStackNav.Screen name="ShareCard" component={ShareCardScreen} options={{ ...stackScreenOptions(surface), headerShown: true, title: "Share" }} />
         </>
       ) : (
         <AppStackNav.Screen name="MainApp" component={AppNavigator} />

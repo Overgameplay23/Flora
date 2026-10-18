@@ -24,7 +24,7 @@ Mark each line ✅ / ❌ and note the phone model and iOS version at the top of 
 | 1.4 | Try the camera option if offered | iOS asks for the camera with Luna's wording; taking a photo works |
 | 1.5 | Name the pet, go through the quiz | Every step fits on the screen with the keyboard up; the name field is not hidden by the keyboard; chips respond at once |
 | 1.6 | Watch the painting | With the Gemini key live: the drawn pet stands in, then the painting appears (up to a minute). Without it: the drawn pet stays and nothing is stuck on "painting" forever |
-| 1.7 | The reveal and the plan | The pet in its garden (dog) or window nook (cat), the plan with "because you said" chips |
+| 1.7 | The reveal and the plan | The pet in its garden (dog) or window nook (cat), the plan with "because you said" chips. Once the painting is done (not when the photo was kept or for an adopted companion), a quiet "Share <name>'s card" under Looks good opens the card with the photo and the painting; Back returns to the reveal |
 | 1.8 | Reminder step | iOS asks for notification permission only when you tap to turn reminders on, never on its own |
 | 1.9 | Finish onboarding | Home: greeting, the pet large, Days Together and Sprouts chips, today's care |
 

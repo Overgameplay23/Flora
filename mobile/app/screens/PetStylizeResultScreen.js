@@ -3,6 +3,9 @@ import { View, Text, Image, StyleSheet } from "react-native";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { supabase } from "../../src/lib/supabase";
 import { useSignedPetPhotoUrl } from "../../src/services/petPhotoUrls";
+import { usePet } from "../../src/hooks/usePet";
+import { isAdopted } from "../../src/domain/shelter";
+import { canShareAtReveal } from "../../src/domain/shareCard";
 import Screen from "../../src/components/common/Screen";
 import Button from "../../src/components/common/Button";
 import { Lead, ScreenTitle } from "../../src/components/common/Headings";
@@ -24,6 +27,9 @@ export default function PetStylizeResultScreen({ route, navigation }) {
   const maskOriginal = renderSource === "originalMasked";
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // the card (real photo next to the painting) once the painting is saved with the pet
+  const { sources: petSources, look: petLook } = usePet();
+  const canShare = canShareAtReveal(petSources, isAdopted(petLook), savedStylized);
 
   const goToPetTab = () => {
     const routeNames = navigation.getState().routeNames || [];
@@ -109,6 +115,9 @@ export default function PetStylizeResultScreen({ route, navigation }) {
       </Lead>
       {errorMessage ? <Text style={[type.meta, styles.error, { color: theme.alert }]}>{errorMessage}</Text> : null}
       <Button label="Done" onPress={handleDone} loading={saving} containerStyle={styles.primary} />
+      {canShare ? (
+        <Button label="Share the card" icon="share-outline" variant="secondary" size="md" onPress={() => navigation.navigate("ShareCard")} containerStyle={styles.secondary} />
+      ) : null}
       <Button label="Try again" variant="quiet" size="md" onPress={handleTryAgain} containerStyle={styles.secondary} />
     </Screen>
   );
