@@ -91,6 +91,12 @@ export default function SignupScreen({ navigation }) {
     }
     setNotice(outcome.message);
 
+    // confirmation is on: the email has a code, entered on the next screen (ConfirmEmailScreen)
+    if (outcome.kind === "check_email") {
+      navigation.navigate("ConfirmEmail", { email: normalizedEmail });
+      return;
+    }
+
     if (outcome.kind === "already_registered") {
       const goToLogin = await confirmAsync({
         title: "You already have an account",

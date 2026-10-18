@@ -27,7 +27,7 @@ type MaybeAuthError = { status?: unknown; code?: unknown; message?: unknown; isN
 
 export const AUTH_TEXT = {
   checkEmail:
-    "Almost there! We sent a confirmation link to your email. Open it to finish signing up. If it isn't in your inbox, take a peek in your spam folder.",
+    "Almost there! We sent a code to your email to finish signing up. If it isn't in your inbox, take a peek in your spam folder.",
   alreadyRegistered:
     "This email already has an account. Try logging in instead. If you haven't confirmed it yet, the link is in your inbox (or spam folder).",
   emailRateLimited:
@@ -38,13 +38,15 @@ export const AUTH_TEXT = {
   weakPassword: "Please choose a stronger password.",
   signupFailed: "Unable to create account. Please try again.",
   emailNotConfirmed:
-    "Your email isn't confirmed yet. Open the link we sent you (check your spam folder too), then log in.",
+    "Your email isn't confirmed yet. Enter the code we sent you (check your spam folder too), or tap the link in that email, then sign in.",
   signinFailed: "Unable to sign in. Please check your details.",
   resetCodeSent:
     "If there's an account for that email, a code is on its way. It can take a minute; take a peek in your spam folder too.",
   resetCodeInvalid: "That code didn't work. Codes expire after an hour, so ask for a new one if it's been a while.",
   resetSamePassword: "That's the password you already have. Pick a new one.",
   resetFailed: "Something went wrong. Please try again.",
+  confirmCodeSent: "A new code is on its way. Only the newest one works.",
+  confirmFailed: "We couldn't confirm that code. Please try again.",
 } as const;
 
 /** One-time codes are digits only; hosted projects can be set to 6-10 of them. */
@@ -54,6 +56,18 @@ export function normalizeResetCode(raw: string | null | undefined): string {
 
 export function isResetCodeComplete(code: string): boolean {
   return code.length >= 6 && code.length <= 10;
+}
+
+// Confirming a new account with the code from the sign-up email (verifyOtp type "signup"). The same email still
+// carries the link, which works too; the code is what works inside the app with no website or deep link.
+export function signupConfirmOutcome(error: MaybeAuthError): AuthOutcome {
+  const common = commonErrorOutcome(error);
+  if (common && common.kind !== "invalid_email") return common;
+  const { code, message } = readError(error);
+  if (code === "otp_expired" || code === "otp_disabled" || message.includes("token has expired") || message.includes("invalid")) {
+    return { kind: "code_invalid", tone: "error", message: AUTH_TEXT.resetCodeInvalid };
+  }
+  return { kind: "error", tone: "error", message: AUTH_TEXT.confirmFailed };
 }
 
 // Asking for the code: never says whether the email has an account (that would let anyone probe for users).

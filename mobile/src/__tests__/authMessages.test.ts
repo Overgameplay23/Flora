@@ -5,6 +5,7 @@ import {
   resetRequestOutcome,
   resetVerifyOutcome,
   signinErrorOutcome,
+  signupConfirmOutcome,
   signupOutcome,
 } from "../utils/authMessages";
 
@@ -131,5 +132,21 @@ describe("password reset", () => {
     expect(weak.kind).toBe("weak_password");
     expect(weak.message).toMatch(/at least 8/);
     expect(resetVerifyOutcome({ status: 500, message: "boom" }).message).toBe(AUTH_TEXT.resetFailed);
+  });
+});
+
+describe("sign-up confirmation by code", () => {
+  it("explains a wrong or old code and the usual network trouble", () => {
+    expect(signupConfirmOutcome({ status: 403, code: "otp_expired", message: "Token has expired or is invalid" }).kind).toBe("code_invalid");
+    expect(signupConfirmOutcome({ status: 429, code: "over_email_send_rate_limit", message: "email rate limit exceeded" }).message).toBe(AUTH_TEXT.emailRateLimited);
+    expect(signupConfirmOutcome({ status: 503, message: "down" }).kind).toBe("service_unavailable");
+    expect(signupConfirmOutcome({ status: 500, message: "boom" }).message).toBe(AUTH_TEXT.confirmFailed);
+  });
+
+  it("points people at the code, the link and the spam folder", () => {
+    expect(AUTH_TEXT.checkEmail).toMatch(/code/);
+    expect(AUTH_TEXT.emailNotConfirmed).toMatch(/code/);
+    expect(AUTH_TEXT.emailNotConfirmed).toMatch(/link/);
+    expect(AUTH_TEXT.emailNotConfirmed).toMatch(/spam/);
   });
 });

@@ -15,6 +15,8 @@ export default function LoginScreen({ navigation }) {
   const [err, setErr] = useState("");
   // "notice" is a next step (open the confirmation link); "error" means the attempt did not work
   const [errIsNotice, setErrIsNotice] = useState(false);
+  // the account exists but its email is not confirmed: offer the code screen
+  const [needsConfirm, setNeedsConfirm] = useState(false);
   const [emailHasError, setEmailHasError] = useState(false);
   const [busy, setBusy] = useState(false);
   // A ref as well as state: a quick double tap fires twice before the disabled button re-renders.
@@ -33,6 +35,7 @@ export default function LoginScreen({ navigation }) {
 
     setErr("");
     setErrIsNotice(false);
+    setNeedsConfirm(false);
     setEmailHasError(false);
 
     const normalizedEmail = typeof email === "string" ? email.trim() : "";
@@ -76,6 +79,7 @@ export default function LoginScreen({ navigation }) {
       });
       if (outcome.emailField) setEmailHasError(true);
       setErrIsNotice(outcome.tone === "notice");
+      setNeedsConfirm(outcome.kind === "email_not_confirmed");
       setErr(outcome.message);
     } finally {
       inFlight.current = false;
@@ -117,6 +121,16 @@ export default function LoginScreen({ navigation }) {
         >
           {err}
         </Text>
+      ) : null}
+      {needsConfirm ? (
+        <Pressable
+          onPress={() => navigation.navigate("ConfirmEmail", { email: email.trim() })}
+          hitSlop={8}
+          accessibilityRole="link"
+          style={styles.linkTight}
+        >
+          <Text style={[type.callout, { color: theme.link, fontFamily: fonts.bodyBold }]}>Enter the code from the email</Text>
+        </Pressable>
       ) : null}
       <Button label={busy ? "Signing in…" : "Sign in"} onPress={handleLogin} loading={busy} disabled={busy} containerStyle={styles.cta} />
       <Pressable

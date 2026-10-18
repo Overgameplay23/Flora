@@ -53,7 +53,8 @@ minimum_password_length = 6
 [auth.email]
 enable_signup = true
 double_confirm_changes = true
-# Sign-up returns a session immediately. The app's Signup screen has no "check your email" state yet.
+# Off here so local sign-ups are instant. Bloom has confirmations on; the app then asks for the code from the
+# email (src/screens/ConfirmEmailScreen.js). Set to true (and restart the stack) to try that flow with Mailpit.
 enable_confirmations = false
 
 # The reset email carries a code, not a link (src/screens/ForgotPasswordScreen.js). Paste the same template on
@@ -61,6 +62,12 @@ enable_confirmations = false
 [auth.email.template.recovery]
 subject = "Your code to set a new password"
 content_path = "./supabase/templates/recovery.html"
+
+# Sign-up confirmation by code as well (src/screens/ConfirmEmailScreen.js); used whenever confirmations are on.
+# Paste into Bloom: dashboard > Authentication > Emails > Confirm signup.
+[auth.email.template.confirmation]
+subject = "Your Luna code"
+content_path = "./supabase/templates/confirmation.html"
 
 [edge_runtime]
 # pet-stylize / pet-chat need provider keys (Gemini, OpenRouter, Groq) that do not exist locally.

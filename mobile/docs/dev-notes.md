@@ -878,3 +878,28 @@ phone, a pet that has passed away, medical, who sees data) is shown at Profile �
 policy (one contact email, privacy.json's; hidden while empty). A test checks the answers name buttons that exist
 ("Forgot your password?", "Delete account", "Change pet photo"). Host both HTML files together (the support page links
 `privacy-policy.html`); the two URLs go into App Store Connect.
+
+## 2026-10-17 — Sign-up confirmation by code
+
+Bloom has email confirmation on (owner's audit). Its "Confirm signup" email carries a link to the project's Site
+URL, and nothing in Luna lives at that address yet, so on a phone the link opens a dead page right after sign-up
+(the account is confirmed anyway, but it looks broken). Same answer as the password reset: a 6-digit code typed into
+the app, which needs no website and no deep link.
+
+- Sign-up: when signUp returns no session, the app opens `ConfirmEmail` (`src/screens/ConfirmEmailScreen.js`,
+  `?preview=confirm`): the code (verifyOtp type "signup"), "Send a new code" (auth.resend type "signup"), "Tapped the
+  link instead? Then you're confirmed: go back and sign in", Back to sign in. A correct code signs in and onboarding
+  starts on its own.
+- Sign-in with an unconfirmed address: the notice now mentions the code and the link, with "Enter the code from the
+  email" opening the same screen.
+- Messages: `signupConfirmOutcome` in `authMessages.ts` (tested); the sign-up and not-confirmed notices mention the code.
+- Email: `local-backend/supabase/templates/confirmation.html` (code only, like the reset email). **For Bloom:**
+  paste it into Authentication › Emails › Confirm signup, next to the Reset password one. Until then Bloom's email has
+  only the link: the screen's "tapped the link instead" line still gets people through.
+- Local config: `enable_confirmations` stays false (instant local sign-ups); the comment says how to flip it.
+
+Verified on web against the local stack with confirmations switched on for the test (restarted with the CLI
+directly, not `npm run backend:start`, so the owner's in-progress migration build was not re-run), then switched
+back: sign-up opened Check your email, Mailpit had "Your Luna code", a wrong code said "That code didn't work…", the
+right one landed in onboarding; an unconfirmed account's sign-in showed the notice and the link, "Send a new code"
+said "A new code is on its way" and the newest code worked. The two probe accounts were deleted afterwards.
