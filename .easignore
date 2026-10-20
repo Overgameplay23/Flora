@@ -1,0 +1,32 @@
+# EAS archives this Git repository root, not mobile/. Only ship the app.
+/*
+!/mobile
+!/mobile/**
+node_modules/
+.expo/
+.expo-export-check/
+dist/
+web-build/
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.p8
+*.key
+*.mobileprovision
+*.jks
+*.log
+.DS_Store
+/mobile/backups
+/mobile/tmp
+/mobile/supabase
+/mobile/local-backend
+/mobile/server
+/mobile/dataconnect
+/mobile/liftiq
+/mobile/docs
+# Generate native projects from Luna's app config and SDK 57 on EAS.
+# Historical native folders remain intact in the local checkout.
+/mobile/ios
+/mobile/android

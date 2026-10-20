@@ -110,7 +110,7 @@ describe("stylizePet", () => {
     const result = await repaint();
     expect(mockNetFetch).toHaveBeenCalledTimes(1);
     const [url, init] = mockNetFetch.mock.calls[0];
-    expect(url).toBe("https://proj.functions.supabase.co/pet-stylize");
+    expect(url).toBe("https://proj.supabase.co/functions/v1/pet-stylize");
     expect(init).toMatchObject({ method: "POST", timeoutMs: 110_000 });
     expect(PET_STYLIZE_TIMEOUT_MS).toBe(110_000);
     expect(result.stylizedUrl).toMatch(/processed\/stylized\.png\?t=\d+$/);

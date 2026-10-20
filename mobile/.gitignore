@@ -51,6 +51,7 @@ supabase/.temp/
 
 # restoration check artefacts
 .expo-export-check/
+tmp/
 
 # local Supabase stack (CLI state and demo session are machine-local)
 local-backend/supabase/.temp/

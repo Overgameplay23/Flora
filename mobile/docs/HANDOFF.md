@@ -1,5 +1,9 @@
 # Luna — Project Handoff
 
+> **17 October 2026 TestFlight preparation:** [Current audit](TESTFLIGHT_AUDIT_2026-10-17.md) supersedes historical
+> backend/build-readiness statements below. Bloom wiring is live-tested, EAS is linked, and the painting function
+> is deployed pending its provider key. 416 app tests and 334 DB tests pass. No TestFlight upload or device acceptance.
+
 Baseline as of **27 September 2026**, compiled from the repository at commit `be62e0f` and a fresh run of
 `npm run check` the same day. Luna was formerly "Floura" / "Flora". Repo: `github.com/Overgameplay23/Flora`,
 branch `main`, app in `mobile/`. Owner: Donovan.

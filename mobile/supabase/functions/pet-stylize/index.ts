@@ -1144,7 +1144,7 @@ serve(async (req) => {
       requestId,
       debug: { reason: "health_check" },
     });
-    return jsonResponse(200, payload);
+    return jsonResponse(200, { ...payload, ready: Boolean(getEnvKey()) });
   }
 
   try {
@@ -1155,16 +1155,6 @@ serve(async (req) => {
     const model = Deno.env.get("GEMINI_IMAGE_MODEL") || "gemini-2.5-flash-image";
     const bgRemovalModel = Deno.env.get("GEMINI_BG_REMOVAL_MODEL") || model;
 
-    if (!geminiApiKey) {
-      return jsonResponse(
-        500,
-        buildErrorPayload({
-          code: "MISSING_KEY",
-          message: "Missing gemini_api_key secret.",
-          requestId,
-        })
-      );
-    }
     if (!supabaseUrl || !supabaseAnonKey) {
       return jsonResponse(
         500,
@@ -1193,6 +1183,36 @@ serve(async (req) => {
         buildErrorPayload({
           code: "AUTH",
           message: "Missing Authorization header.",
+          requestId,
+        })
+      );
+    }
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser();
+    if (userError || !user) {
+      return jsonResponse(
+        401,
+        buildErrorPayload({
+          code: "AUTH",
+          message: "Unauthorized request.",
+          requestId,
+        })
+      );
+    }
+    const userId = user.id;
+
+    if (!geminiApiKey) {
+      return jsonResponse(
+        500,
+        buildErrorPayload({
+          code: "MISSING_KEY",
+          message: "Missing gemini_api_key secret.",
           requestId,
         })
       );
@@ -1307,25 +1327,6 @@ serve(async (req) => {
         })
       );
     }
-
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const {
-      data: { user },
-      error: userError,
-    } = await authClient.auth.getUser();
-    if (userError || !user) {
-      return jsonResponse(
-        401,
-        buildErrorPayload({
-          code: "AUTH",
-          message: "Unauthorized request.",
-          requestId,
-        })
-      );
-    }
-    const userId = user.id;
 
     if (requestedUserId && requestedUserId !== userId) {
       return jsonResponse(

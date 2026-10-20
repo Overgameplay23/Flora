@@ -1,5 +1,12 @@
 # Luna — road to the App Store
 
+> **Verified update, 17 October 2026:** See [the TestFlight audit](TESTFLIGHT_AUDIT_2026-10-17.md) for current
+> evidence and remaining gates. Bloom passes 39 live integration assertions; local DB tests pass 334 assertions;
+> the app passes 416 tests and exports iOS Hermes. Expo project `@auramindai/luna` and both EAS environments are
+> configured. Painting is deployed but awaits the Gemini key/test. The repository-root `.easignore` now excludes
+> the stale native folders and backups. Nothing has been signed or uploaded to TestFlight. Older checklist
+> entries below describing absent Expo accounts, untracked wardrobe SQL or native build packaging are superseded.
+
 Living checklist, started 2026-10-17. Tick items off here as they land. The product is far past the strategy's
 MVP (painted pet, adaptive plan, journeys, five games, insights, scrapbook, cycle, memorial); what stands between
 `main` and the App Store is mostly **launch plumbing and owner accounts**, not features.
@@ -118,7 +125,8 @@ Notes: iPad is off for 1.0 (`supportsTablet: false`, so no iPad screenshots are 
 review sees); the app declares no encryption beyond HTTPS (`usesNonExemptEncryption: false`), so uploads skip the
 export-compliance question; it asks only for photos (to pick them, and to save a share card) and the camera, with Luna's own wording, and declares no
 microphone, background audio or Face ID (guarded by `src/__tests__/appIdentity.test.ts`). The old `ios/` and
-`android/` folders are stale; EAS builds from the config, so they can stay until someone deletes them on purpose.
+`android/` folders are stale; the repository-root `.easignore` excludes them from EAS uploads so prebuild can
+generate the correct native project. Merely having an app config does not make EAS ignore tracked native folders.
 
 ## App Review: demo account and notes
 

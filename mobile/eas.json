@@ -11,10 +11,13 @@
     },
     "preview": {
       "extends": "hosted",
+      "environment": "preview",
       "distribution": "internal"
     },
     "production": {
       "extends": "hosted",
+      "environment": "production",
+      "distribution": "store",
       "autoIncrement": true
     }
   },

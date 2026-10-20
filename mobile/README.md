@@ -108,3 +108,10 @@ Run `scripts/retention_sanity.sql` in SQL editor (replace `<USER_ID>`). It inclu
 - rollup verification queries
 - pet state checks
 - weekly summary + memories checks
+# Current release preparation
+
+Use [the TestFlight audit](docs/TESTFLIGHT_AUDIT_2026-10-17.md) and [launch checklist](docs/LAUNCH.md).
+The active backend is **Bloom (`jhrsfogxxexmzauhtjif`)**. Commands below referencing the deleted
+`gghesvpmskjlrlpoosgf` project are historical. Deploy the supported painting function with
+`npm run supabase:deploy:pet`; do not deploy the retired pet-chat or weekly-summary functions.
+

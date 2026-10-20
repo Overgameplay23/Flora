@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase";
 import { cancelReminders } from "./reminders";
 
 const PHOTO_BUCKET = "pets";
+const STORAGE_PAGE_SIZE = 1000;
 
 // written before the per-user keys existed; they belong to whoever is signed in on this phone
 const LEGACY_DEVICE_KEYS = ["user_habits_v1", "pending_completions"];
@@ -48,13 +49,18 @@ async function listOwnPhotos(userId: string): Promise<string[]> {
   const folders = [userId];
   while (folders.length) {
     const folder = folders.shift() as string;
-    const { data, error } = await bucket.list(folder, { limit: 1000 });
-    if (error) throw error;
-    for (const item of data ?? []) {
-      const full = `${folder}/${item.name}`;
-      // the Storage API lists sub-folders as entries without an id
-      if (item.id == null) folders.push(full);
-      else files.push(full);
+    for (let offset = 0; ; offset += STORAGE_PAGE_SIZE) {
+      const { data, error } = await bucket.list(folder, {
+        limit: STORAGE_PAGE_SIZE, offset, sortBy: { column: "name", order: "asc" },
+      });
+      if (error) throw error;
+      for (const item of data ?? []) {
+        const full = `${folder}/${item.name}`;
+        // the Storage API lists sub-folders as entries without an id
+        if (item.id == null) folders.push(full);
+        else files.push(full);
+      }
+      if (!data || data.length < STORAGE_PAGE_SIZE) break;
     }
   }
   return files;
@@ -62,9 +68,10 @@ async function listOwnPhotos(userId: string): Promise<string[]> {
 
 async function removeOwnPhotos(userId: string) {
   const files = await listOwnPhotos(userId);
-  if (!files.length) return;
-  const { error } = await supabase.storage.from(PHOTO_BUCKET).remove(files);
-  if (error) throw error;
+  for (let offset = 0; offset < files.length; offset += STORAGE_PAGE_SIZE) {
+    const { error } = await supabase.storage.from(PHOTO_BUCKET).remove(files.slice(offset, offset + STORAGE_PAGE_SIZE));
+    if (error) throw error;
+  }
 }
 
 /** Steps 3 and 4. Never throws: the account is already gone, so the person must end up signed out regardless. */

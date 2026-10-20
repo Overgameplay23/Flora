@@ -64,9 +64,13 @@ export default function JournalScreen() {
       setLoading(false);
       return;
     }
-    const next = await loadJournal(user.id);
-    setEntries(next);
-    setLoading(false);
+    try {
+      setEntries(await loadJournal(user.id));
+    } catch {
+      setSaveError("Couldn't read the journal on this phone. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [user?.id]);
 
   useFocusEffect(
@@ -108,7 +112,11 @@ export default function JournalScreen() {
     if (!user?.id) return;
     const ok = await confirmAsync({ title: "Remove this entry?", message: "It goes for good.", confirmText: "Remove", destructive: true });
     if (!ok) return;
-    setEntries(await deleteJournalEntry(user.id, entry.id));
+    try {
+      setEntries(await deleteJournalEntry(user.id, entry.id));
+    } catch {
+      setSaveError("Couldn't remove this entry on your phone. Please try again.");
+    }
   };
 
   const days = useMemo(() => groupByDay(entries, today), [entries, today]);

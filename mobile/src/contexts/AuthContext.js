@@ -6,6 +6,7 @@ import { clearPetStore } from "../services/petStore";
 import { clearAuthFetchIssue, getAuthFetchIssue, subscribeAuthFetchIssue } from "../utils/net";
 import { diagLog } from "../utils/diagLog";
 import { shortId } from "../utils/logRedact";
+import { watchAuthLifecycle } from "../services/authLifecycle";
 
 const RETRYABLE_AUTH_STATUSES = new Set([502, 503, 504, 521]);
 // Remembered per user so an offline launch can still tell "has a pet" from "never set one up" (R-04).
@@ -207,6 +208,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     mountedRef.current = true;
+    const stopAuthLifecycle = watchAuthLifecycle();
 
     const unsubscribeAuthIssue = subscribeAuthFetchIssue((issue) => {
       authIssueRef.current = issue;
@@ -301,6 +303,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       mountedRef.current = false;
+      stopAuthLifecycle();
       unsubscribeAuthIssue();
       authListener?.subscription?.unsubscribe();
     };

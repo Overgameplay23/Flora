@@ -14,9 +14,9 @@ jest.mock("../lib/supabase", () => ({
   supabase: {
     storage: {
       from: () => ({
-        list: async (folder: string) => {
+        list: async (folder: string, { offset, limit }: { offset: number; limit: number }) => {
           mockCalls.push(`list ${folder}`);
-          return mockStorage.listError ? { data: null, error: mockStorage.listError } : { data: mockStorage.folders[folder] ?? [], error: null };
+          return mockStorage.listError ? { data: null, error: mockStorage.listError } : { data: (mockStorage.folders[folder] ?? []).slice(offset, offset + limit), error: null };
         },
         remove: async (paths: string[]) => {
           mockCalls.push("remove");
@@ -59,6 +59,17 @@ beforeEach(async () => {
 });
 
 describe("account deletion", () => {
+  it("removes every page and nested folder before deleting an account", async () => {
+    mockStorage.folders[ME] = Array.from({ length: 1001 }, (_, index) => ({ name: `photo-${index}.jpg`, id: String(index) }));
+    mockStorage.folders[ME].push({ name: "processed", id: null });
+    mockStorage.folders[`${ME}/processed`] = [{ name: "portrait.png", id: "portrait" }];
+    await deleteMyAccount(ME);
+    expect(mockStorage.removed).toHaveLength(1002);
+    expect(new Set(mockStorage.removed).size).toBe(1002);
+    expect(mockStorage.removed).toContain(`${ME}/processed/portrait.png`);
+    expect(mockCalls.filter((call) => call === "remove")).toHaveLength(2);
+    expect(mockCalls.lastIndexOf("remove")).toBeLessThan(mockCalls.indexOf("rpc delete_my_account"));
+  });
   it("asks for the word, nothing else", () => {
     expect(confirmWordMatches("delete")).toBe(true);
     expect(confirmWordMatches("  DELETE ")).toBe(true);

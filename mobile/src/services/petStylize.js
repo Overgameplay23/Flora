@@ -286,7 +286,7 @@ async function invokeEdgeFunction(body) {
   const functionsOverride = getValidatedPublicEnv("EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL");
   const functionsUrl =
     functionsOverride ||
-    (supabaseUrl ? supabaseUrl.replace(".supabase.co", ".functions.supabase.co") : "");
+    (supabaseUrl ? `${supabaseUrl.replace(/\/$/, "")}/functions/v1` : "");
 
   if (!functionsUrl) {
     const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION, { body });

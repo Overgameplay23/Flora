@@ -64,6 +64,12 @@
           "backgroundColor": "#3E4878"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "dc343898-1e42-484b-9e43-a30a4d3938f4"
+      }
+    },
+    "owner": "auramindai"
   }
 }

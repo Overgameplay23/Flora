@@ -48,6 +48,8 @@ begin
   insert into public.journal_entries (user_id, entry_text, entry_date) values (me, 'private journal line', current_date);
   perform public.log_event_and_rollup('checkin_submitted', now(), null, null, 0, 3, '{}'::jsonb, current_date);
   perform public.recompute_pet_state(current_date);
+  perform public.buy_wardrobe_item('head.daisy_crown');
+  perform public.equip_outfit('{"head":"head.daisy_crown"}'::jsonb);
 end $$;
 grant execute on function tests.seed_as_owner() to authenticated;
 
